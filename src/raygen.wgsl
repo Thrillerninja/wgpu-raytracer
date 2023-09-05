@@ -1,5 +1,11 @@
 @group(0) @binding(0) var color_buffer: texture_storage_2d<rgba8unorm, write>;
 
+//Camera
+struct CameraUniform {
+    view_proj: mat4x4<f32>,
+};
+@group(1) @binding(0) var<uniform> camera: CameraUniform;
+
 struct Sphere {
     center: vec3<f32>,
     radius: f32,
@@ -20,16 +26,22 @@ fn main(@builtin(global_invocation_id) GlobalInvocationID: vec3<u32>) {
     let screen_size: vec2<i32> = vec2<i32>(textureDimensions(color_buffer));
     let screen_pos: vec2<i32> = vec2<i32>(i32(GlobalInvocationID.x), i32(GlobalInvocationID.y));
 
-    let horizontal_coefficient: f32 = (f32(screen_pos.x) - f32(screen_size.x) / 2.0) / f32(screen_size.x);
-    let vertical_coefficient: f32 = (f32(screen_pos.y) - f32(screen_size.y) / 2.0) / f32(screen_size.x);
+    // Convert screen coordinates to normalized device coordinates (NDC)
+    let ndc_coords: vec2<f32> = (vec2<f32>(screen_pos) / vec2<f32>(screen_size) * 2.0) - 1.0;
+
+    // Apply camera perspective transformation
+    let clip_coords: vec4<f32> = vec4<f32>(ndc_coords.x, ndc_coords.y, 0.0, 1.0);
+    let view_proj_matrix: mat4x4<f32> = camera.view_proj;
+    let world_coords: vec4<f32> = view_proj_matrix * clip_coords;
+    let ray_dir_camera: vec3<f32> = normalize(vec3<f32>(world_coords.x, world_coords.y, world_coords.z));
 
     var mySphere: Sphere;
-    mySphere.center = vec3<f32>(0.0, 0.0, 0.0); // Center of the circle
-    mySphere.radius = 0.2; // Radius of the circle
+    mySphere.center = vec3<f32>(0.0, 0.0, 0.0); // Center of the sphere
+    mySphere.radius = 0.5; // Radius of the sphere
 
     var myRay: Ray;
-    myRay.direction = normalize(vec3<f32>(horizontal_coefficient, vertical_coefficient, 1.0)); // Direction from the pixel to the sphere
-    myRay.origin = vec3<f32>(0.0, 0.0, 1.0); // Origin of the ray (adjusted for visibility)
+    myRay.direction = ray_dir_camera; // Ray direction in camera space
+    myRay.origin = vec3<f32>(0.0, 1.0, 2.0); // Origin of the ray (camera position)
 
     var pixel_color: vec3<f32> = vec3<f32>(0.5, 0.0, 0.25);
 
@@ -39,6 +51,7 @@ fn main(@builtin(global_invocation_id) GlobalInvocationID: vec3<u32>) {
 
     textureStore(color_buffer, screen_pos, vec4<f32>(pixel_color, 1.0));
 }
+
 
 fn hit(ray: Ray, sphere: Sphere) -> bool {
     let oc: vec3<f32> = ray.origin - sphere.center;

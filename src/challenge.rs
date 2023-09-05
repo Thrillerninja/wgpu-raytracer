@@ -13,6 +13,7 @@ use winit::{
 use wasm_bindgen::prelude::*;
 
 mod texture;
+mod camera;
 
 #[repr(C)]
 #[derive(Copy, Clone, Debug, bytemuck::Pod, bytemuck::Zeroable)]
@@ -68,153 +69,10 @@ const VERTICES: &[Vertex] = &[
 
 const INDICES: &[u16] = &[0, 1, 4, 1, 2, 4, 2, 3, 4, /* padding */ 0];
 
-#[rustfmt::skip]
-pub const OPENGL_TO_WGPU_MATRIX: cgmath::Matrix4<f32> = cgmath::Matrix4::new(
-    1.0, 0.0, 0.0, 0.0,
-    0.0, 1.0, 0.0, 0.0,
-    0.0, 0.0, 0.5, 0.5,
-    0.0, 0.0, 0.0, 1.0,
-);
-
-struct Camera {
-    eye: cgmath::Point3<f32>,
-    target: cgmath::Point3<f32>,
-    up: cgmath::Vector3<f32>,
-    aspect: f32,
-    fovy: f32,
-    znear: f32,
-    zfar: f32,
-}
-
-impl Camera {
-    fn build_view_projection_matrix(&self) -> cgmath::Matrix4<f32> {
-        let view = cgmath::Matrix4::look_at_rh(self.eye, self.target, self.up);
-        let proj = cgmath::perspective(cgmath::Deg(self.fovy), self.aspect, self.znear, self.zfar);
-        proj * view
-    }
-}
-
-#[repr(C)]
-#[derive(Debug, Copy, Clone, bytemuck::Pod, bytemuck::Zeroable)]
-struct CameraUniform {
-    view_proj: [[f32; 4]; 4],
-}
-
-impl CameraUniform {
-    fn new() -> Self {
-        use cgmath::SquareMatrix;
-        Self {
-            view_proj: cgmath::Matrix4::identity().into(),
-        }
-    }
-
-    fn update_view_proj(&mut self, camera: &Camera) {
-        self.view_proj = (OPENGL_TO_WGPU_MATRIX * camera.build_view_projection_matrix()).into();
-    }
-}
-
-struct CameraController {
-    speed: f32,
-    is_up_pressed: bool,
-    is_down_pressed: bool,
-    is_forward_pressed: bool,
-    is_backward_pressed: bool,
-    is_left_pressed: bool,
-    is_right_pressed: bool,
-}
-
-impl CameraController {
-    fn new(speed: f32) -> Self {
-        Self {
-            speed,
-            is_up_pressed: false,
-            is_down_pressed: false,
-            is_forward_pressed: false,
-            is_backward_pressed: false,
-            is_left_pressed: false,
-            is_right_pressed: false,
-        }
-    }
-
-    fn process_events(&mut self, event: &WindowEvent) -> bool {
-        match event {
-            WindowEvent::KeyboardInput {
-                input:
-                    KeyboardInput {
-                        state,
-                        virtual_keycode: Some(keycode),
-                        ..
-                    },
-                ..
-            } => {
-                let is_pressed = *state == ElementState::Pressed;
-                match keycode {
-                    VirtualKeyCode::Space => {
-                        self.is_up_pressed = is_pressed;
-                        true
-                    }
-                    VirtualKeyCode::LShift => {
-                        self.is_down_pressed = is_pressed;
-                        true
-                    }
-                    VirtualKeyCode::W | VirtualKeyCode::Up => {
-                        self.is_forward_pressed = is_pressed;
-                        true
-                    }
-                    VirtualKeyCode::A | VirtualKeyCode::Left => {
-                        self.is_left_pressed = is_pressed;
-                        true
-                    }
-                    VirtualKeyCode::S | VirtualKeyCode::Down => {
-                        self.is_backward_pressed = is_pressed;
-                        true
-                    }
-                    VirtualKeyCode::D | VirtualKeyCode::Right => {
-                        self.is_right_pressed = is_pressed;
-                        true
-                    }
-                    _ => false,
-                }
-            }
-            _ => false,
-        }
-    }
-
-    fn update_camera(&self, camera: &mut Camera) {
-        use cgmath::InnerSpace;
-        let forward = camera.target - camera.eye;
-        let forward_norm = forward.normalize();
-        let forward_mag = forward.magnitude();
-
-        // Prevents glitching when camera gets too close to the
-        // center of the scene.
-        if self.is_forward_pressed && forward_mag > self.speed {
-            camera.eye += forward_norm * self.speed;
-        }
-        if self.is_backward_pressed {
-            camera.eye -= forward_norm * self.speed;
-        }
-
-        let right = forward_norm.cross(camera.up);
-
-        // Redo radius calc in case the up/ down is pressed.
-        let forward = camera.target - camera.eye;
-        let forward_mag = forward.magnitude();
-
-        if self.is_right_pressed {
-            // Rescale the distance between the target and eye so
-            // that it doesn't change. The eye therefore still
-            // lies on the circle made by the target and eye.
-            camera.eye = camera.target - (forward + right * self.speed).normalize() * forward_mag;
-        }
-        if self.is_left_pressed {
-            camera.eye = camera.target - (forward - right * self.speed).normalize() * forward_mag;
-        }
-    }
-}
 
 struct State {
     surface: wgpu::Surface,
+    color_buffer_view: wgpu::TextureView,
     device: wgpu::Device,
     queue: wgpu::Queue,
     config: wgpu::SurfaceConfiguration,
@@ -230,6 +88,11 @@ struct State {
     screen_render_pipeline: wgpu::RenderPipeline,
     screen_bind_group: wgpu::BindGroup,
     sampler: wgpu::Sampler,
+    //Camera
+    camera: camera::Camera,
+    camera_uniform: camera::CameraUniform,
+    camera_buffer: wgpu::Buffer,
+    camera_bind_group: wgpu::BindGroup,
 }
 
 
@@ -286,8 +149,7 @@ impl State {
         // Using a different one will result in all the colors coming out darker.
         // If you want to support non-SRGB surfaces, you'll need to account for that when drawing to the frame.
         
-        let surface_format = surface_caps
-            .formats
+        let surface_format = surface_caps.formats
             .iter()
             .copied()
             .find(|f| f.is_srgb())
@@ -325,7 +187,57 @@ impl State {
         
         
         let color_buffer_view = color_texture.create_view(&wgpu::TextureViewDescriptor::default());
+
         
+        //----------Camera-------------
+
+        let camera = camera::Camera::new(
+            (0.0, 1.0, 2.0).into(),
+            (0.0, 0.0, 0.0).into(),
+            cgmath::Vector3::unit_y(),
+            config.width as f32 / config.height as f32,
+            45.0,
+            0.1,
+            100.0,
+        );
+
+        let camera_controller = camera::CameraController::new(0.2);
+
+        let mut camera_uniform = camera::CameraUniform::new();
+        camera_uniform.update_view_proj(&camera);
+
+        let camera_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
+            label: Some("Camera Buffer"),
+            contents: bytemuck::cast_slice(&[camera_uniform]),
+            usage: wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST,
+        });
+
+        let camera_bind_group_layout =
+            device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
+                entries: &[wgpu::BindGroupLayoutEntry {
+                    binding: 0,
+                    visibility: wgpu::ShaderStages::COMPUTE,
+                    ty: wgpu::BindingType::Buffer {
+                        ty: wgpu::BufferBindingType::Uniform,
+                        has_dynamic_offset: false,
+                        min_binding_size: None,
+                    },
+                    count: None,
+                }],
+                label: Some("camera_bind_group_layout"),
+            });
+
+        let camera_bind_group = device.create_bind_group(&wgpu::BindGroupDescriptor {
+            layout: &camera_bind_group_layout,
+            entries: &[wgpu::BindGroupEntry {
+                binding: 0,
+                resource: camera_buffer.as_entire_binding(),
+            }],
+            label: Some("camera_bind_group"),
+        });
+        
+        //----------Raytracing-------------
+
         // Create a bind group layout for the shader
         let raytracing_bind_group_layout = device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
             entries: &[
@@ -354,10 +266,6 @@ impl State {
             label: Some("raytracing_bind_group"),
         });
 
-
-
-        //----------Raytracing-------------
-
         // Load your ray tracing shaders (ray generation, intersection, etc.)
         let ray_generation_shader = device.create_shader_module(wgpu::ShaderModuleDescriptor {
             label: Some("Ray Generation Shader"),
@@ -366,19 +274,22 @@ impl State {
         });
 
 
-        // Create a ray tracing pipeline
+        // Create a ray tracing pipeline layout
         let raytracing_pipeline_layout =
-            device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
-                label: Some("Ray Tracing Pipeline Layout"),
-                bind_group_layouts: &[&raytracing_bind_group_layout],
-                push_constant_ranges: &[],
-            });
+        device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
+            label: Some("Ray Tracing Pipeline Layout"),
+            bind_group_layouts: &[
+                &raytracing_bind_group_layout,
+                &camera_bind_group_layout,
+            ],
+            push_constant_ranges: &[],
+        });
 
         let ray_tracing_pipeline = device.create_compute_pipeline(&wgpu::ComputePipelineDescriptor {
-            label: Some("Ray Tracing Pipeline"),
-            layout: Some(&raytracing_pipeline_layout),
-            module: &ray_generation_shader,
-            entry_point: "main", // Change to your actual entry point name
+        label: Some("Ray Tracing Pipeline"),
+        layout: Some(&raytracing_pipeline_layout),
+        module: &ray_generation_shader,
+        entry_point: "main", // Change to your actual entry point name
         });
 
 
@@ -491,10 +402,6 @@ impl State {
             multiview: None,
         });
 
-
-
-
-
         //BUFFER INIT
         let vertex_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
             label: Some("Vertex Buffer"),
@@ -508,9 +415,10 @@ impl State {
         });
         let num_indices = INDICES.len() as u32;
 
-
+        
         Self {
             surface,
+            color_buffer_view,
             device,
             queue,
             config,
@@ -525,6 +433,10 @@ impl State {
             screen_render_pipeline,
             screen_bind_group,
             sampler,
+            camera,
+            camera_uniform,
+            camera_buffer,
+            camera_bind_group,
         }
     }
 
@@ -537,6 +449,31 @@ impl State {
             self.size = new_size;
             self.config.width = new_size.width;
             self.config.height = new_size.height;
+
+            // Synchronize to ensure rendering is finished before resizing
+            self.device.poll(wgpu::Maintain::Wait);
+
+            // Recreate the color texture and its view with the new size
+            let color_texture = self.device.create_texture(&wgpu::TextureDescriptor {
+                label: Some("Storage Texture"),
+                view_formats: &[self.config.format],
+                size: wgpu::Extent3d {
+                    width: self.config.width,
+                    height: self.config.height,
+                    depth_or_array_layers: 1,
+                },
+                mip_level_count: 1,
+                sample_count: 1,
+                dimension: wgpu::TextureDimension::D2,
+                format: self.config.format,
+                usage: wgpu::TextureUsages::TEXTURE_BINDING
+                    | wgpu::TextureUsages::COPY_DST
+                    | wgpu::TextureUsages::STORAGE_BINDING,
+            });
+
+            self.color_buffer_view = color_texture.create_view(&wgpu::TextureViewDescriptor::default());
+
+            // Reconfigure the rendering surface
             self.surface.configure(&self.device, &self.config);
         }
     }
@@ -574,6 +511,7 @@ impl State {
             // Set ray tracing pipeline and bind group
             compute_pass.set_pipeline(&self.ray_tracing_pipeline);
             compute_pass.set_bind_group(0, &self.raytracing_bind_group, &[]);
+            compute_pass.set_bind_group(1, &self.camera_bind_group, &[]);    //All Camera Data
     
             // Dispatch workgroups for ray tracing (adjust dimensions as needed)
             compute_pass.dispatch_workgroups(self.config.width, self.config.height, 1);
@@ -616,7 +554,6 @@ impl State {
     
         Ok(())
     }
-    
 }
 
 fn main() {
@@ -642,7 +579,7 @@ pub async fn run() {
         // Winit prevents sizing with CSS, so we have to set
         // the size manually when on web.
         use winit::dpi::PhysicalSize;
-        window.set_inner_size(PhysicalSize::new(450, 400));
+        window.set_inner_size(PhysicalSize::new(1024, 720));
 
         use winit::platform::web::WindowExtWebSys;
         web_sys::window()
@@ -661,6 +598,13 @@ pub async fn run() {
 
     event_loop.run(move |event, _, control_flow| {
         match event {
+            Event::RedrawRequested(_) => {
+                state.update();
+                state.render();
+            }
+    
+            Event::MainEventsCleared => state.window.request_redraw(),
+
             Event::WindowEvent {
                 ref event,
                 window_id,
@@ -677,9 +621,11 @@ pub async fn run() {
                                 },
                             ..
                         } => *control_flow = ControlFlow::Exit,
+
                         WindowEvent::Resized(physical_size) => {
                             state.resize(*physical_size);
                         }
+                        
                         WindowEvent::ScaleFactorChanged { new_inner_size, .. } => {
                             // new_inner_size is &mut so w have to dereference it twice
                             state.resize(**new_inner_size);
@@ -687,25 +633,6 @@ pub async fn run() {
                         _ => {}
                     }
                 }
-            }
-            Event::RedrawRequested(window_id) if window_id == state.window().id() => {
-                state.update();
-                match state.render() {
-                    Ok(_) => {}
-                    // Reconfigure the surface if it's lost or outdated
-                    Err(wgpu::SurfaceError::Lost | wgpu::SurfaceError::Outdated) => {
-                        state.resize(state.size)
-                    }
-                    // The system is out of memory, we should probably quit
-                    Err(wgpu::SurfaceError::OutOfMemory) => *control_flow = ControlFlow::Exit,
-                    // We're ignoring timeouts
-                    Err(wgpu::SurfaceError::Timeout) => log::warn!("Surface timeout"),
-                }
-            }
-            Event::MainEventsCleared => {
-                // RedrawRequested will only trigger once, unless we manually
-                // request it.
-                state.window().request_redraw();
             }
             _ => {}
         }
