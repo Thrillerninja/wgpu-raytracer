@@ -16,18 +16,22 @@ use wasm_bindgen::prelude::*;
 mod texture;
 mod camera;
 
-#[repr(C)]
-#[derive(Copy, Clone, Debug, bytemuck::Pod, bytemuck::Zeroable)]
-struct Vertex {
-    position: [f32; 3],
-    tex_coords: [f32; 2],
+pub trait Vertex {
+    fn desc() -> wgpu::VertexBufferLayout<'static>;
 }
 
-impl Vertex {
+#[repr(C)]
+#[derive(Copy, Clone, Debug, bytemuck::Pod, bytemuck::Zeroable)]
+struct ModelVertex {
+    position: [f32; 3],
+    size: f32,
+}
+
+impl Vertex for ModelVertex{
     fn desc() -> wgpu::VertexBufferLayout<'static> {
         use std::mem;
         wgpu::VertexBufferLayout {
-            array_stride: mem::size_of::<Vertex>() as wgpu::BufferAddress,
+            array_stride: mem::size_of::<ModelVertex>() as wgpu::BufferAddress,
             step_mode: wgpu::VertexStepMode::Vertex,
             attributes: &[
                 wgpu::VertexAttribute {
@@ -38,33 +42,33 @@ impl Vertex {
                 wgpu::VertexAttribute {
                     offset: mem::size_of::<[f32; 3]>() as wgpu::BufferAddress,
                     shader_location: 1,
-                    format: wgpu::VertexFormat::Float32x2,
+                    format: wgpu::VertexFormat::Float32,
                 },
             ],
         }
     }
 }
 
-const VERTICES: &[Vertex] = &[
-    Vertex {
-        position: [-0.0868241, 0.49240386, 0.0],
-        tex_coords: [0.4131759, 0.00759614],
+const VERTICES: &[ModelVertex] = &[
+    ModelVertex {
+        position: [0.0, 0.0, 0.0],
+        size: 0.5,
     }, // A
-    Vertex {
-        position: [-0.49513406, 0.06958647, 0.0],
-        tex_coords: [0.0048659444, 0.43041354],
+    ModelVertex {
+        position: [1.0, 0.0, 0.0],
+        size: 0.2,
     }, // B
-    Vertex {
-        position: [-0.21918549, -0.44939706, 0.0],
-        tex_coords: [0.28081453, 0.949397],
+    ModelVertex {
+        position: [0.0, 1.0, 0.0],
+        size: 0.2,
     }, // C
-    Vertex {
-        position: [0.35966998, -0.3473291, 0.0],
-        tex_coords: [0.85967, 0.84732914],
+    ModelVertex {
+        position: [0.0, 0.0, 1.0],
+        size: 0.2,
     }, // D
-    Vertex {
+    ModelVertex {
         position: [0.44147372, 0.2347359, 0.0],
-        tex_coords: [0.9414737, 0.2652641],
+        size: 1.0,
     }, // E
 ];
 
@@ -80,6 +84,7 @@ struct State {
     size: winit::dpi::PhysicalSize<u32>,
     vertex_buffer: wgpu::Buffer,
     index_buffer: wgpu::Buffer,
+    vertex_buffer_bind_group: wgpu::BindGroup,
     num_indices: u32,
     window: Window,
     //Raytracing
@@ -192,11 +197,41 @@ impl State {
         
         let color_buffer_view = color_texture.create_view(&wgpu::TextureViewDescriptor::default());
 
+        //----------Vertex-------------
+        let vertex_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
+            label: Some("Vertex Buffer"),
+            contents: bytemuck::cast_slice(VERTICES),
+            usage: wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST, // Add STORAGE usage
+        });
+
+        let vertex_buffer_bind_group_layout = device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
+            entries: &[wgpu::BindGroupLayoutEntry {
+                binding: 0, // You can choose the binding number
+                visibility: wgpu::ShaderStages::COMPUTE,
+                ty: wgpu::BindingType::Buffer {
+                    // Use Storage type for storage buffers
+                    ty: wgpu::BufferBindingType::Uniform,
+                    has_dynamic_offset: false,
+                    min_binding_size: None,
+                },
+                count: None,
+            }],
+            label: Some("vertex_buffer_bind_group_layout"),
+        });
+
+        let vertex_buffer_bind_group = device.create_bind_group(&wgpu::BindGroupDescriptor {
+            layout: &vertex_buffer_bind_group_layout,
+            entries: &[wgpu::BindGroupEntry {
+                binding: 0, // Should match the binding number in the layout
+                resource: vertex_buffer.as_entire_binding(),
+            }],
+            label: Some("vertex_buffer_bind_group"),
+        });
+
         
         //----------Camera-------------
-        let camera = camera::Camera::new((0.0, 1.0, 2.0), cgmath::Deg(-90.0), cgmath::Deg(-20.0));
-        let projection =
-            camera::Projection::new(config.width, config.height, cgmath::Deg(45.0), 0.1, 100.0);
+        let camera = camera::Camera::new((0.0, 5.0, 10.0), cgmath::Deg(-90.0), cgmath::Deg(-20.0));
+        let projection = camera::Projection::new(config.width, config.height, cgmath::Deg(45.0), 0.1, 100.0);
         let camera_controller = camera::CameraController::new(4.0, 0.4);
 
         let mut camera_uniform = camera::CameraUniform::new();
@@ -277,6 +312,7 @@ impl State {
             bind_group_layouts: &[
                 &raytracing_bind_group_layout,
                 &camera_bind_group_layout,
+                &vertex_buffer_bind_group_layout,
             ],
             push_constant_ranges: &[],
         });
@@ -420,6 +456,7 @@ impl State {
             config,
             size,
             vertex_buffer,
+            vertex_buffer_bind_group,
             index_buffer,
             num_indices,
             window,
@@ -445,6 +482,7 @@ impl State {
 
     fn resize(&mut self, new_size: winit::dpi::PhysicalSize<u32>) {
         if new_size.width > 0 && new_size.height > 0 {
+            self.projection.resize(new_size.width, new_size.height);
             self.size = new_size;
             self.config.width = new_size.width;
             self.config.height = new_size.height;
@@ -488,9 +526,8 @@ impl State {
                         ..
                     },
                 ..
-            } => self.camera_controller.process_keyboard(*key, *state),
-            WindowEvent::MouseWheel { delta, .. } => {
-                self.camera_controller.process_scroll(delta);
+            } => {
+                self.camera_controller.process_keyboard(*key, *state);
                 true
             }
             WindowEvent::MouseInput {
@@ -507,8 +544,8 @@ impl State {
 
     fn update(&mut self, dt: std::time::Duration) {
         self.camera_controller.update_camera(&mut self.camera, dt);
-        self.camera_uniform
-            .update_view_proj(&self.camera, &self.projection);
+        self.camera_uniform.update_view_proj(&self.camera, &self.projection);
+        
         self.queue.write_buffer(
             &self.camera_buffer,
             0,
@@ -542,7 +579,11 @@ impl State {
             // Set ray tracing pipeline and bind group
             compute_pass.set_pipeline(&self.ray_tracing_pipeline);
             compute_pass.set_bind_group(0, &self.raytracing_bind_group, &[]);
-            compute_pass.set_bind_group(1, &self.camera_bind_group, &[]);    //All Camera Data
+            // Set camera bind group
+            compute_pass.set_bind_group(1, &self.camera_bind_group, &[]);
+            // Set the vertex buffer
+            compute_pass.set_bind_group(2, &self.vertex_buffer_bind_group, &[]);
+
     
             // Dispatch workgroups for ray tracing (adjust dimensions as needed)
             compute_pass.dispatch_workgroups(self.config.width, self.config.height, 1);
@@ -634,6 +675,13 @@ pub async fn run() {
     let mut last_render_time = instant::Instant::now();
     event_loop.run(move |event, _, control_flow| {
         match event {
+            Event::DeviceEvent {
+                event: DeviceEvent::MouseMotion{ delta, },
+                .. // We're not using device_id currently
+            } => if state.mouse_pressed {
+                state.camera_controller.process_mouse(delta.0, delta.1)
+            }
+            
             Event::RedrawRequested(_) => {
                 let now = instant::Instant::now();
                 let dt = now - last_render_time;
@@ -647,30 +695,26 @@ pub async fn run() {
             Event::WindowEvent {
                 ref event,
                 window_id,
-            } if window_id == state.window().id() => {
-                if !state.input(event) {
-                    match event {
-                        WindowEvent::CloseRequested
-                        | WindowEvent::KeyboardInput {
-                            input:
-                                KeyboardInput {
-                                    state: ElementState::Pressed,
-                                    virtual_keycode: Some(VirtualKeyCode::Escape),
-                                    ..
-                                },
-                            ..
-                        } => *control_flow = ControlFlow::Exit,
-
-                        WindowEvent::Resized(physical_size) => {
-                            state.resize(*physical_size);
-                        }
-                        
-                        WindowEvent::ScaleFactorChanged { new_inner_size, .. } => {
-                            // new_inner_size is &mut so w have to dereference it twice
-                            state.resize(**new_inner_size);
-                        }
-                        _ => {}
+            } if window_id == state.window().id() && !state.input(event) => {
+                match event {
+                    #[cfg(not(target_arch="wasm32"))]
+                    WindowEvent::CloseRequested
+                    | WindowEvent::KeyboardInput {
+                        input:
+                            KeyboardInput {
+                                state: ElementState::Pressed,
+                                virtual_keycode: Some(VirtualKeyCode::Escape),
+                                ..
+                            },
+                        ..
+                    } => *control_flow = ControlFlow::Exit,
+                    WindowEvent::Resized(physical_size) => {
+                        state.resize(*physical_size);
                     }
+                    WindowEvent::ScaleFactorChanged { new_inner_size, .. } => {
+                        state.resize(**new_inner_size);
+                    }
+                    _ => {}
                 }
             }
             _ => {}
