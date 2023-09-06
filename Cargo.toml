@@ -17,6 +17,7 @@ log = "0.4"
 pollster = "0.3"
 wgpu = "0.17"
 winit = "0.28"
+instant = "0.1"
 
 [dependencies.image]
 version = "0.24"
@@ -39,10 +40,6 @@ web-sys = { version = "0.3", features = [
 anyhow = "1.0"
 fs_extra = "1.2"
 glob = "0.3"
-
-[[bin]]
-name = "tutorial2-surface"
-path = "src/main.rs"
 
 [[bin]]
 name = "tutorial2-challenge"

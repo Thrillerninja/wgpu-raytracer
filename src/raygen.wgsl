@@ -1,10 +1,13 @@
-@group(0) @binding(0) var color_buffer: texture_storage_2d<rgba8unorm, write>;
+@group(0) @binding(0)
+var color_buffer: texture_storage_2d<rgba8unorm, write>;
 
-//Camera
-struct CameraUniform {
+// Camera
+struct Camera {
+    view_pos: vec4<f32>,
     view_proj: mat4x4<f32>,
-};
-@group(1) @binding(0) var<uniform> camera: CameraUniform;
+}
+@group(1) @binding(0)
+var<uniform> camera: Camera;
 
 struct Sphere {
     center: vec3<f32>,
@@ -39,19 +42,34 @@ fn main(@builtin(global_invocation_id) GlobalInvocationID: vec3<u32>) {
     mySphere.center = vec3<f32>(0.0, 0.0, 0.0); // Center of the sphere
     mySphere.radius = 0.5; // Radius of the sphere
 
+    var mySphere2: Sphere;
+    mySphere2.center = vec3<f32>(1.0, 0.0, 0.0); // Center of the sphere
+    mySphere2.radius = 0.2; // Radius of the sphere
+
+    var mySphere3: Sphere;
+    mySphere3.center = vec3<f32>(0.0, 1.0, 0.0); // Center of the sphere
+    mySphere3.radius = 0.2; // Radius of the sphere
+
+    var mySphere4: Sphere;
+    mySphere4.center = vec3<f32>(0.0, 0.0, 1.0); // Center of the sphere
+    mySphere4.radius = 0.2; // Radius of the sphere
+
     var myRay: Ray;
     myRay.direction = ray_dir_camera; // Ray direction in camera space
-    myRay.origin = vec3<f32>(0.0, 1.0, 2.0); // Origin of the ray (camera position)
+    myRay.origin = camera.view_pos.xyz; // Origin of the ray (camera position)
+
+    var mySphereArray: array<Sphere, 4> = array<Sphere, 4>(mySphere, mySphere2, mySphere3, mySphere4);
 
     var pixel_color: vec3<f32> = vec3<f32>(0.5, 0.0, 0.25);
 
-    if (hit(myRay, mySphere)) {
-        pixel_color = vec3<f32>(0.5, 1.0, 0.75);
+    for (var i = 0; i < 4; i++) {
+        if (hit(myRay, mySphereArray[i])) {
+            pixel_color = vec3<f32>(0.5, 1.0, 0.75);
+        }
     }
 
     textureStore(color_buffer, screen_pos, vec4<f32>(pixel_color, 1.0));
 }
-
 
 fn hit(ray: Ray, sphere: Sphere) -> bool {
     let oc: vec3<f32> = ray.origin - sphere.center;

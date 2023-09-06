@@ -1,13 +1,14 @@
 use std::iter;
 
 use wgpu::util::DeviceExt;
-use wgpu::BufferBindingType;
 
 use winit::{
     event::*,
     event_loop::{ControlFlow, EventLoop},
     window::{Window, WindowBuilder},
 };
+use cgmath;
+use instant::Duration;
 
 #[cfg(target_arch = "wasm32")]
 use wasm_bindgen::prelude::*;
@@ -90,9 +91,12 @@ struct State {
     sampler: wgpu::Sampler,
     //Camera
     camera: camera::Camera,
+    projection: camera::Projection,
+    camera_controller: camera::CameraController,
     camera_uniform: camera::CameraUniform,
     camera_buffer: wgpu::Buffer,
     camera_bind_group: wgpu::BindGroup,
+    mouse_pressed: bool,
 }
 
 
@@ -190,21 +194,13 @@ impl State {
 
         
         //----------Camera-------------
-
-        let camera = camera::Camera::new(
-            (0.0, 1.0, 2.0).into(),
-            (0.0, 0.0, 0.0).into(),
-            cgmath::Vector3::unit_y(),
-            config.width as f32 / config.height as f32,
-            45.0,
-            0.1,
-            100.0,
-        );
-
-        let camera_controller = camera::CameraController::new(0.2);
+        let camera = camera::Camera::new((0.0, 1.0, 2.0), cgmath::Deg(-90.0), cgmath::Deg(-20.0));
+        let projection =
+            camera::Projection::new(config.width, config.height, cgmath::Deg(45.0), 0.1, 100.0);
+        let camera_controller = camera::CameraController::new(4.0, 0.4);
 
         let mut camera_uniform = camera::CameraUniform::new();
-        camera_uniform.update_view_proj(&camera);
+        camera_uniform.update_view_proj(&camera, &projection);
 
         let camera_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
             label: Some("Camera Buffer"),
@@ -434,9 +430,12 @@ impl State {
             screen_bind_group,
             sampler,
             camera,
+            projection,
+            camera_controller,
             camera_uniform,
             camera_buffer,
             camera_bind_group,
+            mouse_pressed: false,
         }
     }
 
@@ -480,10 +479,42 @@ impl State {
 
     #[allow(unused_variables)]
     fn input(&mut self, event: &WindowEvent) -> bool {
-        false
+        match event {
+            WindowEvent::KeyboardInput {
+                input:
+                    KeyboardInput {
+                        virtual_keycode: Some(key),
+                        state,
+                        ..
+                    },
+                ..
+            } => self.camera_controller.process_keyboard(*key, *state),
+            WindowEvent::MouseWheel { delta, .. } => {
+                self.camera_controller.process_scroll(delta);
+                true
+            }
+            WindowEvent::MouseInput {
+                button: MouseButton::Left,
+                state,
+                ..
+            } => {
+                self.mouse_pressed = *state == ElementState::Pressed;
+                true
+            }
+            _ => false,
+        }
     }
 
-    fn update(&mut self) {}
+    fn update(&mut self, dt: std::time::Duration) {
+        self.camera_controller.update_camera(&mut self.camera, dt);
+        self.camera_uniform
+            .update_view_proj(&self.camera, &self.projection);
+        self.queue.write_buffer(
+            &self.camera_buffer,
+            0,
+            bytemuck::cast_slice(&[self.camera_uniform]),
+        );
+    }    
 
     fn render(&mut self) -> Result<(), wgpu::SurfaceError> {
         // Get the current output texture from the surface
@@ -573,6 +604,10 @@ pub async fn run() {
 
     let event_loop = EventLoop::new();
     let window = WindowBuilder::new().build(&event_loop).unwrap();
+    // Capture the mouse cursor
+    window.set_cursor_grab(winit::window::CursorGrabMode::Confined);
+    // Hide the cursor
+    window.set_cursor_visible(false);
 
     #[cfg(target_arch = "wasm32")]
     {
@@ -596,10 +631,14 @@ pub async fn run() {
     // State::new uses async code, so we're going to wait for it to finish
     let mut state = State::new(window).await;
 
+    let mut last_render_time = instant::Instant::now();
     event_loop.run(move |event, _, control_flow| {
         match event {
             Event::RedrawRequested(_) => {
-                state.update();
+                let now = instant::Instant::now();
+                let dt = now - last_render_time;
+                last_render_time = now;
+                state.update(dt);
                 state.render();
             }
     
