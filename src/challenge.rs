@@ -1,79 +1,18 @@
 use std::iter;
 
+use cgmath::prelude::*;
 use wgpu::util::DeviceExt;
-
 use winit::{
     event::*,
     event_loop::{ControlFlow, EventLoop},
-    window::{Window, WindowBuilder},
+    window::Window,
 };
-use cgmath;
-use instant::Duration;
 
 #[cfg(target_arch = "wasm32")]
 use wasm_bindgen::prelude::*;
 
-mod texture;
 mod camera;
-
-pub trait Vertex {
-    fn desc() -> wgpu::VertexBufferLayout<'static>;
-}
-
-#[repr(C)]
-#[derive(Copy, Clone, Debug, bytemuck::Pod, bytemuck::Zeroable)]
-struct ModelVertex {
-    position: [f32; 3],
-    size: f32,
-}
-
-impl Vertex for ModelVertex{
-    fn desc() -> wgpu::VertexBufferLayout<'static> {
-        use std::mem;
-        wgpu::VertexBufferLayout {
-            array_stride: mem::size_of::<ModelVertex>() as wgpu::BufferAddress,
-            step_mode: wgpu::VertexStepMode::Vertex,
-            attributes: &[
-                wgpu::VertexAttribute {
-                    offset: 0,
-                    shader_location: 0,
-                    format: wgpu::VertexFormat::Float32x3,
-                },
-                wgpu::VertexAttribute {
-                    offset: mem::size_of::<[f32; 3]>() as wgpu::BufferAddress,
-                    shader_location: 1,
-                    format: wgpu::VertexFormat::Float32,
-                },
-            ],
-        }
-    }
-}
-
-const VERTICES: &[ModelVertex] = &[
-    ModelVertex {
-        position: [0.0, 0.0, 0.0],
-        size: 0.5,
-    }, // A
-    ModelVertex {
-        position: [1.0, 0.0, 0.0],
-        size: 0.2,
-    }, // B
-    ModelVertex {
-        position: [0.0, 1.0, 0.0],
-        size: 0.2,
-    }, // C
-    ModelVertex {
-        position: [0.0, 0.0, 1.0],
-        size: 0.2,
-    }, // D
-    ModelVertex {
-        position: [0.44147372, 0.2347359, 0.0],
-        size: 1.0,
-    }, // E
-];
-
-const INDICES: &[u16] = &[0, 1, 4, 1, 2, 4, 2, 3, 4, /* padding */ 0];
-
+use camera::{Camera, CameraController, CameraUniform};
 
 struct State {
     surface: wgpu::Surface,
@@ -81,12 +20,8 @@ struct State {
     device: wgpu::Device,
     queue: wgpu::Queue,
     config: wgpu::SurfaceConfiguration,
-    size: winit::dpi::PhysicalSize<u32>,
-    vertex_buffer: wgpu::Buffer,
-    index_buffer: wgpu::Buffer,
-    vertex_buffer_bind_group: wgpu::BindGroup,
-    num_indices: u32,
     window: Window,
+    size: winit::dpi::PhysicalSize<u32>,
     //Raytracing
     ray_tracing_pipeline: wgpu::ComputePipeline,
     ray_generation_shader: wgpu::ShaderModule,
@@ -96,73 +31,63 @@ struct State {
     sampler: wgpu::Sampler,
     //Camera
     camera: camera::Camera,
-    projection: camera::Projection,
     camera_controller: camera::CameraController,
-    camera_uniform: camera::CameraUniform,
     camera_buffer: wgpu::Buffer,
     camera_bind_group: wgpu::BindGroup,
     mouse_pressed: bool,
 }
 
+async fn hardware_launch(window: &Window) -> (wgpu::Surface, wgpu::Device, wgpu::Queue, wgpu::Adapter) {
+    // The instance is a handle to our GPU
+    let instance = wgpu::Instance::new(wgpu::InstanceDescriptor {
+        backends: wgpu::Backends::DX12,
+        dx12_shader_compiler: Default::default(),
+    });
 
+    let surface = unsafe { instance.create_surface(window) }.unwrap();
 
-impl State {
+    let adapter = instance
+        .request_adapter(&wgpu::RequestAdapterOptions {
+            power_preference: wgpu::PowerPreference::HighPerformance,
+            compatible_surface: Some(&surface),
+            force_fallback_adapter: false,
+        })
+        .await
+        .unwrap();
+    
+    println!("{}", adapter.get_info().name);
+
+    let (device, queue) = adapter
+        .request_device(
+            &wgpu::DeviceDescriptor {
+                label: None,
+                features: wgpu::Features::default(),
+                limits: wgpu::Limits::default(),
+            },
+            None,
+        )
+        .await
+        .unwrap();
+
+    (surface, device, queue, adapter)
+}
+
+impl State {  
     async fn new(window: Window) -> Self {
-        let size = window.inner_size();
-
-        // The instance is a handle to our GPU
-        // BackendBit::PRIMARY => Vulkan + Metal + DX12 + Browser WebGPU
-        let instance = wgpu::Instance::new(wgpu::InstanceDescriptor {
-            backends: wgpu::Backends::DX12,
-            dx12_shader_compiler: Default::default(),
-        });
-
-        // # Safety
-        //
-        // The surface needs to live as long as the window that created it.
-        // State owns the window so this should be safe.
-        let surface = unsafe { instance.create_surface(&window) }.unwrap();
-
-        let adapter = instance
-            .request_adapter(&wgpu::RequestAdapterOptions {
-                power_preference: wgpu::PowerPreference::HighPerformance,
-                compatible_surface: Some(&surface),
-                force_fallback_adapter: false,
-            })
-            .await
-            .unwrap();
-        
-        println!("{}", adapter.get_info().name);
-            
-        let (device, queue) = adapter
-            .request_device(
-                &wgpu::DeviceDescriptor {
-                    label: None,
-                    features: wgpu::Features::default(),
-                    // WebGL doesn't support all of wgpu's features, so if
-                    // we're building for the web we'll have to disable some.
-                    // limits: if cfg!(target_arch = "wasm32") {
-                    //     wgpu::Limits::downlevel_webgl2_defaults()
-                    // } else {
-                    //     wgpu::Limits::default()
-                    // },
-                    limits: wgpu::Limits::default(),
-                },
-                None,
-            )
-            .await
-            .unwrap();
+        let (surface, device, queue, adapter) = hardware_launch(&window).await;
 
         let surface_caps = surface.get_capabilities(&adapter);
-        // Shader code in this tutorial assumes an SRGB surface texture.
-        // Using a different one will result in all the colors coming out darker.
-        // If you want to support non-SRGB surfaces, you'll need to account for that when drawing to the frame.
-        
-        let surface_format = surface_caps.formats
+        // Shader code in this tutorial assumes an Srgb surface texture. Using a different
+        // one will result all the colors comming out darker. If you want to support non
+        // Srgb surfaces, you'll need to account for that when drawing to the frame.
+        let surface_format = surface_caps
+            .formats
             .iter()
             .copied()
             .find(|f| f.is_srgb())
             .unwrap_or(surface_caps.formats[0]);
+        
+        let size = window.inner_size();
 
         let config = wgpu::SurfaceConfiguration {
             usage: wgpu::TextureUsages::RENDER_ATTACHMENT,
@@ -173,9 +98,10 @@ impl State {
             alpha_mode: surface_caps.alpha_modes[0],
             view_formats: vec![],
         };
-        
         surface.configure(&device, &config);
         
+
+        //----------Color Buffer-------------
         // Create a color texture with a suitable sRGB format
         let color_texture = device.create_texture(&wgpu::TextureDescriptor {
             label: Some("Storage Texture"),
@@ -197,49 +123,15 @@ impl State {
         
         let color_buffer_view = color_texture.create_view(&wgpu::TextureViewDescriptor::default());
 
-        //----------Vertex-------------
-        let vertex_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
-            label: Some("Vertex Buffer"),
-            contents: bytemuck::cast_slice(VERTICES),
-            usage: wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST, // Add STORAGE usage
-        });
-
-        let vertex_buffer_bind_group_layout = device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
-            entries: &[wgpu::BindGroupLayoutEntry {
-                binding: 0, // You can choose the binding number
-                visibility: wgpu::ShaderStages::COMPUTE,
-                ty: wgpu::BindingType::Buffer {
-                    // Use Storage type for storage buffers
-                    ty: wgpu::BufferBindingType::Uniform,
-                    has_dynamic_offset: false,
-                    min_binding_size: None,
-                },
-                count: None,
-            }],
-            label: Some("vertex_buffer_bind_group_layout"),
-        });
-
-        let vertex_buffer_bind_group = device.create_bind_group(&wgpu::BindGroupDescriptor {
-            layout: &vertex_buffer_bind_group_layout,
-            entries: &[wgpu::BindGroupEntry {
-                binding: 0, // Should match the binding number in the layout
-                resource: vertex_buffer.as_entire_binding(),
-            }],
-            label: Some("vertex_buffer_bind_group"),
-        });
-
-        
         //----------Camera-------------
-        let camera = camera::Camera::new((0.0, 5.0, 10.0), cgmath::Deg(-90.0), cgmath::Deg(-20.0));
-        let projection = camera::Projection::new(config.width, config.height, cgmath::Deg(45.0), 0.1, 100.0);
-        let camera_controller = camera::CameraController::new(4.0, 0.4);
 
-        let mut camera_uniform = camera::CameraUniform::new();
-        camera_uniform.update_view_proj(&camera, &projection);
+        let camera = camera::Camera::new(cgmath::Point3::new(0.0, 5.0, 10.0));
+        let camera_controller = camera::CameraController::new(4.0, 0.4);
+        let camera_uniform = camera::CameraUniform::new(&camera);
 
         let camera_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
             label: Some("Camera Buffer"),
-            contents: bytemuck::cast_slice(&[camera_uniform]),
+            contents: bytemuck::cast_slice(&[camera_uniform]), // Ensure the correct size
             usage: wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST,
         });
 
@@ -251,7 +143,7 @@ impl State {
                     ty: wgpu::BindingType::Buffer {
                         ty: wgpu::BufferBindingType::Uniform,
                         has_dynamic_offset: false,
-                        min_binding_size: None,
+                        min_binding_size: None, // Ensure the correct size,
                     },
                     count: None,
                 }],
@@ -312,7 +204,6 @@ impl State {
             bind_group_layouts: &[
                 &raytracing_bind_group_layout,
                 &camera_bind_group_layout,
-                &vertex_buffer_bind_group_layout,
             ],
             push_constant_ranges: &[],
         });
@@ -434,19 +325,6 @@ impl State {
             multiview: None,
         });
 
-        //BUFFER INIT
-        let vertex_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
-            label: Some("Vertex Buffer"),
-            contents: bytemuck::cast_slice(VERTICES),
-            usage: wgpu::BufferUsages::VERTEX,
-        });
-        let index_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
-            label: Some("Index Buffer"),
-            contents: bytemuck::cast_slice(INDICES),
-            usage: wgpu::BufferUsages::INDEX,
-        });
-        let num_indices = INDICES.len() as u32;
-
         
         Self {
             surface,
@@ -454,12 +332,8 @@ impl State {
             device,
             queue,
             config,
-            size,
-            vertex_buffer,
-            vertex_buffer_bind_group,
-            index_buffer,
-            num_indices,
             window,
+            size,
             ray_tracing_pipeline,
             ray_generation_shader,
             raytracing_bind_group,
@@ -467,9 +341,7 @@ impl State {
             screen_bind_group,
             sampler,
             camera,
-            projection,
             camera_controller,
-            camera_uniform,
             camera_buffer,
             camera_bind_group,
             mouse_pressed: false,
@@ -482,35 +354,9 @@ impl State {
 
     fn resize(&mut self, new_size: winit::dpi::PhysicalSize<u32>) {
         if new_size.width > 0 && new_size.height > 0 {
-            self.projection.resize(new_size.width, new_size.height);
             self.size = new_size;
             self.config.width = new_size.width;
             self.config.height = new_size.height;
-
-            // Synchronize to ensure rendering is finished before resizing
-            self.device.poll(wgpu::Maintain::Wait);
-
-            // Recreate the color texture and its view with the new size
-            let color_texture = self.device.create_texture(&wgpu::TextureDescriptor {
-                label: Some("Storage Texture"),
-                view_formats: &[self.config.format],
-                size: wgpu::Extent3d {
-                    width: self.config.width,
-                    height: self.config.height,
-                    depth_or_array_layers: 1,
-                },
-                mip_level_count: 1,
-                sample_count: 1,
-                dimension: wgpu::TextureDimension::D2,
-                format: self.config.format,
-                usage: wgpu::TextureUsages::TEXTURE_BINDING
-                    | wgpu::TextureUsages::COPY_DST
-                    | wgpu::TextureUsages::STORAGE_BINDING,
-            });
-
-            self.color_buffer_view = color_texture.create_view(&wgpu::TextureViewDescriptor::default());
-
-            // Reconfigure the rendering surface
             self.surface.configure(&self.device, &self.config);
         }
     }
@@ -526,10 +372,7 @@ impl State {
                         ..
                     },
                 ..
-            } => {
-                self.camera_controller.process_keyboard(*key, *state);
-                true
-            }
+            } => self.camera_controller.process_keyboard(*key, *state),
             WindowEvent::MouseInput {
                 button: MouseButton::Left,
                 state,
@@ -543,15 +386,9 @@ impl State {
     }
 
     fn update(&mut self, dt: std::time::Duration) {
+        // UPDATED!
         self.camera_controller.update_camera(&mut self.camera, dt);
-        self.camera_uniform.update_view_proj(&self.camera, &self.projection);
-        
-        self.queue.write_buffer(
-            &self.camera_buffer,
-            0,
-            bytemuck::cast_slice(&[self.camera_uniform]),
-        );
-    }    
+    }
 
     fn render(&mut self) -> Result<(), wgpu::SurfaceError> {
         // Get the current output texture from the surface
@@ -579,11 +416,7 @@ impl State {
             // Set ray tracing pipeline and bind group
             compute_pass.set_pipeline(&self.ray_tracing_pipeline);
             compute_pass.set_bind_group(0, &self.raytracing_bind_group, &[]);
-            // Set camera bind group
-            compute_pass.set_bind_group(1, &self.camera_bind_group, &[]);
-            // Set the vertex buffer
-            compute_pass.set_bind_group(2, &self.vertex_buffer_bind_group, &[]);
-
+            compute_pass.set_bind_group(1, &self.camera_bind_group, &[]);    //All Camera Data
     
             // Dispatch workgroups for ray tracing (adjust dimensions as needed)
             compute_pass.dispatch_workgroups(self.config.width, self.config.height, 1);
@@ -637,25 +470,25 @@ pub async fn run() {
     cfg_if::cfg_if! {
         if #[cfg(target_arch = "wasm32")] {
             std::panic::set_hook(Box::new(console_error_panic_hook::hook));
-            console_log::init_with_level(log::Level::Warn).expect("Could't initialize logger");
+            console_log::init_with_level(log::Level::Info).expect("Could't initialize logger");
         } else {
             env_logger::init();
         }
     }
 
     let event_loop = EventLoop::new();
-    let window = WindowBuilder::new().build(&event_loop).unwrap();
-    // Capture the mouse cursor
-    window.set_cursor_grab(winit::window::CursorGrabMode::Confined);
-    // Hide the cursor
-    window.set_cursor_visible(false);
+    let title = env!("CARGO_PKG_NAME");
+    let window = winit::window::WindowBuilder::new()
+        .with_title(title)
+        .build(&event_loop)
+        .unwrap();
 
     #[cfg(target_arch = "wasm32")]
     {
         // Winit prevents sizing with CSS, so we have to set
         // the size manually when on web.
         use winit::dpi::PhysicalSize;
-        window.set_inner_size(PhysicalSize::new(1024, 720));
+        window.set_inner_size(PhysicalSize::new(450, 400));
 
         use winit::platform::web::WindowExtWebSys;
         web_sys::window()
@@ -669,29 +502,20 @@ pub async fn run() {
             .expect("Couldn't append canvas to document body.");
     }
 
-    // State::new uses async code, so we're going to wait for it to finish
-    let mut state = State::new(window).await;
-
+    let mut state = State::new(window).await; // NEW!
     let mut last_render_time = instant::Instant::now();
     event_loop.run(move |event, _, control_flow| {
+        *control_flow = ControlFlow::Poll;
         match event {
+            Event::MainEventsCleared => state.window().request_redraw(),
+            // NEW!
             Event::DeviceEvent {
                 event: DeviceEvent::MouseMotion{ delta, },
                 .. // We're not using device_id currently
             } => if state.mouse_pressed {
                 state.camera_controller.process_mouse(delta.0, delta.1)
             }
-            
-            Event::RedrawRequested(_) => {
-                let now = instant::Instant::now();
-                let dt = now - last_render_time;
-                last_render_time = now;
-                state.update(dt);
-                state.render();
-            }
-    
-            Event::MainEventsCleared => state.window.request_redraw(),
-
+            // UPDATED!
             Event::WindowEvent {
                 ref event,
                 window_id,
@@ -715,6 +539,22 @@ pub async fn run() {
                         state.resize(**new_inner_size);
                     }
                     _ => {}
+                }
+            }
+            // UPDATED!
+            Event::RedrawRequested(window_id) if window_id == state.window().id() => {
+                let now = instant::Instant::now();
+                let dt = now - last_render_time;
+                last_render_time = now;
+                state.update(dt);
+                match state.render() {
+                    Ok(_) => {}
+                    // Reconfigure the surface if it's lost or outdated
+                    Err(wgpu::SurfaceError::Lost | wgpu::SurfaceError::Outdated) => state.resize(state.size),
+                    // The system is out of memory, we should probably quit
+                    Err(wgpu::SurfaceError::OutOfMemory) => *control_flow = ControlFlow::Exit,
+                    // We're ignoring timeouts
+                    Err(wgpu::SurfaceError::Timeout) => log::warn!("Surface timeout"),
                 }
             }
             _ => {}
