@@ -12,15 +12,41 @@ use winit::{
 use wasm_bindgen::prelude::*;
 
 mod camera;
-use camera::{Camera, CameraController, CameraUniform};
+use camera::{Camera, CameraController};
+const NUM_INSTANCES_PER_ROW: u32 = 10;
+
+#[repr(C)]
+#[derive(Copy, Clone, bytemuck::Pod, bytemuck::Zeroable)]
+struct CameraUniform {
+    view_position: [f32; 4],
+    view_proj: [[f32; 4]; 4],
+    inv_view_proj: [[f32; 4]; 4],
+}
+
+impl CameraUniform {
+    fn new() -> Self {
+        Self {
+            view_position: [0.0; 4],
+            view_proj: cgmath::Matrix4::identity().into(),
+            inv_view_proj: cgmath::Matrix4::identity().into(),
+        }
+    }
+
+    // UPDATED!
+    fn update_view_proj(&mut self, camera: &camera::Camera, projection: &camera::Projection) {
+        self.view_position = camera.position.to_homogeneous().into();
+        self.view_proj = (projection.calc_matrix() * camera.calc_matrix()).into();
+        self.inv_view_proj = (projection.calc_matrix() * camera.calc_matrix()).invert().unwrap().into();
+    }
+}
 
 struct State {
+    window: Window,
     surface: wgpu::Surface,
     color_buffer_view: wgpu::TextureView,
     device: wgpu::Device,
     queue: wgpu::Queue,
     config: wgpu::SurfaceConfiguration,
-    window: Window,
     size: winit::dpi::PhysicalSize<u32>,
     //Raytracing
     ray_tracing_pipeline: wgpu::ComputePipeline,
@@ -31,7 +57,9 @@ struct State {
     sampler: wgpu::Sampler,
     //Camera
     camera: camera::Camera,
+    projection: camera::Projection,
     camera_controller: camera::CameraController,
+    camera_uniform: CameraUniform,
     camera_buffer: wgpu::Buffer,
     camera_bind_group: wgpu::BindGroup,
     mouse_pressed: bool,
@@ -125,13 +153,17 @@ impl State {
 
         //----------Camera-------------
 
-        let camera = camera::Camera::new(cgmath::Point3::new(0.0, 5.0, 10.0));
+        let camera = camera::Camera::new((-8.0, 0.0, 0.0), cgmath::Deg(-90.0), cgmath::Deg(0.0));
+        let projection =
+            camera::Projection::new(config.width, config.height, cgmath::Deg(45.0), 0.1, 100.0);
         let camera_controller = camera::CameraController::new(4.0, 0.4);
-        let camera_uniform = camera::CameraUniform::new(&camera);
+
+        let mut camera_uniform = CameraUniform::new();
+        camera_uniform.update_view_proj(&camera, &projection);
 
         let camera_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
             label: Some("Camera Buffer"),
-            contents: bytemuck::cast_slice(&[camera_uniform]), // Ensure the correct size
+            contents: bytemuck::cast_slice(&[camera_uniform]),
             usage: wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST,
         });
 
@@ -143,7 +175,7 @@ impl State {
                     ty: wgpu::BindingType::Buffer {
                         ty: wgpu::BufferBindingType::Uniform,
                         has_dynamic_offset: false,
-                        min_binding_size: None, // Ensure the correct size,
+                        min_binding_size: None,
                     },
                     count: None,
                 }],
@@ -158,6 +190,8 @@ impl State {
             }],
             label: Some("camera_bind_group"),
         });
+
+        //----------Objects-------------
         
         //----------Raytracing-------------
 
@@ -341,9 +375,11 @@ impl State {
             screen_bind_group,
             sampler,
             camera,
+            projection,
             camera_controller,
             camera_buffer,
             camera_bind_group,
+            camera_uniform,
             mouse_pressed: false,
         }
     }
@@ -354,6 +390,7 @@ impl State {
 
     fn resize(&mut self, new_size: winit::dpi::PhysicalSize<u32>) {
         if new_size.width > 0 && new_size.height > 0 {
+            self.projection.resize(new_size.width, new_size.height);
             self.size = new_size;
             self.config.width = new_size.width;
             self.config.height = new_size.height;
@@ -361,7 +398,7 @@ impl State {
         }
     }
 
-    #[allow(unused_variables)]
+    // UPDATED!
     fn input(&mut self, event: &WindowEvent) -> bool {
         match event {
             WindowEvent::KeyboardInput {
@@ -373,6 +410,10 @@ impl State {
                     },
                 ..
             } => self.camera_controller.process_keyboard(*key, *state),
+            WindowEvent::MouseWheel { delta, .. } => {
+                self.camera_controller.process_scroll(delta);
+                true
+            }
             WindowEvent::MouseInput {
                 button: MouseButton::Left,
                 state,
@@ -387,7 +428,15 @@ impl State {
 
     fn update(&mut self, dt: std::time::Duration) {
         // UPDATED!
+        //println!("FPS: {}", 1.0 / dt.as_secs_f32());
         self.camera_controller.update_camera(&mut self.camera, dt);
+        self.camera_uniform
+            .update_view_proj(&self.camera, &self.projection);
+        self.queue.write_buffer(
+            &self.camera_buffer,
+            0,
+            bytemuck::cast_slice(&[self.camera_uniform]),
+        );
     }
 
     fn render(&mut self) -> Result<(), wgpu::SurfaceError> {
@@ -405,7 +454,7 @@ impl State {
             .create_command_encoder(&wgpu::CommandEncoderDescriptor {
                 label: Some("Render Encoder"),
             });
-    
+        println!("Camera Position: {:?}, Camera Rotation {:?} {:?}", self.camera.position, self.camera.yaw, self.camera.pitch);
         // Raytracing pass
         {
             // Start a compute pass for ray tracing
@@ -432,9 +481,9 @@ impl State {
                     resolve_target: None,
                     ops: wgpu::Operations {
                         load: wgpu::LoadOp::Clear(wgpu::Color {
-                            r: 0.0, // Adjust the clear color as needed
-                            g: 0.0,
-                            b: 0.5,
+                            r: 0.1,
+                            g: 0.2,
+                            b: 0.3,
                             a: 1.0,
                         }),
                         store: true,
