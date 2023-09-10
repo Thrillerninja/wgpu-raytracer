@@ -1,4 +1,4 @@
-use tutorial2_screen::run;
+use tutorial2_challenge::run;
 
 fn main() {
     pollster::block_on(run());

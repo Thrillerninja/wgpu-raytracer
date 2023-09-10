@@ -13,6 +13,10 @@ use wasm_bindgen::prelude::*;
 
 mod camera;
 use camera::{Camera, CameraController};
+
+mod models;
+use models::{Material, Sphere, Triangle, Object};
+
 const NUM_INSTANCES_PER_ROW: u32 = 10;
 
 #[repr(C)]
@@ -63,6 +67,8 @@ struct State {
     camera_buffer: wgpu::Buffer,
     camera_bind_group: wgpu::BindGroup,
     mouse_pressed: bool,
+    //Objects
+    object_bind_group: wgpu::BindGroup,
 }
 
 async fn hardware_launch(window: &Window) -> (wgpu::Surface, wgpu::Device, wgpu::Queue, wgpu::Adapter) {
@@ -192,6 +198,99 @@ impl State {
         });
 
         //----------Objects-------------
+        // Load OBJ file
+        let (vertices, normals, faces) = match models::load_obj("res/untitled.obj") {
+            Err(error) => {
+                // Handle the error
+                eprintln!("Error loading OBJ file: {:?}", error);
+                std::process::exit(1);
+            }
+            Ok((vertices, normals, faces)) => (vertices, normals, faces),
+        };
+
+        // Create a buffer to hold the vertex data
+        let vertex_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
+            label: Some("Vertex Buffer"),
+            contents: bytemuck::cast_slice(&vertices),
+            usage: wgpu::BufferUsages::STORAGE,
+        });
+
+        // Create a buffer to hold the index data
+        let normal_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
+            label: Some("Index Buffer"),
+            contents: bytemuck::cast_slice(&normals),
+            usage: wgpu::BufferUsages::STORAGE,
+        });
+
+        // Create a buffer to hold the material data
+        let material_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
+            label: Some("Material Buffer"),
+            contents: bytemuck::cast_slice(&faces),
+            usage: wgpu::BufferUsages::STORAGE,
+        });
+
+        // Create a bind group layout for the shader
+        let object_bind_group_layout = device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
+            entries: &[
+                wgpu::BindGroupLayoutEntry {
+                    binding: 0, // This should match the binding number in the shader for object data
+                    visibility: wgpu::ShaderStages::COMPUTE,
+                    ty: wgpu::BindingType::Buffer {
+                        ty: wgpu::BufferBindingType::Storage {
+                            read_only: true,
+                        },
+                        has_dynamic_offset: false,
+                        min_binding_size: None,
+                    },
+                    count: None,            
+                },
+                wgpu::BindGroupLayoutEntry {
+                    binding: 1, // This should match the binding number in the shader for vertex data
+                    visibility: wgpu::ShaderStages::COMPUTE,
+                    ty: wgpu::BindingType::Buffer {
+                        ty: wgpu::BufferBindingType::Storage {
+                            read_only: true,
+                        },
+                        has_dynamic_offset: false,
+                        min_binding_size: None,
+                    },
+                    count: None,            
+                },
+                wgpu::BindGroupLayoutEntry {
+                    binding: 2, // This should match the binding number in the shader for index data
+                    visibility: wgpu::ShaderStages::COMPUTE,
+                    ty: wgpu::BindingType::Buffer {
+                        ty: wgpu::BufferBindingType::Storage {
+                            read_only: true,
+                        },
+                        has_dynamic_offset: false,
+                        min_binding_size: None,
+                    },
+                    count: None,            
+                }
+            ],
+            label: Some("object_bind_group_layout"),
+        });
+
+        // Create a bind group using the layout and the buffers
+        let object_bind_group = device.create_bind_group(&wgpu::BindGroupDescriptor {
+            layout: &object_bind_group_layout,
+            entries: &[
+                wgpu::BindGroupEntry {
+                    binding: 0, // This should match the binding number in the shader for object data
+                    resource: material_buffer.as_entire_binding(),
+                },
+                wgpu::BindGroupEntry {
+                    binding: 1, // This should match the binding number in the shader for vertex data
+                    resource: vertex_buffer.as_entire_binding(),
+                },
+                wgpu::BindGroupEntry {
+                    binding: 2, // This should match the binding number in the shader for index data
+                    resource: normal_buffer.as_entire_binding(),
+                }
+            ],
+            label: Some("object_bind_group"),
+        });
         
         //----------Raytracing-------------
 
@@ -238,6 +337,7 @@ impl State {
             bind_group_layouts: &[
                 &raytracing_bind_group_layout,
                 &camera_bind_group_layout,
+                &object_bind_group_layout,
             ],
             push_constant_ranges: &[],
         });
@@ -381,6 +481,7 @@ impl State {
             camera_bind_group,
             camera_uniform,
             mouse_pressed: false,
+            object_bind_group,
         }
     }
 
@@ -466,6 +567,7 @@ impl State {
             compute_pass.set_pipeline(&self.ray_tracing_pipeline);
             compute_pass.set_bind_group(0, &self.raytracing_bind_group, &[]);
             compute_pass.set_bind_group(1, &self.camera_bind_group, &[]);    //All Camera Data
+            compute_pass.set_bind_group(2, &self.object_bind_group, &[]);    //All Object Data
     
             // Dispatch workgroups for ray tracing (adjust dimensions as needed)
             compute_pass.dispatch_workgroups(self.config.width, self.config.height, 1);
