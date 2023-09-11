@@ -5,6 +5,7 @@ use winit::dpi::PhysicalPosition;
 use winit::event::*;
 use std::{time::{Instant}, fs::File, io::BufReader};
 use std::io::BufRead;
+use rand::Rng;
 
 #[repr(C)]
 #[derive(Clone, Copy, bytemuck::Pod, bytemuck::Zeroable)]
@@ -109,13 +110,15 @@ pub fn load_obj(file_path: &str) -> Result<Vec<Triangle>, Box<dyn std::error::Er
             }
         } else if line.starts_with("vn ") {
             // Parse normals
-            let values: Vec<f32> = line[3..]
+            let val: Vec<f32> = line[3..]
                 .split_whitespace()
                 .map(|x| x.parse::<f32>())
                 .collect::<Result<_, _>>()?;
 
-            if values.len() >= 3 {
-                let normal = [values[0], values[1], values[2]];
+            println!("{} {} {}", val[0], val[1], val[2]);
+
+            if val.len() >= 3 {
+                let normal = [val[0], val[1], val[2]];
                 normals.push(normal);
             }
         } else if line.starts_with("f ") {
@@ -133,25 +136,31 @@ pub fn load_obj(file_path: &str) -> Result<Vec<Triangle>, Box<dyn std::error::Er
                 .collect();
 
             if indices.len() >= 3 {
-                for i in 2..indices.len() {
-                    let triangle = 
-                        Triangle::new(
-                            [
-                                vertices[indices[0].0 - 1],
-                                vertices[indices[i - 1].0 - 1],
-                                vertices[indices[i].0 - 1],
-                            ],
-                            
-                            normals[indices[i].0 - 1],
-                            
-                            Material::new(
-                                [0.0, 165.0, 255.0],
-                                [1.0, 1.0, 1.0],
-                                1.0,
-                            ),
-                    );
-                    faces.push(triangle);
-                }
+                let v1_index = indices[0].0 - 1;    //inices of vertecies to be added
+                let v2_index = indices[1].0 - 1;
+                let v3_index = indices[2].0 - 1;
+                let n_index = indices[0].2 - 1;     //index of normal to be added calced with rand. vertex value as all have equal normals
+
+                // Generate random RGB values for the material color
+                let mut rng = rand::thread_rng();
+                let r: f32 = rng.gen_range(0.0..1.0);
+                let g: f32 = rng.gen_range(0.0..1.0);
+                let b: f32 = rng.gen_range(0.0..1.0);
+
+                let triangle = Triangle::new(
+                    [
+                        vertices[v1_index],
+                        vertices[v2_index],
+                        vertices[v3_index],
+                    ],
+                    normals[n_index],
+                    Material::new(
+                        [r, g, b], // Use the random values for the color
+                        [1.0, 1.0, 1.0],
+                        1.0,
+                    ),
+                );
+                faces.push(triangle);
             }
         }
     }

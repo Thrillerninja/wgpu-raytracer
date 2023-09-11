@@ -9,6 +9,12 @@ struct Camera {
 @group(1) @binding(0)
 var<uniform> camera: Camera;
 
+struct Material {
+    albedo: vec4<f32>,
+    attenuation: vec4<f32>,
+    roughness: vec4<f32>,   //only 1. float used
+}
+
 // Triangles
 struct Triangle {
     vertex1: vec4<f32>,
@@ -17,18 +23,12 @@ struct Triangle {
     normals: vec4<f32>,
     material: Material,
 }
-
-struct Material {
-    albedo: vec4<f32>,
-    attenuation: vec4<f32>,
-    roughness: vec4<f32>,
-}
-
 @group(2) @binding(0) var<storage> triangles : array<Triangle>;
 
 struct Sphere {
     center: vec3<f32>,
     radius: f32,
+    material: Material,
 }
 
 struct Ray {
@@ -36,13 +36,8 @@ struct Ray {
     direction: vec3<f32>,
 }
 
-// Helper function to convert from linear RGB to sRGB
-fn linear_to_srgb(color: vec3<f32>) -> vec3<f32> {
-    return mix(pow(color, vec3<f32>(1.0 / 2.2)), color * 12.92, step(vec3<f32>(0.0), color));
-}
-
 // Function to test for ray-sphere intersection
-fn hit(ray: Ray, sphere: Sphere) -> f32 {
+fn hit_sphere(ray: Ray, sphere: Sphere) -> f32 {
     let oc: vec3<f32> = ray.origin - sphere.center;
     let a: f32 = dot(ray.direction, ray.direction);
     let b: f32 = 2.0 * dot(oc, ray.direction);
@@ -56,26 +51,35 @@ fn hit(ray: Ray, sphere: Sphere) -> f32 {
     }
 }
 
-fn color(ray: Ray, sphere: Sphere) -> vec3<f32> {
-    // Check for ray-sphere intersection
-    var t = hit(ray, sphere);
+// Init Spheres
+// const spheres: array<Sphere> = array<Sphere>(
+//     Sphere(vec3<f32>(0.0, 0.0, 1.0), 0.5, Material(vec4<f32>(1.0, 0.5, 0.0, 1.0), vec4<f32>(1.0, 1.0, 1.0, 1.0), vec4<f32>(0.0, 0.0, 0.0, 0.0))),
+//     Sphere(vec3<f32>(0.0, 1.0, 0.0), 0.5, Material(vec4<f32>(1.0, 0.5, 0.0, 1.0), vec4<f32>(1.0, 1.0, 1.0, 1.0), vec4<f32>(0.0, 0.0, 0.0, 0.0))),
+//     Sphere(vec3<f32>(1.0, 0.0, 0.0), 0.5, Material(vec4<f32>(1.0, 0.5, 0.0, 1.0), vec4<f32>(1.0, 1.0, 1.0, 1.0), vec4<f32>(0.0, 0.0, 0.0, 0.0))),
+//     Sphere(vec3<f32>(0.0, 0.0, 0.0), 0.7, Material(vec4<f32>(1.0, 0.5, 0.0, 1.0), vec4<f32>(1.0, 1.0, 1.0, 1.0), vec4<f32>(0.0, 0.0, 0.0, 0.0))),
+// );
+// fn color_sphere(ray: Ray, sphere: Sphere) -> vec3<f32> {
+//     // Check for ray-sphere intersection
+//     var t = hit(ray, sphere);
 
-    if (t>0.0) {
-        let hit_point: vec3<f32> = ray.origin + ray.direction * t;
-        let normal: vec3<f32> = normalize(hit_point - sphere.center);
-        return 0.5 * (normal + vec3<f32>(1.0, 1.0, 1.0));
-    }
+//     if (t>0.0) {
+//         let hit_point: vec3<f32> = ray.origin + ray.direction * t;
+//         let normal: vec3<f32> = normalize(hit_point - sphere.center);
+//         return 0.5 * (normal + vec3<f32>(1.0, 1.0, 1.0));
+//     }
 
-    // Background color (e.g., sky color)
-    let unit_direction: vec3<f32> = normalize(ray.direction);
-    t = 0.5 * (ray.direction.y + 1.0);
-    return mix(vec3<f32>(1.0, 1.0, 1.0), vec3<f32>(0.5, 0.7, 1.0), t);
-}
+//     // Background color (e.g., sky color)
+//     let unit_direction: vec3<f32> = normalize(ray.direction);
+//     t = 0.5 * (ray.direction.y + 1.0);
+//     return mix(vec3<f32>(1.0, 1.0, 1.0), vec3<f32>(0.5, 0.7, 1.0), t);
+// }
 
 
 fn cam_to_world(camera: Camera, vector: vec3<f32>) -> vec4<f32> {
     return camera.view_proj * vec4<f32>(vector, 1.0);
 }
+
+
 
 // Main ray tracing function
 @compute @workgroup_size(1, 1, 1)
@@ -84,6 +88,31 @@ fn main(@builtin(global_invocation_id) GlobalInvocationID: vec3<u32>) {
     let screen_size: vec2<u32> = vec2<u32>(textureDimensions(color_buffer));
     // Calculate screen position
     let screen_pos: vec2<u32> = vec2<u32>(GlobalInvocationID.xy);
+
+    // Calculate Ray
+    var ray = calc_ray(screen_pos, screen_size);
+
+    // Get Color of Objects if hit
+    let MAX_BOUNCES: i32 = 5;
+    let pixel_color = color(ray, MAX_BOUNCES, 10000.0);
+
+    // //----------Obejcts----------------
+    // var pixel_color = color_tris(ray);
+
+    // // Define 4 spheres in an array
+    // let sphere: Sphere = Sphere(vec3<f32>(0.0, 0.0, -1.0), 0.5);
+
+    // // Initialize pixel color as background color (modify as needed)
+    // var pixel_color: vec3<f32> = vec3<f32>(0.0, 0.0, 0.0);
+
+    // // Check for ray-sphere intersection
+    // pixel_color = color(ray, sphere);
+
+    // Store the pixel color in the color buffer
+    textureStore(color_buffer, vec2<i32>(screen_pos), pixel_color);
+}
+
+fn calc_ray(screen_pos: vec2<u32>, screen_size: vec2<u32>) -> Ray {
 
     //----------Camera----------------
     // Replace these with your camera properties
@@ -117,52 +146,40 @@ fn main(@builtin(global_invocation_id) GlobalInvocationID: vec3<u32>) {
     //----------Ray----------------
     let ray_origin: vec3<f32> = look_from;
     let ray_direction: vec3<f32> = normalize(lower_left_corner + u * horizontal + v * vertical - look_from);
-
     // Create the ray
-    let ray: Ray = Ray(ray_origin, ray_direction);
-
-    //----------Obejcts----------------
-    var pixel_color = color_tris(ray);
-
-    // // Define 4 spheres in an array
-    // let sphere: Sphere = Sphere(vec3<f32>(0.0, 0.0, -1.0), 0.5);
-
-    // // Initialize pixel color as background color (modify as needed)
-    // var pixel_color: vec3<f32> = vec3<f32>(0.0, 0.0, 0.0);
-
-    // // Check for ray-sphere intersection
-    // pixel_color = color(ray, sphere);
-
-    // Store the pixel color in the color buffer
-    textureStore(color_buffer, vec2<i32>(screen_pos), vec4<f32>(pixel_color, 1.0));
+    return Ray(ray_origin, ray_direction);
 }
 
-fn color_tris(ray: Ray) -> vec3<f32> {
-    // Check for smallest t in Tris array
-    var t = 100000000.0;
-    var color = vec3<f32>(0.0, 0.0, 0.0);
-    var closest_tris: Triangle;
-
-    for(var i = 0; i < i32(arrayLength(&triangles)); i = i + 1){
-        var hit: f32 = hit_tri(triangles[i], ray);
-        if(hit > 0.0 && hit < t){
-            t = hit;
-            closest_tris = triangles[i];
-        }
-    }
-
-    if (t < 100000000.0) {
-        let hit_point: vec3<f32> = ray.origin + ray.direction * t;
-        color = normalize(closest_tris.material.albedo.xyz);
-    }
-    return color;
+fn reflect(v: vec3<f32>, n: vec3<f32>) -> vec3<f32> {
+    return v - 2.0 * dot(v, n) * n;
 }
 
-fn basic_coloring(screen_pos: vec2<u32>, screen_size: vec2<u32>) -> vec3<f32> {
-    return vec3<f32>(f32(screen_pos.x) / f32(screen_size.x), f32(screen_pos.y) / f32(screen_size.y), 0.2);
-}
+// fn color_tris(ray: Ray) -> vec3<f32> {
+//     // Check for smallest t in Tris array
+//     var t = 100000000.0;
+//     var color = vec3<f32>(0.1, 0.2, 0.3);
+//     var closest_tris: Triangle;
 
-fn hit_tri(triangle: Triangle, ray: Ray) -> f32 {
+//     for(var i = 0; i < i32(arrayLength(&triangles)); i = i + 1){
+//         var hit: f32 = hit_tri(triangles[i], ray);
+//         if(hit > 0.0 && hit < t){
+//             t = hit;
+//             closest_tris = triangles[i];
+//         }
+//     }
+
+//     if (t < 100000000.0) {
+//         let hit_point: vec3<f32> = ray.origin + ray.direction * t;
+//         color = closest_tris.material.albedo.xyz*t/500.0;
+//     }
+//     return color;
+// }
+
+// fn basic_coloring(screen_pos: vec2<u32>, screen_size: vec2<u32>) -> vec3<f32> {
+//     return vec3<f32>(f32(screen_pos.x) / f32(screen_size.x), f32(screen_pos.y) / f32(screen_size.y), 0.2);
+// }
+
+fn hit_tri(ray: Ray, triangle: Triangle) -> f32 {
     let v0 = triangle.vertex1.xyz;
     let v1 = triangle.vertex2.xyz;
     let v2 = triangle.vertex3.xyz;
@@ -204,4 +221,94 @@ fn hit_tri(triangle: Triangle, ray: Ray) -> f32 {
 
     // The intersection point is behind the ray's origin
     return -1.0;
+}
+
+fn sky_color(ray: Ray) -> vec3<f32> {
+    let unit_direction: vec3<f32> = normalize(ray.direction);
+    let t: f32 = 0.5 * (unit_direction.y + 1.0);
+    return mix(vec3<f32>(1.0, 1.0, 1.0), vec3<f32>(0.5, 0.7, 1.0), t);
+}
+
+fn color(imported_ray: Ray, MAX_BOUNCES: i32, t_max: f32) -> vec4<f32> {
+    let WHITE: vec3<f32> = vec3<f32>(0.5, 0.7, 1.0);
+    let BLUE: vec3<f32> = vec3<f32>(1.0, 1.0, 1.0);
+    let MAX_COLOR: f32 = 1.0;
+
+    var depth = 0;
+    var ray: Ray = imported_ray;
+    var attenuation = vec3<f32>(1.0,1.0,1.0);
+
+    var color = vec3<f32>(1.0,1.0,1.0);
+    var weight = 1.0;
+
+    while (depth <= 1) {
+        var t = t_max;
+        // Closest object
+        var closest_tris: Triangle;
+        var closest_sphere: Sphere;
+        var is_sphere: bool = false;
+
+        // Check if a Sphere is hit
+        // for(var i = 0; i < 5; i = i + 1){
+        //     var hit: f32 = hit_sphere(ray, spheres[i]);
+        //     if(hit > 0.0 && hit < t){
+        //         t = hit;
+        //         closest_sphere = spheres[i];
+        //         is_sphere = true;
+        //     }
+        // }
+
+        //Check if a Triangle is hit
+        for(var i = 0; i < i32(arrayLength(&triangles)); i = i + 1){
+            var hit: f32 = hit_tri(ray, triangles[i]);
+            if(hit > 0.0 && hit < t){
+                t = hit;
+                closest_tris = triangles[i];
+                is_sphere = false;
+            }
+        }
+
+        // Return background color if no object is hit
+        if (t == t_max) {
+            color = mix(color, sky_color(ray), weight);
+            return vec4<f32>(color, 1.0);
+            //return vec4<f32>(abs(closest_tris.normals.xyz), 1.0);   // For normals debugging
+        }
+
+        //get color of closest hit object and reflect ray if needed
+        // if(is_sphere){
+        //     color += closest_sphere.material.albedo.xyz * weight;
+        //     attenuation = closest_sphere.material.attenuation.xyz;
+        //     ray = Ray(ray.origin + ray.direction * t, reflect(ray.direction, normalize(ray.origin - closest_sphere.center)));
+        // } else if (is_sphere == false && t < t_max) {
+            color *= closest_tris.material.albedo.xyz;
+            ray = Ray(ray.origin + ray.direction * t, rand_vec3_in_unit_sphere(0.5)*rand(0.5)+closest_tris.normals.xyz);
+        // }
+
+        weight = 0.5;    
+        depth += 1;    
+    }
+    return vec4<f32>(color, 1.0);
+}
+
+fn rand_vec3_in_unit_sphere(r: f32) -> vec3<f32> {
+    var squared_magnitude = 2.0;
+    var direction: vec3<f32> = vec3<f32>(0.0, 0.0, 0.0);
+    var counter = 0.0;
+    while (squared_magnitude <= 1.0) {
+        //random point as direction of scatter ray
+        direction = vec3<f32>(
+            rand(r*counter),
+            rand(r*6546.0/counter),
+            rand(r+5665.0-counter),
+        );
+
+        squared_magnitude = direction[0] * direction[0] + direction[1] * direction[1] + direction[2] * direction[2];
+        counter += 1.0;
+    }
+    return normalize(direction)*r;
+}
+
+fn rand(v: f32) -> f32{
+    return fract(sin(v) * 43758.5453);
 }

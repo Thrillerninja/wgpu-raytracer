@@ -19,6 +19,7 @@ tobj = { version = "3.2", features = ["async"]}
 wgpu = { version = "0.17"}
 winit = "0.28"
 instant = "0.1"
+rand = "0.8.5"
 
 [dependencies.image]
 version = "0.24"
