@@ -6,16 +6,25 @@ use winit::event::*;
 use std::{time::{Instant}, fs::File, io::BufReader};
 use std::io::BufRead;
 
-#[derive(Clone)]
-pub struct Material{
-    pub albedo: [f32;3],
-    pub attenuation: [f32;3],
-    pub roughness: f32
+#[repr(C)]
+#[derive(Clone, Copy, bytemuck::Pod, bytemuck::Zeroable)]
+pub struct Material {
+    albedo: [f32; 4],
+    attenuation: [f32; 4],
+    roughness: [f32; 4],
 }
 
-impl Material{
-    pub fn new(albedo: [f32;3], attenuation: [f32;3], roughness: f32)-> Material{
-        Self {albedo, attenuation, roughness}
+impl Material {
+    pub fn new(albedo: [f32; 3], attenuation: [f32; 3], roughness: f32) -> Self {
+        Self {
+            albedo: [albedo[0], albedo[1], albedo[2], 0.0],
+            attenuation: [attenuation[0], attenuation[1], attenuation[2], 0.0],
+            roughness: [roughness, 0.0, 0.0, 0.0],
+        }
+    }
+
+    pub fn clone(&self) -> Material{
+        Material { albedo: self.albedo, attenuation: self.attenuation, roughness: self.roughness}
     }
 }
 
@@ -33,18 +42,28 @@ impl Sphere {
     }
 }
 
-#[derive(Clone)]
+#[repr(C)]
+#[derive(Clone, Copy, bytemuck::Pod, bytemuck::Zeroable)]
 pub struct Triangle{
-    pub points: Vector3<Point3<f32>>,
-    pub normal: Vector3<f32>,
+    pub points: [[f32; 3]; 3],
+    pub normal: [f32; 3],
     pub material: Material
 }
 
 impl Triangle{
 
-    pub fn new(points: Vector3<Point3<f32>>, normal: Vector3<f32>, material: Material) -> Triangle{
+    pub fn new(points: [[f32; 3]; 3], normal: [f32; 3], material: Material) -> Triangle{
         Self{points, normal, material}
     }
+}
+
+// Uniform for transferin the tris to the gpu
+#[repr(C)]
+#[derive(Copy, Clone)]
+pub struct TriangleUniform {
+    pub points: [Vector3<f32>; 3],
+    pub normal: Vector3<f32>,
+    pub material: Material
 }
 
 #[derive(Clone)]
@@ -53,14 +72,14 @@ pub enum Object{
     Triangle(Triangle)
 }
 
-pub fn load_obj(file_path: &str) -> Result<(Vec<[f32; 3]>, Vec<[f32; 3]>, Vec<[usize; 3]>), Box<dyn std::error::Error>> {
+pub fn load_obj(file_path: &str) -> Result<Vec<Triangle>, Box<dyn std::error::Error>> {
     let file = File::open(file_path)?;
     let reader = BufReader::new(file);
 
     let mut vertices = Vec::new();
     let mut texture_coords = Vec::new();
     let mut normals = Vec::new();
-    let mut faces = Vec::new();
+    let mut faces: Vec<Triangle> = Vec::new();
 
     for line in reader.lines() {
         let line = line?;
@@ -101,21 +120,41 @@ pub fn load_obj(file_path: &str) -> Result<(Vec<[f32; 3]>, Vec<[f32; 3]>, Vec<[u
             }
         } else if line.starts_with("f ") {
             // Parse face indices
-            let indices: Vec<usize> = line[2..]
+            let indices: Vec<(usize, usize, usize)> = line[2..]
                 .split_whitespace()
-                .map(|x| x.split('/').next().unwrap_or("0").parse::<usize>().unwrap_or(0))
+                .map(|x| {
+                    let indices: Vec<usize> = x
+                        .split('/')
+                        .map(|y| y.parse::<usize>())
+                        .collect::<Result<_, _>>()
+                        .unwrap();
+                    (indices[0], indices[1], indices[2])
+                })
                 .collect();
-        
+
             if indices.len() >= 3 {
-                // Ensure we have at least 3 indices and create an array of [usize; 3]
-                let face: [usize; 3] = [
-                    indices[0],
-                    indices[1],
-                    indices[2],
-                ];
-                faces.push(face);
+                for i in 2..indices.len() {
+                    let triangle = 
+                        Triangle::new(
+                            [
+                                vertices[indices[0].0 - 1],
+                                vertices[indices[i - 1].0 - 1],
+                                vertices[indices[i].0 - 1],
+                            ],
+                            
+                            normals[indices[i].0 - 1],
+                            
+                            Material::new(
+                                [0.0, 165.0, 255.0],
+                                [1.0, 1.0, 1.0],
+                                1.0,
+                            ),
+                    );
+                    faces.push(triangle);
+                }
             }
         }
     }
-    Ok((vertices, normals, faces))
+
+    Ok(faces)
 }

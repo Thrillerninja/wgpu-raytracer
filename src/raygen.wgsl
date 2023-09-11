@@ -9,6 +9,23 @@ struct Camera {
 @group(1) @binding(0)
 var<uniform> camera: Camera;
 
+// Triangles
+struct Triangle {
+    vertex1: vec4<f32>,
+    vertex2: vec4<f32>,
+    vertex3: vec4<f32>,
+    normals: vec4<f32>,
+    material: Material,
+}
+
+struct Material {
+    albedo: vec4<f32>,
+    attenuation: vec4<f32>,
+    roughness: vec4<f32>,
+}
+
+@group(2) @binding(0) var<storage> triangles : array<Triangle>;
+
 struct Sphere {
     center: vec3<f32>,
     radius: f32,
@@ -17,11 +34,6 @@ struct Sphere {
 struct Ray {
     origin: vec3<f32>,
     direction: vec3<f32>,
-}
-
-struct Objects {
-    spheres: array<Sphere, 4>,
-    sphere_count: u32,
 }
 
 // Helper function to convert from linear RGB to sRGB
@@ -73,6 +85,7 @@ fn main(@builtin(global_invocation_id) GlobalInvocationID: vec3<u32>) {
     // Calculate screen position
     let screen_pos: vec2<u32> = vec2<u32>(GlobalInvocationID.xy);
 
+    //----------Camera----------------
     // Replace these with your camera properties
     let vfov: f32 = 90.0; // Vertical field of view in degrees
     let aspect_ratio: f32 = f32(screen_size.x) / f32(screen_size.y);
@@ -101,26 +114,94 @@ fn main(@builtin(global_invocation_id) GlobalInvocationID: vec3<u32>) {
     let vertical: vec3<f32> = viewport_height * v_axis;
     let lower_left_corner: vec3<f32> = look_from - 0.5 * horizontal - 0.5 * vertical - w;
 
+    //----------Ray----------------
     let ray_origin: vec3<f32> = look_from;
     let ray_direction: vec3<f32> = normalize(lower_left_corner + u * horizontal + v * vertical - look_from);
 
     // Create the ray
     let ray: Ray = Ray(ray_origin, ray_direction);
 
-    // Define 4 spheres in an array
-    let sphere: Sphere = Sphere(vec3<f32>(0.0, 0.0, -1.0), 0.5);
+    //----------Obejcts----------------
+    var pixel_color = color_tris(ray);
 
-    // Initialize pixel color as background color (modify as needed)
-    var pixel_color: vec3<f32> = vec3<f32>(0.0, 0.0, 0.0);
+    // // Define 4 spheres in an array
+    // let sphere: Sphere = Sphere(vec3<f32>(0.0, 0.0, -1.0), 0.5);
 
-    // Check for ray-sphere intersection
-    pixel_color = color(ray, sphere);
+    // // Initialize pixel color as background color (modify as needed)
+    // var pixel_color: vec3<f32> = vec3<f32>(0.0, 0.0, 0.0);
+
+    // // Check for ray-sphere intersection
+    // pixel_color = color(ray, sphere);
 
     // Store the pixel color in the color buffer
     textureStore(color_buffer, vec2<i32>(screen_pos), vec4<f32>(pixel_color, 1.0));
 }
 
+fn color_tris(ray: Ray) -> vec3<f32> {
+    // Check for smallest t in Tris array
+    var t = 100000000.0;
+    var color = vec3<f32>(0.0, 0.0, 0.0);
+    var closest_tris: Triangle;
+
+    for(var i = 0; i < i32(arrayLength(&triangles)); i = i + 1){
+        var hit: f32 = hit_tri(triangles[i], ray);
+        if(hit > 0.0 && hit < t){
+            t = hit;
+            closest_tris = triangles[i];
+        }
+    }
+
+    if (t < 100000000.0) {
+        let hit_point: vec3<f32> = ray.origin + ray.direction * t;
+        color = normalize(closest_tris.material.albedo.xyz);
+    }
+    return color;
+}
 
 fn basic_coloring(screen_pos: vec2<u32>, screen_size: vec2<u32>) -> vec3<f32> {
     return vec3<f32>(f32(screen_pos.x) / f32(screen_size.x), f32(screen_pos.y) / f32(screen_size.y), 0.2);
+}
+
+fn hit_tri(triangle: Triangle, ray: Ray) -> f32 {
+    let v0 = triangle.vertex1.xyz;
+    let v1 = triangle.vertex2.xyz;
+    let v2 = triangle.vertex3.xyz;
+
+    let edge0 = v1 - v0;
+    let edge1 = v2 - v0;
+
+    let h = cross(ray.direction, edge1);
+    let a = dot(edge0, h);
+
+    if abs(a) < 0.000001 {
+        // The ray is parallel or nearly parallel to the triangle's plane
+        return -1.0;
+    }
+
+    let f = 1.0 / a;
+    let s = ray.origin - v0;
+    let u = f * dot(s, h);
+
+    if u < 0.0 || u > 1.0 {
+        // The intersection point is outside the triangle
+        return -1.0;
+    }
+
+    let q = cross(s, edge0);
+    let v = f * dot(ray.direction, q);
+
+    if v < 0.0 || (u + v) > 1.0 {
+        // The intersection point is outside the triangle
+        return -1.0;
+    }
+
+    let t = f * dot(edge1, q);
+
+    if t > 0.0 {
+        // The ray intersects the triangle
+        return t;
+    }
+
+    // The intersection point is behind the ray's origin
+    return -1.0;
 }

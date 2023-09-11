@@ -44,6 +44,28 @@ impl CameraUniform {
     }
 }
 
+#[repr(C)]
+#[derive(Clone, Copy, bytemuck::Pod, bytemuck::Zeroable)]
+struct TriangleUniform {
+    vertex1: [f32; 4],
+    vertex2: [f32; 4],
+    vertex3: [f32; 4],
+    normal: [f32; 4],
+    material: Material,
+}
+
+impl TriangleUniform {
+    fn new(triangle: Triangle) -> Self {
+        Self {
+            vertex1: [triangle.points[0][0], triangle.points[0][1], triangle.points[0][2], 0.0],
+            vertex2: [triangle.points[1][0], triangle.points[1][1], triangle.points[1][2], 0.0],
+            vertex3: [triangle.points[2][0], triangle.points[2][1], triangle.points[2][2], 0.0],
+            normal: [triangle.normal[0],triangle.normal[1],triangle.normal[2], 0.0],
+            material: triangle.material,
+        }
+    }
+}
+
 struct State {
     window: Window,
     surface: wgpu::Surface,
@@ -159,7 +181,7 @@ impl State {
 
         //----------Camera-------------
 
-        let camera = camera::Camera::new((-8.0, 0.0, 0.0), cgmath::Deg(-90.0), cgmath::Deg(0.0));
+        let camera = camera::Camera::new((5.0, 0.0, 0.0), cgmath::Deg(0.0), cgmath::Deg(0.0));
         let projection =
             camera::Projection::new(config.width, config.height, cgmath::Deg(45.0), 0.1, 100.0);
         let camera_controller = camera::CameraController::new(4.0, 0.4);
@@ -199,34 +221,27 @@ impl State {
 
         //----------Objects-------------
         // Load OBJ file
-        let (vertices, normals, faces) = match models::load_obj("res/untitled.obj") {
+        let triangles = match models::load_obj(r"D:\0000meine Daten\Hobby\Progammieren\Rust\wgpu-raytracer\res\untitled.obj") {
             Err(error) => {
                 // Handle the error
                 eprintln!("Error loading OBJ file: {:?}", error);
                 std::process::exit(1);
             }
-            Ok((vertices, normals, faces)) => (vertices, normals, faces),
+            Ok(data) => data,
         };
+
+        //Triangles to Uniform buffer
+        let mut triangles_uniform: Vec<TriangleUniform> = Vec::new();
+        for triangle in triangles.iter(){
+            triangles_uniform.push(TriangleUniform::new(*triangle));
+        }
+        
 
         // Create a buffer to hold the vertex data
         let vertex_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
             label: Some("Vertex Buffer"),
-            contents: bytemuck::cast_slice(&vertices),
-            usage: wgpu::BufferUsages::STORAGE,
-        });
-
-        // Create a buffer to hold the index data
-        let normal_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
-            label: Some("Index Buffer"),
-            contents: bytemuck::cast_slice(&normals),
-            usage: wgpu::BufferUsages::STORAGE,
-        });
-
-        // Create a buffer to hold the material data
-        let material_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
-            label: Some("Material Buffer"),
-            contents: bytemuck::cast_slice(&faces),
-            usage: wgpu::BufferUsages::STORAGE,
+            contents: bytemuck::cast_slice(&triangles_uniform),
+            usage: wgpu::BufferUsages::STORAGE | wgpu::BufferUsages::COPY_DST,
         });
 
         // Create a bind group layout for the shader
@@ -236,33 +251,7 @@ impl State {
                     binding: 0, // This should match the binding number in the shader for object data
                     visibility: wgpu::ShaderStages::COMPUTE,
                     ty: wgpu::BindingType::Buffer {
-                        ty: wgpu::BufferBindingType::Storage {
-                            read_only: true,
-                        },
-                        has_dynamic_offset: false,
-                        min_binding_size: None,
-                    },
-                    count: None,            
-                },
-                wgpu::BindGroupLayoutEntry {
-                    binding: 1, // This should match the binding number in the shader for vertex data
-                    visibility: wgpu::ShaderStages::COMPUTE,
-                    ty: wgpu::BindingType::Buffer {
-                        ty: wgpu::BufferBindingType::Storage {
-                            read_only: true,
-                        },
-                        has_dynamic_offset: false,
-                        min_binding_size: None,
-                    },
-                    count: None,            
-                },
-                wgpu::BindGroupLayoutEntry {
-                    binding: 2, // This should match the binding number in the shader for index data
-                    visibility: wgpu::ShaderStages::COMPUTE,
-                    ty: wgpu::BindingType::Buffer {
-                        ty: wgpu::BufferBindingType::Storage {
-                            read_only: true,
-                        },
+                        ty: wgpu::BufferBindingType::Storage { read_only: true },
                         has_dynamic_offset: false,
                         min_binding_size: None,
                     },
@@ -278,15 +267,7 @@ impl State {
             entries: &[
                 wgpu::BindGroupEntry {
                     binding: 0, // This should match the binding number in the shader for object data
-                    resource: material_buffer.as_entire_binding(),
-                },
-                wgpu::BindGroupEntry {
-                    binding: 1, // This should match the binding number in the shader for vertex data
                     resource: vertex_buffer.as_entire_binding(),
-                },
-                wgpu::BindGroupEntry {
-                    binding: 2, // This should match the binding number in the shader for index data
-                    resource: normal_buffer.as_entire_binding(),
                 }
             ],
             label: Some("object_bind_group"),
@@ -529,7 +510,7 @@ impl State {
 
     fn update(&mut self, dt: std::time::Duration) {
         // UPDATED!
-        //println!("FPS: {}", 1.0 / dt.as_secs_f32());
+        println!("FPS: {}", 1.0 / dt.as_secs_f32());
         self.camera_controller.update_camera(&mut self.camera, dt);
         self.camera_uniform
             .update_view_proj(&self.camera, &self.projection);
