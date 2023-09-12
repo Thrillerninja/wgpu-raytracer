@@ -26,10 +26,11 @@ struct Triangle {
 @group(2) @binding(0) var<storage> triangles : array<Triangle>;
 
 struct Sphere {
-    center: vec3<f32>,
-    radius: f32,
+    center: vec4<f32>,
+    radius: vec4<f32>,
     material: Material,
 }
+@group(2) @binding(1) var<storage> spheres : array<Sphere>;
 
 struct Ray {
     origin: vec3<f32>,
@@ -38,10 +39,10 @@ struct Ray {
 
 // Function to test for ray-sphere intersection
 fn hit_sphere(ray: Ray, sphere: Sphere) -> f32 {
-    let oc: vec3<f32> = ray.origin - sphere.center;
+    let oc: vec3<f32> = ray.origin - sphere.center.x;
     let a: f32 = dot(ray.direction, ray.direction);
     let b: f32 = 2.0 * dot(oc, ray.direction);
-    let c: f32 = dot(oc, oc) - sphere.radius * sphere.radius;
+    let c: f32 = dot(oc, oc) - sphere.radius.x * sphere.radius.x;
     let discriminant: f32 = b * b - 4.0 * a * c;
 
     if (discriminant < 0.0) {
@@ -79,8 +80,6 @@ fn cam_to_world(camera: Camera, vector: vec3<f32>) -> vec4<f32> {
     return camera.view_proj * vec4<f32>(vector, 1.0);
 }
 
-
-
 // Main ray tracing function
 @compute @workgroup_size(1, 1, 1)
 fn main(@builtin(global_invocation_id) GlobalInvocationID: vec3<u32>) {
@@ -93,7 +92,7 @@ fn main(@builtin(global_invocation_id) GlobalInvocationID: vec3<u32>) {
     var ray = calc_ray(screen_pos, screen_size);
 
     // Get Color of Objects if hit
-    let MAX_BOUNCES: i32 = 5;
+    let MAX_BOUNCES: i32 = 1;
     let pixel_color = color(ray, MAX_BOUNCES, 10000.0);
 
     // //----------Obejcts----------------
@@ -241,7 +240,7 @@ fn color(imported_ray: Ray, MAX_BOUNCES: i32, t_max: f32) -> vec4<f32> {
     var color = vec3<f32>(1.0,1.0,1.0);
     var weight = 1.0;
 
-    while (depth <= 1) {
+    while (depth <= MAX_BOUNCES) {
         var t = t_max;
         // Closest object
         var closest_tris: Triangle;
@@ -249,14 +248,14 @@ fn color(imported_ray: Ray, MAX_BOUNCES: i32, t_max: f32) -> vec4<f32> {
         var is_sphere: bool = false;
 
         // Check if a Sphere is hit
-        // for(var i = 0; i < 5; i = i + 1){
-        //     var hit: f32 = hit_sphere(ray, spheres[i]);
-        //     if(hit > 0.0 && hit < t){
-        //         t = hit;
-        //         closest_sphere = spheres[i];
-        //         is_sphere = true;
-        //     }
-        // }
+        for(var i = 0; i < i32(arrayLength(&spheres)); i = i + 1){
+            var hit: f32 = hit_sphere(ray, spheres[i]);
+            if(hit > 0.0 && hit < t){
+                t = hit;
+                closest_sphere = spheres[i];
+                is_sphere = true;
+            }
+        }
 
         //Check if a Triangle is hit
         for(var i = 0; i < i32(arrayLength(&triangles)); i = i + 1){
@@ -276,14 +275,14 @@ fn color(imported_ray: Ray, MAX_BOUNCES: i32, t_max: f32) -> vec4<f32> {
         }
 
         //get color of closest hit object and reflect ray if needed
-        // if(is_sphere){
-        //     color += closest_sphere.material.albedo.xyz * weight;
-        //     attenuation = closest_sphere.material.attenuation.xyz;
-        //     ray = Ray(ray.origin + ray.direction * t, reflect(ray.direction, normalize(ray.origin - closest_sphere.center)));
-        // } else if (is_sphere == false && t < t_max) {
+        if(is_sphere){
+            color += closest_sphere.material.albedo.xyz * weight;
+            attenuation = closest_sphere.material.attenuation.xyz;
+            ray = Ray(ray.origin + ray.direction * t, rand_vec3_in_unit_sphere(0.5)*rand(0.5)+closest_tris.normals.xyz);
+        } else if (is_sphere == false && t < t_max) {
             color *= closest_tris.material.albedo.xyz;
             ray = Ray(ray.origin + ray.direction * t, rand_vec3_in_unit_sphere(0.5)*rand(0.5)+closest_tris.normals.xyz);
-        // }
+        }
 
         weight = 0.5;    
         depth += 1;    

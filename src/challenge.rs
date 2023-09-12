@@ -66,6 +66,24 @@ impl TriangleUniform {
     }
 }
 
+#[repr(C)]
+#[derive(Clone, Copy, bytemuck::Pod, bytemuck::Zeroable)]
+struct SphereUniform {
+    center: [f32; 4],
+    radius: [f32; 4],
+    material: Material,
+}
+
+impl SphereUniform {
+    fn new(sphere: Sphere) -> Self {
+        Self {
+            center: [sphere.center[0], sphere.center[1], sphere.center[2], 0.0],
+            radius: [sphere.radius, 0.0, 0.0, 0.0],
+            material: sphere.material,
+        }
+    }
+}
+
 struct State {
     window: Window,
     surface: wgpu::Surface,
@@ -236,11 +254,29 @@ impl State {
             triangles_uniform.push(TriangleUniform::new(*triangle));
         }
         
-
         // Create a buffer to hold the vertex data
         let vertex_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
             label: Some("Vertex Buffer"),
             contents: bytemuck::cast_slice(&triangles_uniform),
+            usage: wgpu::BufferUsages::STORAGE | wgpu::BufferUsages::COPY_DST,
+        });
+
+        let mut spheres: Vec<Sphere> = Vec::new();
+        spheres.push(Sphere::new(cgmath::Point3::new(0.0, 0.0, 0.0), 1.0, Material::new([0.2, 1.0, 0.0], [0.0, 0.0, 0.0], 0.0)));
+        spheres.push(Sphere::new(cgmath::Point3::new(1.0, 0.0, 0.0), 0.5, Material::new([0.2, 1.0, 0.0], [0.0, 0.0, 0.0], 0.0)));
+        spheres.push(Sphere::new(cgmath::Point3::new(0.0, 1.0, 0.0), 0.5, Material::new([0.2, 1.0, 0.0], [0.0, 0.0, 0.0], 0.0)));
+        spheres.push(Sphere::new(cgmath::Point3::new(0.0, 0.0, 1.0), 0.5, Material::new([0.2, 1.0, 0.0], [0.0, 0.0, 0.0], 0.0)));
+
+        //Triangles to Uniform buffer
+        let mut spheres_uniform: Vec<SphereUniform> = Vec::new();
+        for sphere in spheres.iter(){
+            spheres_uniform.push(SphereUniform::new(*sphere));
+        }
+        
+        // Create a buffer to hold the vertex data
+        let sphere_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
+            label: Some("Vertex Buffer"),
+            contents: bytemuck::cast_slice(&spheres_uniform),
             usage: wgpu::BufferUsages::STORAGE | wgpu::BufferUsages::COPY_DST,
         });
 
@@ -249,6 +285,16 @@ impl State {
             entries: &[
                 wgpu::BindGroupLayoutEntry {
                     binding: 0, // This should match the binding number in the shader for object data
+                    visibility: wgpu::ShaderStages::COMPUTE,
+                    ty: wgpu::BindingType::Buffer {
+                        ty: wgpu::BufferBindingType::Storage { read_only: true },
+                        has_dynamic_offset: false,
+                        min_binding_size: None,
+                    },
+                    count: None,            
+                },
+                wgpu::BindGroupLayoutEntry {
+                    binding: 1, // This should match the binding number in the shader for object data
                     visibility: wgpu::ShaderStages::COMPUTE,
                     ty: wgpu::BindingType::Buffer {
                         ty: wgpu::BufferBindingType::Storage { read_only: true },
@@ -268,6 +314,10 @@ impl State {
                 wgpu::BindGroupEntry {
                     binding: 0, // This should match the binding number in the shader for object data
                     resource: vertex_buffer.as_entire_binding(),
+                },
+                wgpu::BindGroupEntry {
+                    binding: 1, // This should match the binding number in the shader for object data
+                    resource: sphere_buffer.as_entire_binding(),
                 }
             ],
             label: Some("object_bind_group"),

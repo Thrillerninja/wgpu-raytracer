@@ -30,7 +30,7 @@ impl Material {
 }
 
 //all objects in scene
-#[derive(Clone)]
+#[derive(Clone, Copy)]
 pub struct Sphere {
     pub center: Point3<f32>,
     pub radius: f32,
@@ -43,8 +43,7 @@ impl Sphere {
     }
 }
 
-#[repr(C)]
-#[derive(Clone, Copy, bytemuck::Pod, bytemuck::Zeroable)]
+#[derive(Clone, Copy)]
 pub struct Triangle{
     pub points: [[f32; 3]; 3],
     pub normal: [f32; 3],
