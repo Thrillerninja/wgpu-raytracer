@@ -263,9 +263,9 @@ impl State {
 
         let mut spheres: Vec<Sphere> = Vec::new();
         spheres.push(Sphere::new(cgmath::Point3::new(0.0, 0.0, 0.0), 1.0, Material::new([0.2, 1.0, 0.0], [0.0, 0.0, 0.0], 0.0)));
-        spheres.push(Sphere::new(cgmath::Point3::new(1.0, 0.0, 0.0), 0.5, Material::new([0.2, 1.0, 0.0], [0.0, 0.0, 0.0], 0.0)));
-        spheres.push(Sphere::new(cgmath::Point3::new(0.0, 1.0, 0.0), 0.5, Material::new([0.2, 1.0, 0.0], [0.0, 0.0, 0.0], 0.0)));
-        spheres.push(Sphere::new(cgmath::Point3::new(0.0, 0.0, 1.0), 0.5, Material::new([0.2, 1.0, 0.0], [0.0, 0.0, 0.0], 0.0)));
+        spheres.push(Sphere::new(cgmath::Point3::new(2.0, 0.0, 0.0), 0.5, Material::new([1.5, 0.3, 0.0], [0.0, 0.0, 0.0], 0.0)));
+        spheres.push(Sphere::new(cgmath::Point3::new(1.0, 1.0, 1.0), 0.7, Material::new([0.2, 0.5, 1.0], [0.0, 0.0, 0.0], 0.0)));
+        spheres.push(Sphere::new(cgmath::Point3::new(0.0, 0.0, 2.0), 0.7, Material::new([0.5, 1.5, 5.0], [0.0, 0.0, 0.0], 0.0)));
 
         //Triangles to Uniform buffer
         let mut spheres_uniform: Vec<SphereUniform> = Vec::new();

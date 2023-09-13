@@ -17,10 +17,11 @@ pub struct Material {
 
 impl Material {
     pub fn new(albedo: [f32; 3], attenuation: [f32; 3], roughness: f32) -> Self {
+        let mut rng = rand::thread_rng();
         Self {
             albedo: [albedo[0], albedo[1], albedo[2], 0.0],
             attenuation: [attenuation[0], attenuation[1], attenuation[2], 0.0],
-            roughness: [roughness, 0.0, 0.0, 0.0],
+            roughness: [roughness, rng.gen_range(0.0..1.0), 0.0, 0.0],      //roughness, rand seed, 0, 0
         }
     }
 
