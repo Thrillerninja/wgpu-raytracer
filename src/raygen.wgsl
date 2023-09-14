@@ -11,7 +11,10 @@ struct Camera {
 struct Material {
     albedo: vec4<f32>,
     attenuation: vec4<f32>,
-    roughness: vec4<f32>,   //only 1. float used, 2. as rand value
+    roughness: f32,
+    emission: f32,
+    ior: f32,
+    _padding: f32,
 }
 
 // Triangles
@@ -36,34 +39,30 @@ struct Ray {
     direction: vec3<f32>,
 }
 
-// Function to test for ray-sphere intersection
-fn hit_sphere(ray: Ray, sphere: Sphere) -> f32 {
-    let oc: vec3<f32> = ray.origin - sphere.center.xyz;
-    let a: f32 = dot(ray.direction, ray.direction);
-    let b: f32 = 2.0 * dot(oc, ray.direction);
-    let c: f32 = dot(oc, oc) - sphere.radius.x * sphere.radius.x;
-    let discriminant: f32 = b * b - 4.0 * a * c;
-
-    if (discriminant < -0.000001) {         // If Noise in Sphere rendering is visible, increase this value.
-        return -1.0;
-    } else {
-        return (-b - sqrt(discriminant)) / (2.0 * a);
-    }
-}
+var<private> seed: f32;
+var<private> screen_size: vec2<u32>;
+var<private> screen_pos: vec2<u32>;
+var <private> rand_val: vec2<f32>;
 
 // Main ray tracing function
 @compute @workgroup_size(1, 1, 1)
 fn main(@builtin(global_invocation_id) GlobalInvocationID: vec3<u32>) {
     // Get the screen size
-    let screen_size: vec2<u32> = vec2<u32>(textureDimensions(color_buffer));
+    screen_size = vec2<u32>(textureDimensions(color_buffer));
     // Calculate screen position
-    let screen_pos: vec2<u32> = vec2<u32>(GlobalInvocationID.xy);
+    screen_pos = vec2<u32>(GlobalInvocationID.xy);
+
+    // Setup random seed
+    seed = f32(hash(screen_pos.x + screen_pos.y * screen_size.x));
+    
+    // Initialize rand_val using the current screen position and seed
+    rand_val = vec2<f32>(rand(), rand());
 
     // Calculate Ray
     var ray = calc_ray(screen_pos, screen_size);
 
     // Get Color of Objects if hit
-    let MAX_BOUNCES: i32 = 2;
+    let MAX_BOUNCES: i32 = 100;
     let pixel_color = color(ray, MAX_BOUNCES, 10000.0);
 
     // Store the pixel color in the color buffer
@@ -102,10 +101,75 @@ fn calc_ray(screen_pos: vec2<u32>, screen_size: vec2<u32>) -> Ray {
     let lower_left_corner: vec3<f32> = look_from - 0.5 * horizontal - 0.5 * vertical - w;
 
     //----------Ray----------------
+    // Antialiasing by rand jitter of starting psoition
     let ray_origin: vec3<f32> = look_from;
+
     let ray_direction: vec3<f32> = normalize(lower_left_corner + u * horizontal + v * vertical - look_from);
     // Create the ray
     return Ray(ray_origin, ray_direction);
+}
+
+// Jenkins hash function, specialized for a uint key
+fn hash(key: u32) -> u32 {
+    var h = 0u;
+    for (var i=0u; i < 4u; i++) {
+        h += (key >> (i * 8u)) & 0xFFu;
+        h += h << 10u;
+        h ^= h >> 6u;
+    }
+    h += h << 3u;
+    h ^= h >> 11u;
+    h += h << 15u;
+    return h;
+}
+
+
+// Function to generate a pseudorandom value between 0.0 and 1.0
+fn rand() -> f32 {
+    // Use rand_val instead of screen_pos to introduce randomness
+    let PHI: f32 = 1.618033988749895;
+    let distance_val = distance(rand_val.xy * PHI, rand_val.xy);
+    let tan_val = tan(distance_val * seed);
+    let fract_val = fract(tan_val * rand_val.x);
+    return fract_val;
+}
+
+
+// Function to generate a random unit vector (uniformly distributed on a sphere's surface)
+fn rand3_on_sphere(r: f32) -> vec3<f32> {
+
+    // let u: f32 = rand() * 2.0 - 1.0;
+    // let theta: f32 = rand() * 2.0 * 3.14159265359;
+    // let sqrt_1_minus_u_squared: f32 = sqrt(1.0 - u * u);
+    // let x: f32 = sqrt_1_minus_u_squared * cos(theta);
+    // let y: f32 = sqrt_1_minus_u_squared * sin(theta);
+    // let z: f32 = u;
+    // return normalize(vec3<f32>(x, y, z)) * r;
+
+    var squared_magnitude: f32 = 10.0;
+    var direction: vec3<f32> = vec3<f32>(0.0, 0.0, 0.0);
+    
+    while (squared_magnitude >= 1.0) { // Adjust the threshold value as needed
+        direction = vec3<f32>(rand() * 2.0 - 1.0, rand() * 2.0 - 1.0, rand() * 2.0 - 1.0);
+        squared_magnitude = sqrt(direction.x * direction.x + direction.y * direction.y + direction.z * direction.z);
+    }
+    
+    return direction;
+}
+
+// Function to test for ray-sphere intersection
+fn hit_sphere(ray: Ray, sphere: Sphere) -> f32 {
+    let oc: vec3<f32> = ray.origin - sphere.center.xyz;
+    let a: f32 = dot(ray.direction, ray.direction);
+    let b: f32 = 2.0 * dot(oc, ray.direction);
+    let c: f32 = dot(oc, oc) - sphere.radius.x * sphere.radius.x;
+    let discriminant: f32 = b * b - 4.0 * a * c;
+
+    if (discriminant < -0.000001) {         // If Noise in Sphere rendering is visible, increase this value.
+        return -1.0;
+    } else {
+        return (-b - sqrt(discriminant)) / (2.0 * a);
+    }
 }
 
 fn hit_tri(ray: Ray, triangle: Triangle) -> f32 {
@@ -159,18 +223,15 @@ fn color(imported_ray: Ray, MAX_BOUNCES: i32, t_max: f32) -> vec4<f32> {
     var depth = 0;
     var ray: Ray = imported_ray;
     var attenuation = vec3<f32>(1.0, 1.0, 1.0);
-
     var color = vec3<f32>(1.0, 1.0, 1.0);
     var weight = 1.0;
 
     while (depth <= MAX_BOUNCES) {
         var t = t_max;
-        // Closest object
         var closest_tris: Triangle;
         var closest_sphere: Sphere;
         var is_sphere: bool = false;
 
-        // Check if a Sphere is hit
         for (var i = 0; i < i32(arrayLength(&spheres)); i = i + 1) {
             var hit: f32 = hit_sphere(ray, spheres[i]);
             if (hit > 0.0 && hit < t) {
@@ -180,7 +241,6 @@ fn color(imported_ray: Ray, MAX_BOUNCES: i32, t_max: f32) -> vec4<f32> {
             }
         }
 
-        // Check if a Triangle is hit
         for (var j = 0; j < i32(arrayLength(&triangles)); j = j + 1) {
             var hit: f32 = hit_tri(ray, triangles[j]);
             if (hit > 0.0 && hit < t) {
@@ -190,45 +250,72 @@ fn color(imported_ray: Ray, MAX_BOUNCES: i32, t_max: f32) -> vec4<f32> {
             }
         }
 
-        // Return background color if no object is hit
         if (t == t_max) {
             color = mix(color, sky_color(ray), weight);
             return vec4<f32>(color, 1.0);
         }
 
+        let intersection_point = ray.origin + ray.direction * t;
+        var target_dir: vec3<f32>;
         // Get color of the closest hit object and reflect ray if needed
         if (is_sphere) {
             color *= closest_sphere.material.albedo.xyz * weight;
             attenuation = closest_sphere.material.attenuation.xyz;
-            ray = Ray(ray.origin + ray.direction * t, normalize(ray.origin + ray.direction * t - closest_sphere.center.xyz));
+
+            let normal = normalize(intersection_point - closest_sphere.center.xyz);
+            rand_val = vec2<f32>(closest_sphere.center.z, closest_sphere.center.x);
+            // Calculate randomness in the direction using rand_val
+            let random_dir: vec3<f32> = rand3_on_sphere(closest_sphere.material.roughness);
+
+            // Update the target direction with randomness
+            target_dir = intersection_point + target_dir + random_dir;
+
+            // var reflected_dir = reflect(ray.direction, normalize(closest_sphere.center.xyz - (ray.origin + ray.direction * t)));
+
+            weight *= closest_sphere.material.attenuation.x;
         } else if (!is_sphere && t < t_max) {
             color *= closest_tris.material.albedo.xyz;
-            ray = Ray(ray.origin + ray.direction * t, normalize(ray.origin + ray.direction * t + closest_tris.normals.xyz));
+            attenuation = closest_tris.material.attenuation.xyz;
+
+            let normal = normalize(closest_tris.normals.xyz);
+
+            // Calculate randomness in the direction using rand_val
+            let random_dir: vec3<f32> = rand3_on_sphere(closest_tris.material.roughness);
+
+            // Update the target direction with randomness
+            target_dir = intersection_point + target_dir + random_dir;
+
+            // var reflected_dir = normalize(ray.direction - 2.0 * dot(ray.direction, normal) * normal);
+            // ray = Ray(ray.origin + ray.direction * t, reflected_dir + rand3_on_sphere(closest_tris.material.roughness));
+
+            weight *= closest_tris.material.attenuation.x;
         }
 
-        weight *= 0.5; // Update weight based on material attenuation
+        ray = Ray(intersection_point,target_dir - intersection_point);
+
+        // if (depth == 3) {
+        //     return vec4<f32>(ray.direction, 1.0);
+        // }
         depth += 1;
     }
+    
     return vec4<f32>(color, 1.0);
 }
 
+fn sample_sphere_uniform(seed: f32) -> vec3<f32> {
+    let phi = 2.0 * 3.141569 * seed;//f32(screen_pos.x/screen_size.x);
+    let cos_theta = 1.0 - 2.0 * seed; //f32(screen_pos.y/screen_size.y);
+    let sin_theta = sqrt(1.0 - cos_theta * cos_theta);
 
-fn rand_vec3_in_unit_sphere(roughness: vec2<f32>) -> vec3<f32> {
-    var squared_magnitude = 2.0;
-    var direction: vec3<f32> = vec3<f32>(0.0, 0.0, 0.0);
-    while (squared_magnitude <= 1.0) {
-        //random point as direction of scatter ray
-        direction = vec3<f32>(
-            rand(roughness.y*11.0),
-            rand(roughness.y*3.0),
-            rand(roughness.y*7.0),
-        );
-
-        squared_magnitude = direction[0] * direction[0] + direction[1] * direction[1] + direction[2] * direction[2];
-    }
-    return normalize(direction)*0.5;
+    return vec3(cos(phi) * sin_theta, cos_theta, sin(phi) * sin_theta);
 }
 
-fn rand(v: f32) -> f32{
-    return fract(sin(v) * 43758.5453);
+fn random_in_hemisphere(normal: vec3<f32>, seed: f32) -> vec3<f32> {
+    let in_unit_sphere = sample_sphere_uniform(seed);
+    if (dot(in_unit_sphere, normal) > 0.0) {
+        // In the same hemisphere as the normal
+        return in_unit_sphere;
+    } else {
+        return -in_unit_sphere;
+    }
 }

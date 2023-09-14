@@ -7,6 +7,7 @@ use winit::{
     event_loop::{ControlFlow, EventLoop},
     window::Window,
 };
+use rand::Rng;
 
 #[cfg(target_arch = "wasm32")]
 use wasm_bindgen::prelude::*;
@@ -76,8 +77,9 @@ struct SphereUniform {
 
 impl SphereUniform {
     fn new(sphere: Sphere) -> Self {
+        let mut rng = rand::thread_rng();
         Self {
-            center: [sphere.center[0], sphere.center[1], sphere.center[2], 0.0],
+            center: [sphere.center[0], sphere.center[1], sphere.center[2], rng.gen_range(0.0..1.0)],//rand number in last slot
             radius: [sphere.radius, 0.0, 0.0, 0.0],
             material: sphere.material,
         }
@@ -262,10 +264,10 @@ impl State {
         });
 
         let mut spheres: Vec<Sphere> = Vec::new();
-        spheres.push(Sphere::new(cgmath::Point3::new(0.0, 0.0, 0.0), 1.0, Material::new([0.2, 1.0, 0.0], [0.0, 0.0, 0.0], 0.0)));
-        spheres.push(Sphere::new(cgmath::Point3::new(2.0, 0.0, 0.0), 0.5, Material::new([1.5, 0.3, 0.0], [0.0, 0.0, 0.0], 0.0)));
-        spheres.push(Sphere::new(cgmath::Point3::new(1.0, 1.0, 1.0), 0.7, Material::new([0.2, 0.5, 1.0], [0.0, 0.0, 0.0], 0.0)));
-        spheres.push(Sphere::new(cgmath::Point3::new(0.0, 0.0, 2.0), 0.7, Material::new([0.5, 1.5, 5.0], [0.0, 0.0, 0.0], 0.0)));
+        spheres.push(Sphere::new(cgmath::Point3::new(0.0, 0.0, 0.0), 1.0, Material::new([0.2, 1.0, 0.0], [0.5, 1.0, 1.0], 0.5, 0.0, 0.0)));
+        spheres.push(Sphere::new(cgmath::Point3::new(0.0, -51.0, 0.0), 50.0, Material::new([1.0, 0.0, 0.0], [0.5, 1.0, 1.0], 0.9, 0.0, 0.0)));
+        spheres.push(Sphere::new(cgmath::Point3::new(0.0, 0.0, 0.0), 0.7, Material::new([0.0, 1.0, 0.0], [0.5, 1.0, 1.0], 0.9, 0.0, 0.0)));
+        spheres.push(Sphere::new(cgmath::Point3::new(0.0, 0.0, 0.0), 0.7, Material::new([0.0, 0.0, 1.0], [0.5, 1.0, 1.0], 0.0, 0.0, 0.0)));
 
         //Triangles to Uniform buffer
         let mut spheres_uniform: Vec<SphereUniform> = Vec::new();
