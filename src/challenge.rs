@@ -264,10 +264,11 @@ impl State {
         });
 
         let mut spheres: Vec<Sphere> = Vec::new();
-        spheres.push(Sphere::new(cgmath::Point3::new(0.0, 0.0, 0.0), 1.0, Material::new([0.2, 1.0, 0.0], [0.5, 1.0, 1.0], 0.5, 0.0, 0.0)));
-        spheres.push(Sphere::new(cgmath::Point3::new(0.0, -51.0, 0.0), 50.0, Material::new([1.0, 0.0, 0.0], [0.5, 1.0, 1.0], 0.9, 0.0, 0.0)));
-        spheres.push(Sphere::new(cgmath::Point3::new(0.0, 0.0, 0.0), 0.7, Material::new([0.0, 1.0, 0.0], [0.5, 1.0, 1.0], 0.9, 0.0, 0.0)));
-        spheres.push(Sphere::new(cgmath::Point3::new(0.0, 0.0, 0.0), 0.7, Material::new([0.0, 0.0, 1.0], [0.5, 1.0, 1.0], 0.0, 0.0, 0.0)));
+        spheres.push(Sphere::new(cgmath::Point3::new(0.5, 0.0, -1.0), 0.5, Material::new([0.0, 1.0, 0.0], [0.2, 1.0, 1.0], 0.2, 0.0, 0.0)));
+        spheres.push(Sphere::new(cgmath::Point3::new(-0.5, 0.0, -1.0), 0.5, Material::new([0.0, 0.0, 1.0], [0.2, 1.0, 1.0], 0.0, 0.0, 1.89)));
+        spheres.push(Sphere::new(cgmath::Point3::new(-0.5, 0.0, -1.0), -0.45, Material::new([0.0, 0.0, 1.0], [0.2, 1.0, 1.0], 0.0, 0.0, 1.89)));
+        spheres.push(Sphere::new(cgmath::Point3::new(0.5, -50.5, -1.0), 50.0, Material::new([1.0, 0.3, 0.2], [0.2, 1.0, 1.0], 0.2, 0.0, 0.0)));
+        spheres.push(Sphere::new(cgmath::Point3::new(0.0, 0.0, 0.0), 0.4, Material::new([1.0, 1.0, 1.0], [0.5, 1.0, 1.0], 0.0, 0.0, 0.0)));
 
         //Triangles to Uniform buffer
         let mut spheres_uniform: Vec<SphereUniform> = Vec::new();
@@ -672,7 +673,7 @@ pub async fn run() {
         // Winit prevents sizing with CSS, so we have to set
         // the size manually when on web.
         use winit::dpi::PhysicalSize;
-        window.set_inner_size(PhysicalSize::new(450, 400));
+        window.set_inner_size(PhysicalSize::new(1920, 1080));
 
         use winit::platform::web::WindowExtWebSys;
         web_sys::window()
@@ -725,7 +726,6 @@ pub async fn run() {
                     _ => {}
                 }
             }
-            // UPDATED!
             Event::RedrawRequested(window_id) if window_id == state.window().id() => {
                 let now = instant::Instant::now();
                 let dt = now - last_render_time;
