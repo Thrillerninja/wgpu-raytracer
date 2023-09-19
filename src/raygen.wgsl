@@ -71,31 +71,29 @@ fn main(@builtin(global_invocation_id) GlobalInvocationID: vec3<u32>) {
 
     let _SAMPLES = 10;
 
+    // Initialize pixel_color to zero
+    var pixel_color = vec3<f32>(0.0, 0.0, 0.0);
 
-    //start rand seed
-    var seed = initRng(screen_pos, screen_size, 0u);
-    rngNextFloat(f32(seed));
-    let MAX_BOUNCES: i32 = 100;
+    // Start rand seed
+    seed = f32(initRng(screen_pos, screen_size, 0u));
 
     // Multiple Samples as Antialiasing
-    var pixel_color: vec4<f32>;
-    for (var color_samples = 0; color_samples < _SAMPLES; color_samples +=1){
+    for (var color_samples = 0; color_samples < _SAMPLES; color_samples += 1) {
         // Calculate Ray
         var ray = calc_ray(screen_pos, screen_size);
 
         // Get Color of Objects if hit
-        pixel_color += color(ray, MAX_BOUNCES, 10000.0);
+        pixel_color += color(ray, 50, 10000.0).xyz;
     }
-    //var pixel_color = color(ray, MAX_BOUNCES, 10000.0);
 
+    // Weighted average of pixel colors
     pixel_color /= f32(_SAMPLES);
 
-    //pixel_color = vec4<f32>(rngNextFloat(f32(seed)), rngNextFloat(f32(seed)), rngNextFloat(f32(seed)), 1.0);
-    //pixel_color = vec4<f32>(abs(rngNextVec3InUnitSphere()),1.0);
 
     // Store the pixel color in the color buffer
-    textureStore(color_buffer, vec2<i32>(screen_pos), pixel_color);
+    textureStore(color_buffer, vec2<i32>(screen_pos), vec4<f32>(pixel_color, 1.0));
 }
+
 
 fn calc_ray(screen_pos: vec2<u32>, screen_size: vec2<u32>) -> Ray {
 
@@ -109,16 +107,16 @@ fn calc_ray(screen_pos: vec2<u32>, screen_size: vec2<u32>) -> Ray {
     let look_at: vec3<f32> = camera.view_pos + normalize(camera.view_proj * vec4<f32>(0.0, 0.0, -1.0, 0.0)).xyz;
 
 
-    let focus_dist: f32 = 1.0; // Focus distance
-    let aperture: f32 = 0.01; // Aperture size
+    let focus_dist: f32 = 2.5; // Focus distance
+    let aperture: f32 = 0.001; // Aperture size
 
     let theta: f32 = radians(vfov);
     let h: f32 = tan(theta / 2.0);
-    let viewport_height: f32 = 2.0 * h;
+    let viewport_height: f32 = 2.0 * h * focus_dist;
     let viewport_width: f32 = aspect_ratio * viewport_height;
 
-    let u: f32 = (f32(screen_pos.x) + rngNextFloat(seed)/2.0) / f32(screen_size.x);   // + Random offset
-    let v: f32 = (f32(screen_pos.y) + rngNextFloat(seed)/2.0) / f32(screen_size.y);
+    let u: f32 = (f32(screen_pos.x) + -0.5+rngNextFloat()) / f32(screen_size.x);   // + Random offset
+    let v: f32 = (f32(screen_pos.y) + -0.5+rngNextFloat()) / f32(screen_size.y);
 
     let w: vec3<f32> = normalize(look_from - look_at);
     let u_axis: vec3<f32> = cross(vec3<f32>(0.0, 1.0, 0.0), w);
@@ -126,11 +124,19 @@ fn calc_ray(screen_pos: vec2<u32>, screen_size: vec2<u32>) -> Ray {
 
     let horizontal: vec3<f32> = viewport_width * u_axis;
     let vertical: vec3<f32> = viewport_height * v_axis;
-    let lower_left_corner: vec3<f32> = look_from - 0.5 * horizontal - 0.5 * vertical - w;
+    let lower_left_corner: vec3<f32> = look_from - 0.5 * horizontal - 0.5 * vertical - w*focus_dist;
 
-    //----------Ray----------------
-    let ray_origin: vec3<f32> = look_from;
-    let ray_direction: vec3<f32> = lower_left_corner + u * horizontal + v * vertical - look_from;
+    // Depth of field settings
+    let lens_radius: f32 = 0.05; // Radius of the lens aperture
+
+    // Randomly sample a point within the lens aperture
+    let random_in_unit_disk: vec2<f32> = rngNextVec2InUnitDisk() * lens_radius;
+    let lens_offset: vec3<f32> = u_axis * random_in_unit_disk.x + v_axis * random_in_unit_disk.y;
+
+    // Compute the new ray direction with depth of field
+    let ray_origin: vec3<f32> = look_from + lens_offset;
+    let ray_direction: vec3<f32> = lower_left_corner + u * horizontal + v * vertical - ray_origin;
+
     // Create the ray
     return Ray(ray_origin, ray_direction);
 }
@@ -294,7 +300,9 @@ fn dielectric_scatter(ray: Ray, hit_point: vec3<f32>, normal: vec3<f32>, materia
 
     let reflect_prob: f32 = schlick(cos_theta, etai_over_etat);
 
-    if rngNextFloat(seed) < reflect_prob {
+    let cannot_refract = etai_over_etat * sin_theta > 1.0;
+
+    if rngNextFloat() < reflect_prob || cannot_refract {
         // Reflect
         let reflected_direction: vec3<f32> = reflect(unit_direction, normal);
         return Ray(hit_point, reflected_direction);
@@ -362,16 +370,17 @@ fn rand_on_hemisphere(normal: vec3<f32>, roughness: vec2<f32>) -> vec3<f32> {
 
 
 
-fn rngNextFloat(state: f32) -> f32 {
-    rngNextInt(state);
+fn rngNextFloat() -> f32 {
+    let state = seed;
+    rngNextInt();
     return state / f32(0xffffffffu);
 }
 
-fn rngNextInt(state: f32) -> f32 {
+fn rngNextInt() -> f32 {
     // PCG random number generator
     // Based on https://www.shadertoy.com/view/XlGcRh
 
-    let oldState = u32(state) + 747796405u + 2891336453u;
+    let oldState = u32(seed) + 747796405u + 2891336453u;
     let word = ((oldState >> ((oldState >> 28u) + 4u)) ^ oldState) * 277803737u;
     seed = f32((word >> 22u) ^ word);
     return seed;
@@ -395,13 +404,23 @@ fn jenkinsHash(input: u32) -> u32 {
 
 fn rngNextVec3InUnitSphere() -> vec3<f32> {
     // r^3 ~ U(0, 1)
-    let r = pow(rngNextFloat(seed), 0.33333f);
-    let theta = pi * rngNextFloat(seed);
-    let phi = 2f * pi * rngNextFloat(seed);
+    let r = pow(rngNextFloat(), 0.33333f);
+    let theta = pi * rngNextFloat();
+    let phi = 2f * pi * rngNextFloat();
 
     let x = r * sin(theta) * cos(phi);
     let y = r * sin(theta) * sin(phi);
     let z = r * cos(theta);
 
     return vec3(x, y, z);
+}
+
+fn rngNextVec2InUnitDisk() -> vec2<f32> {
+    let r = sqrt(rngNextFloat()); // Square root for disk
+    let theta = 2.0 * pi * rngNextFloat();
+
+    let x = r * cos(theta);
+    let y = r * sin(theta);
+
+    return vec2(x, y);
 }
