@@ -62,7 +62,7 @@ fn hit_sphere(ray: Ray, sphere: Sphere) -> f32 {
 }
 
 // Constants
-var<private> _SAMPLES: i32 = 1; // Adjust the number of samples as needed
+var<private> _SAMPLES: i32 = 5; // Adjust the number of samples as needed
 
 // Flag to indicate if it's the first frame (for buffer initialization)
 var<private> first_frame: bool = true;
