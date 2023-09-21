@@ -1,5 +1,5 @@
 @group(0) @binding(0) var color_buffer: texture_storage_2d<rgba8unorm, write>;
-
+@group(3) @binding(0) var temporal_color_buffer: sampler;
 // Camera
 struct Camera {
     view_pos: vec3<f32>,
@@ -61,6 +61,13 @@ fn hit_sphere(ray: Ray, sphere: Sphere) -> f32 {
     }
 }
 
+// Constants
+var<private> _SAMPLES: i32 = 1; // Adjust the number of samples as needed
+
+// Flag to indicate if it's the first frame (for buffer initialization)
+var<private> first_frame: bool = true;
+var<private> sample_count: i32 = 0;
+
 // Main ray tracing function
 @compute @workgroup_size(1, 1, 1)
 fn main(@builtin(global_invocation_id) GlobalInvocationID: vec3<u32>) {
@@ -68,8 +75,6 @@ fn main(@builtin(global_invocation_id) GlobalInvocationID: vec3<u32>) {
     let screen_size: vec2<u32> = vec2<u32>(textureDimensions(color_buffer));
     // Calculate screen position
     let screen_pos: vec2<u32> = vec2<u32>(GlobalInvocationID.xy);
-
-    let _SAMPLES = 10;
 
     // Initialize pixel_color to zero
     var pixel_color = vec3<f32>(0.0, 0.0, 0.0);
@@ -89,11 +94,9 @@ fn main(@builtin(global_invocation_id) GlobalInvocationID: vec3<u32>) {
     // Weighted average of pixel colors
     pixel_color /= f32(_SAMPLES);
 
-
     // Store the pixel color in the color buffer
     textureStore(color_buffer, vec2<i32>(screen_pos), vec4<f32>(pixel_color, 1.0));
 }
-
 
 fn calc_ray(screen_pos: vec2<u32>, screen_size: vec2<u32>) -> Ray {
 

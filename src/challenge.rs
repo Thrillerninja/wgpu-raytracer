@@ -94,6 +94,12 @@ struct State {
     queue: wgpu::Queue,
     config: wgpu::SurfaceConfiguration,
     size: winit::dpi::PhysicalSize<u32>,
+    //Antialiasing Sample Textures
+    color_texture: wgpu::Texture,
+    temporal_buffer: wgpu::Texture,
+    temporal_bind_group: wgpu::BindGroup,
+    temporal_denoise_pipeline: wgpu::ComputePipeline,
+    temporal_denoise_shader: wgpu::ShaderModule,
     //Raytracing
     ray_tracing_pipeline: wgpu::ComputePipeline,
     ray_generation_shader: wgpu::ShaderModule,
@@ -199,6 +205,97 @@ impl State {
         
         let color_buffer_view = color_texture.create_view(&wgpu::TextureViewDescriptor::default());
 
+        //----------Anit-Aliasing-------------
+        // Inside the State struct, add a temporal buffer and a bind group for it.
+        // Temporal buffer and bind group
+        let temporal_buffer = device.create_texture(&wgpu::TextureDescriptor {
+            label: Some("Temporal Buffer"),
+            view_formats: &[config.format], // Use the same format as the color buffer
+            size: wgpu::Extent3d {
+                width: config.width,
+                height: config.height,
+                depth_or_array_layers: 1,
+            },
+            mip_level_count: 1,
+            sample_count: 1,
+            dimension: wgpu::TextureDimension::D2,
+            format: config.format, // Use the same format as the color buffer
+            usage: wgpu::TextureUsages::TEXTURE_BINDING | wgpu::TextureUsages::COPY_DST,
+        });
+        let temporal_buffer_view = temporal_buffer.create_view(&wgpu::TextureViewDescriptor::default());
+
+        
+        //Create a Sampler for trasfering color data from render to screen texture
+        let denoise_sampler = device.create_sampler(&wgpu::SamplerDescriptor {
+            label: Some("Denoise Sampler"),
+            address_mode_u: wgpu::AddressMode::Repeat,
+            address_mode_v: wgpu::AddressMode::Repeat,
+            address_mode_w: wgpu::AddressMode::Repeat,
+            mag_filter: wgpu::FilterMode::Linear,
+            min_filter: wgpu::FilterMode::Nearest,
+            mipmap_filter: wgpu::FilterMode::Nearest,
+            anisotropy_clamp: 1,
+            ..Default::default()
+        });
+
+        let temporal_bind_group_layout =
+            device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
+                entries: &[
+                    wgpu::BindGroupLayoutEntry {
+                        binding: 0,
+                        visibility: wgpu::ShaderStages::COMPUTE,
+                        ty: wgpu::BindingType::Texture {
+                            sample_type: wgpu::TextureSampleType::Float { filterable: true },
+                            multisampled: false,
+                            view_dimension: wgpu::TextureViewDimension::D2,
+                        },
+                        count: None,
+                    },
+                    wgpu::BindGroupLayoutEntry {
+                        binding: 1,
+                        visibility: wgpu::ShaderStages::COMPUTE,
+                        ty: wgpu::BindingType::Sampler(wgpu::SamplerBindingType::Filtering),
+                        count: None,
+                    },
+                ],
+                label: Some("temporal_bind_group_layout"),
+            });
+
+        let temporal_bind_group = device.create_bind_group(&wgpu::BindGroupDescriptor {
+            layout: &temporal_bind_group_layout,
+            entries: &[
+                wgpu::BindGroupEntry {
+                    binding: 0,
+                    resource: wgpu::BindingResource::TextureView(&temporal_buffer_view),
+                },
+                wgpu::BindGroupEntry {
+                    binding: 1,
+                    resource: wgpu::BindingResource::Sampler(&denoise_sampler),
+                },
+            ],
+            label: Some("temporal_bind_group"),
+        });
+
+        // Create a pipeline layout for temporal denoising
+        let temporal_denoise_pipeline_layout = device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
+            label: Some("Temporal Denoising Pipeline Layout"),
+            bind_group_layouts: &[&temporal_bind_group_layout],
+            push_constant_ranges: &[],
+        });
+
+        // Load your temporal denoising shader
+        let temporal_denoise_shader = device.create_shader_module(wgpu::ShaderModuleDescriptor {
+            label: Some("Temporal Denoising Shader"),
+            source: wgpu::ShaderSource::Wgsl(include_str!("temporal-denoise.wgsl").into()), // Replace with your actual shader source
+        });
+
+        // Create a temporal denoising pipeline
+        let temporal_denoise_pipeline = device.create_compute_pipeline(&wgpu::ComputePipelineDescriptor {
+            label: Some("Temporal Denoising Pipeline"),
+            layout: Some(&temporal_denoise_pipeline_layout),
+            module: &temporal_denoise_shader,
+            entry_point: "main", // Change to your actual entry point name
+        });
         //----------Camera-------------
 
         let camera = camera::Camera::new((4.0, 6.0, -4.0), cgmath::Deg(-80.0), cgmath::Deg(15.0));
@@ -241,7 +338,7 @@ impl State {
 
         //----------Objects-------------
         // Load OBJ file
-        let triangles = match models::load_obj(r"D:\0000meine Daten\Hobby\Progammieren\Rust\wgpu-raytracer\res\untitled.obj") {
+        let triangles = match models::load_obj(r"res\untitled.obj") {
             Err(error) => {
                 // Handle the error
                 eprintln!("Error loading OBJ file: {:?}", error);
@@ -356,11 +453,10 @@ impl State {
             label: Some("raytracing_bind_group"),
         });
 
-        // Load your ray tracing shaders (ray generation, intersection, etc.)
+                // Load your ray tracing shaders (ray generation, intersection, etc.)
         let ray_generation_shader = device.create_shader_module(wgpu::ShaderModuleDescriptor {
             label: Some("Ray Generation Shader"),
             source: wgpu::ShaderSource::Wgsl(include_str!("raygen.wgsl").into()), // Replace with your actual shader source
-            //source: wgpu::ShaderSource::Wgsl(Cow::Borrowed(include_str!("raygen.wgsl"))),
         });
 
 
@@ -502,6 +598,11 @@ impl State {
             config,
             window,
             size,
+            color_texture,
+            temporal_buffer,
+            temporal_bind_group,
+            temporal_denoise_pipeline,
+            temporal_denoise_shader,
             ray_tracing_pipeline,
             ray_generation_shader,
             raytracing_bind_group,
@@ -589,7 +690,13 @@ impl State {
             .create_command_encoder(&wgpu::CommandEncoderDescriptor {
                 label: Some("Render Encoder"),
             });
-        println!("Camera Position: {:?}, Camera Rotation {:?} {:?}", self.camera.position, self.camera.yaw, self.camera.pitch);
+        println!(
+            "Camera Position: {:?}, Camera Rotation {:?} {:?}",
+            self.camera.position,
+            self.camera.yaw,
+            self.camera.pitch
+        );
+    
         // Raytracing pass
         {
             // Start a compute pass for ray tracing
@@ -600,12 +707,47 @@ impl State {
             // Set ray tracing pipeline and bind group
             compute_pass.set_pipeline(&self.ray_tracing_pipeline);
             compute_pass.set_bind_group(0, &self.raytracing_bind_group, &[]);
-            compute_pass.set_bind_group(1, &self.camera_bind_group, &[]);    //All Camera Data
-            compute_pass.set_bind_group(2, &self.object_bind_group, &[]);    //All Object Data
+            compute_pass.set_bind_group(1, &self.camera_bind_group, &[]);
+            compute_pass.set_bind_group(2, &self.object_bind_group, &[]);
     
             // Dispatch workgroups for ray tracing (adjust dimensions as needed)
             compute_pass.dispatch_workgroups(self.config.width, self.config.height, 1);
         }
+    
+        // Perform temporal denoising
+        {
+            let mut temporal_denoise_pass = encoder.begin_compute_pass(&wgpu::ComputePassDescriptor {
+                label: Some("Temporal Denoising Pass"),
+            });
+    
+            // Set temporal denoising pipeline and bind group
+            temporal_denoise_pass.set_pipeline(&self.temporal_denoise_pipeline);
+            temporal_denoise_pass.set_bind_group(0, &self.temporal_bind_group, &[]);
+    
+            // Dispatch workgroups for temporal denoising (adjust dimensions as needed)
+            temporal_denoise_pass.dispatch_workgroups(self.config.width, self.config.height, 1);
+        }
+    
+        // After ray tracing, copy the current frame to the temporal buffer
+        encoder.copy_texture_to_texture(
+            wgpu::ImageCopyTexture {
+                texture: &self.color_texture, // Your current noisy image buffer
+                mip_level: 0,
+                origin: wgpu::Origin3d::ZERO,
+                aspect: wgpu::TextureAspect::All,
+            },
+            wgpu::ImageCopyTexture {
+                texture: &self.temporal_buffer,
+                mip_level: 0,
+                origin: wgpu::Origin3d::ZERO,
+                aspect: wgpu::TextureAspect::All,
+            },
+            wgpu::Extent3d {
+                width: self.config.width,
+                height: self.config.height,
+                depth_or_array_layers: 1,
+            },
+        );
     
         // Render pass
         {
@@ -637,13 +779,13 @@ impl State {
         }
     
         // Submit the command encoder
-        self.queue.submit(iter::once(encoder.finish()));
+        self.queue.submit(std::iter::once(encoder.finish()));
     
         // Present the frame
         output.present();
     
         Ok(())
-    }
+    }    
 }
 
 fn main() {
