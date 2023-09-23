@@ -2,7 +2,8 @@
 @group(3) @binding(0) var temporal_color_buffer: sampler;
 // Camera
 struct Camera {
-    view_pos: vec3<f32>,
+    current_frame_counter: f32,
+    view_pos: vec4<f32>,
     view_proj: mat4x4<f32>,
     inv_view_proj: mat4x4<f32>,
 }
@@ -62,7 +63,7 @@ fn hit_sphere(ray: Ray, sphere: Sphere) -> f32 {
 }
 
 // Constants
-var<private> _SAMPLES: i32 = 5; // Adjust the number of samples as needed
+var<private> _SAMPLES: i32 = 1; // Adjust the number of samples as needed
 
 // Flag to indicate if it's the first frame (for buffer initialization)
 var<private> first_frame: bool = true;
@@ -80,7 +81,7 @@ fn main(@builtin(global_invocation_id) GlobalInvocationID: vec3<u32>) {
     var pixel_color = vec3<f32>(0.0, 0.0, 0.0);
 
     // Start rand seed
-    seed = f32(initRng(screen_pos, screen_size, 0u));
+    seed = f32(initRng(screen_pos, screen_size, u32(camera.current_frame_counter)));
 
     // Multiple Samples as Antialiasing
     for (var color_samples = 0; color_samples < _SAMPLES; color_samples += 1) {
@@ -104,10 +105,10 @@ fn calc_ray(screen_pos: vec2<u32>, screen_size: vec2<u32>) -> Ray {
     // Replace these with your camera properties
     let vfov: f32 = 90.0; // Vertical field of view in degrees
     let aspect_ratio: f32 = f32(screen_size.x) / f32(screen_size.y);
-    let look_from: vec3<f32> = camera.view_pos; // Camera position
+    let look_from: vec3<f32> = camera.view_pos.xyz; // Camera position
 
     //REdefine Lookat from cameralet 
-    let look_at: vec3<f32> = camera.view_pos + normalize(camera.view_proj * vec4<f32>(0.0, 0.0, -1.0, 0.0)).xyz;
+    let look_at: vec3<f32> = camera.view_pos.xyz + normalize(camera.view_proj * vec4<f32>(0.0, 0.0, -1.0, 0.0)).xyz;
 
 
     let focus_dist: f32 = 2.5; // Focus distance

@@ -7,34 +7,40 @@ struct VertexOutput {
     @location(0) TexCoord: vec2<f32>,
 };
 
-// Temporal denoising compute shader
 @compute @workgroup_size(1, 1, 1)
-fn main( @builtin(global_invocation_id) GlobalInvocationID: vec3<u32>) {
+fn main(@builtin(global_invocation_id) GlobalInvocationID: vec3<u32>) {
     let screen_pos: vec2<u32> = vec2<u32>(GlobalInvocationID.xy);
     let screen_size = textureDimensions(color_buffer);
-    
+
     // Sample the central pixel
     let centralColor: vec4<f32> = textureLoad(color_buffer, vec2<i32>(screen_pos));
-    
-    let spacial_denoised_color = spacial_denoising(centralColor, screen_pos);
-
-    let bilateral_denoised_color = bilateral_denoising(centralColor, screen_pos);
-
-    let non_local_means_denoised_color = non_local_means_denoising(centralColor, screen_pos);
 
     let temporal_denoised_color = temporal_denoising(centralColor, screen_pos, textureLoad(temporal_buffer, vec2<i32>(screen_pos)));
-    
-    // Store the denoised color back into color_buffer with different aproaches in all four corners
-    if (f32(screen_pos.x) < f32(screen_size.x)*0.5 && f32(screen_pos.y) < f32(screen_size.y)*0.5){
-        textureStore(color_buffer, vec2<i32>(screen_pos), temporal_denoised_color);
-    } else if (f32(screen_pos.x) > f32(screen_size.x)*0.5 && f32(screen_pos.y) < f32(screen_size.y)*0.5){
-        textureStore(color_buffer, vec2<i32>(screen_pos), bilateral_denoised_color);
-    } else if (f32(screen_pos.x) < f32(screen_size.x)*0.5 && f32(screen_pos.y) > f32(screen_size.y)*0.5){
-        textureStore(color_buffer, vec2<i32>(screen_pos), non_local_means_denoised_color);
+    let spacial_denoised_color = spacial_denoising(temporal_denoised_color, screen_pos);
+    let bilateral_denoised_color = bilateral_denoising(temporal_denoised_color, screen_pos);
+    let non_local_means_denoised_color = non_local_means_denoising(temporal_denoised_color, screen_pos);
+
+    // Define blending ratios for the combinations
+    let temporal_blend_factor: f32 = 0.5; // Blend temporal and spacial
+    let spatial_blend_factor: f32 = 0.3;  // Blend spatial and bilateral
+    let bilateral_blend_factor: f32 = 0.5; // Blend bilateral and NLM
+
+    // Combine denoised results based on regions
+    var final_color: vec4<f32> = vec4<f32>(0.0);
+    if (f32(screen_pos.x) < f32(screen_size.x) * 0.5 && f32(screen_pos.y) < f32(screen_size.y) * 0.5) {
+        final_color = mix(temporal_denoised_color, spacial_denoised_color, temporal_blend_factor);
+    } else if (f32(screen_pos.x) > f32(screen_size.x) * 0.5 && f32(screen_pos.y) < f32(screen_size.y) * 0.5) {
+        final_color = mix(spacial_denoised_color, bilateral_denoised_color, spatial_blend_factor);
+    } else if (f32(screen_pos.x) < f32(screen_size.x) * 0.5 && f32(screen_pos.y) > f32(screen_size.y) * 0.5) {
+        final_color = mix(bilateral_denoised_color, non_local_means_denoised_color, bilateral_blend_factor);
     } else {
-        textureStore(color_buffer, vec2<i32>(screen_pos), centralColor);
-    }
+        final_color = centralColor; // Leave the centralColor for other regions
+    };
+
+    // Store the denoised color back into color_buffer
+    textureStore(color_buffer, vec2<i32>(screen_pos), final_color);
 }
+
 
 fn spacial_denoising(centralColor: vec4<f32>, screen_pos: vec2<u32>) -> vec4<f32>{
     

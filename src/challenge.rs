@@ -24,6 +24,7 @@ const NUM_INSTANCES_PER_ROW: u32 = 10;
 #[repr(C)]
 #[derive(Copy, Clone, bytemuck::Pod, bytemuck::Zeroable)]
 struct CameraUniform {
+    frame:  [f32; 4],
     view_position: [f32; 4],
     view_proj: [[f32; 4]; 4],
     inv_view_proj: [[f32; 4]; 4],
@@ -35,6 +36,7 @@ impl CameraUniform {
             view_position: [0.0; 4],
             view_proj: cgmath::Matrix4::identity().into(),
             inv_view_proj: cgmath::Matrix4::identity().into(),
+            frame: [0.0, 0.0, 0.0, 0.0],
         }
     }
 
@@ -43,6 +45,10 @@ impl CameraUniform {
         self.view_position = camera.position.to_homogeneous().into();
         self.view_proj = (projection.calc_matrix() * camera.calc_matrix()).into();
         self.inv_view_proj = (projection.calc_matrix() * camera.calc_matrix()).invert().unwrap().into();
+    }
+
+    fn update_frame(&mut self) {
+        self.frame = [self.frame[0] + 1.0, 0.0, 0.0, 0.0];
     }
 }
 
@@ -673,11 +679,11 @@ impl State {
     }
 
     fn update(&mut self, dt: std::time::Duration) {
-        // UPDATED!
         println!("FPS: {}", 1.0 / dt.as_secs_f32());
         self.camera_controller.update_camera(&mut self.camera, dt);
         self.camera_uniform
             .update_view_proj(&self.camera, &self.projection);
+        self.camera_uniform.update_frame();
         self.queue.write_buffer(
             &self.camera_buffer,
             0,
