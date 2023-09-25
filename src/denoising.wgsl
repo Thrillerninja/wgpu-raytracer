@@ -13,6 +13,41 @@ struct Camera {
 
 @group(0) @binding(4) var<uniform> current_denoising_pass: u32;
 
+@compute @workgroup_size(1, 1, 1)
+fn main(@builtin(global_invocation_id) GlobalInvocationID: vec3<u32>) {
+    let screen_pos: vec2<u32> = vec2<u32>(GlobalInvocationID.xy);
+    let screen_size: vec2<u32> = vec2<u32>(textureDimensions(color_buffer));
+
+    // Sample the central pixel
+    let centralColor: vec4<f32> = textureLoad(color_buffer, vec2<i32>(screen_pos));
+    let previousColor: vec4<f32> = textureLoad(temporal_buffer, vec2<i32>(screen_pos));
+
+    // Calculate relative movement between frames
+    let relative_movement: vec4<f32> = calculate_relative_movement(current_camera, lastframe_camera);
+
+    let relative_direction: f32 = calculate_relative_direction(current_camera, lastframe_camera);
+
+    
+
+    // Combine denoised results based on regions (you can modify this logic)
+    var final_color: vec4<f32> = vec4<f32>(0.0);
+
+    if current_denoising_pass == 0u {
+
+        //----------Temporal Denoising----------//
+        final_color = adaptive_temporal_denoising(centralColor, screen_pos, previousColor, relative_movement, relative_direction);
+        textureStore(temporal_buffer, vec2<i32>(screen_pos), final_color);
+    } else {
+        //----------Spacial Denoising----------//
+        final_color = non_local_means_denoising(centralColor, screen_pos);
+    }
+
+    // Store the calculated relative movement as color in color_buffer
+    textureStore(color_buffer, vec2<i32>(screen_pos), final_color);
+}
+
+
+//---------Helper Functions---------//
 // Function to calculate relative movement between frames
 fn calculate_relative_movement(
     current_camera: Camera,
@@ -60,65 +95,21 @@ fn calculate_relative_direction(
     return rotation_magnitude;
 }
 
-@compute @workgroup_size(1, 1, 1)
-fn main(@builtin(global_invocation_id) GlobalInvocationID: vec3<u32>) {
-    let screen_pos: vec2<u32> = vec2<u32>(GlobalInvocationID.xy);
-    let screen_size: vec2<u32> = vec2<u32>(textureDimensions(color_buffer));
 
-    // Sample the central pixel
-    let centralColor: vec4<f32> = textureLoad(color_buffer, vec2<i32>(screen_pos));
-    let previousColor: vec4<f32> = textureLoad(temporal_buffer, vec2<i32>(screen_pos));
-
-    // Calculate relative movement between frames
-    let relative_movement: vec4<f32> = calculate_relative_movement(current_camera, lastframe_camera);
-
-    let relative_direction: f32 = calculate_relative_direction(current_camera, lastframe_camera);
-
-    
-
-    // Combine denoised results based on regions (you can modify this logic)
-    var final_color: vec4<f32> = vec4<f32>(0.0);
-    //final_color = adaptive_temporal_denoising(centralColor, screen_pos, previousColor, relative_movement, relative_direction);
-    // if (f32(screen_pos.x) < f32(screen_size.x) * 0.5 && f32(screen_pos.y) < f32(screen_size.y) * 0.5) {
-    //     final_color = temporal_denoising(adaptive_temporal_denoising, screen_pos, previousColor);
-    // } else if (f32(screen_pos.x) > f32(screen_size.x) * 0.5 && f32(screen_pos.y) < f32(screen_size.y) * 0.5) {
-    //     final_color = spacial_denoising(adaptive_temporal_denoising, screen_pos);
-    // } else if (f32(screen_pos.x) < f32(screen_size.x) * 0.5 && f32(screen_pos.y) > f32(screen_size.y) * 0.5) {
-    //     final_color = bilateral_denoising(adaptive_temporal_denoising, screen_pos);
-    // } else {
-    //     final_color = centralColor; // Leave the centralColor for other regions
-    // };
-    if (current_denoising_pass == 0u) {
-        // First do temporal denoising
-        final_color = vec4<f32>(0.0, 1.0, 1.0, 1.0);
-    textureStore(color_buffer, vec2<i32>(screen_pos), final_color);
-    } else {
-        // Then denoise spacially
-        if (f32(screen_pos.x)<(f32(screen_size.x)*0.5)) {
-            final_color = vec4<f32>(0.0, 1.0, 0.0, 1.0);
-    textureStore(color_buffer, vec2<i32>(screen_pos), final_color);
-        }else{
-        }
-    }
-
-    // Store the calculated relative movement as color in color_buffer
-    // textureStore(color_buffer, vec2<i32>(screen_pos), final_color);
-}
-
-
+//---------Denoising Functions---------//
 fn spacial_denoising(centralColor: vec4<f32>, screen_pos: vec2<u32>) -> vec4<f32>{
     
     // Initialize an accumulator for the sum of colors
     var sumColor: vec4<f32> = centralColor;
     
     // Define a kernel size (box filter radius)
-    let kernelSize: i32 = 10; // Adjust as needed
+    let kernelSize: i32 = 2; // Adjust as needed
     
     // Iterate through the neighboring pixels
     for (var dx: i32 = -kernelSize; dx <= kernelSize; dx = dx + 1) {
         for (var dy: i32 = -kernelSize; dy <= kernelSize; dy = dy + 1) {
             let offset: vec2<i32> = vec2<i32>(dx, dy);
-            let neighborColor: vec4<f32> = textureLoad(temporal_buffer, vec2<i32>(screen_pos) + offset);
+            let neighborColor: vec4<f32> = textureLoad(color_buffer, vec2<i32>(screen_pos) + offset);
             sumColor = sumColor + neighborColor;
         }
     }
@@ -132,15 +123,15 @@ fn spacial_denoising(centralColor: vec4<f32>, screen_pos: vec2<u32>) -> vec4<f32
 
 fn bilateral_denoising(centralColor: vec4<f32>, screen_pos: vec2<u32>) -> vec4<f32> {
      // Bilateral filter parameters
-     let spatialSigma: f32 = 3.0;  // Spatial standard deviation
-     let colorSigma: f32 = 0.8;    // Color standard deviation
+     let spatialSigma: f32 = 100.0;  // Spatial standard deviation
+     let colorSigma: f32 = 20.0;    // Color standard deviation
 
     // Initialize an accumulator for the weighted sum of colors
      var weightedSum: vec4<f32> = vec4<f32>(0.0);
      var totalWeight: f32 = 0.0;
     
      // Define a kernel size (box filter radius)
-     let kernelSize: i32 = 5; // Adjust as needed
+     let kernelSize: i32 = 3; // Adjust as needed
     
      // Iterate through the neighboring pixels
      for (var dx: i32 = -kernelSize; dx <= kernelSize; dx = dx + 1) {
@@ -179,7 +170,7 @@ fn non_local_means_denoising(centralColor: vec4<f32>, screen_pos: vec2<u32>) -> 
     // NLM denoising parameters
     let searchWindowRadius: i32 = 13;   // Radius of the search window
     let patchRadius: i32 = 3;          // Radius of the comparison patch
-    let h: f32 = 0.8;                  // Filtering parameter (adjust as needed)
+    let h: f32 = 0.08;                  // Filtering parameter (adjust as needed)
 
 
      for (var dx: i32 = -patchRadius; dx <= patchRadius; dx = dx + 1) {

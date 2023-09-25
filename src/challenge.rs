@@ -758,6 +758,7 @@ impl State {
             .create_command_encoder(&wgpu::CommandEncoderDescriptor {
                 label: Some("Render Encoder"),
             });
+            
         println!(
             "Camera Position: {:?}, Camera Rotation {:?} {:?}",
             self.camera.position,
@@ -765,7 +766,7 @@ impl State {
             self.camera.pitch
         );
     
-        // Raytracing pass
+        //----------Raytracing pass----------
         {
             // Start a compute pass for ray tracing
             let mut compute_pass = encoder.begin_compute_pass(&wgpu::ComputePassDescriptor {
@@ -781,16 +782,16 @@ impl State {
             // Dispatch workgroups for ray tracing (adjust dimensions as needed)
             compute_pass.dispatch_workgroups(self.config.width, self.config.height, 1);
         }
-    
-        //set denoising pass number to 1
-        self.queue.write_buffer(
-            &self.denoising_pass_buffer,
-            0,
-            bytemuck::cast_slice(&[0u32]),
-        );
 
-        // Perform 1. denoising pass
+
+        //----------1. Denoising pass----------
         {
+            self.queue.write_buffer(
+                &self.denoising_pass_buffer,
+                0,
+                bytemuck::cast_slice(&[0u32]),
+            );
+
             let mut denoise_pass = encoder.begin_compute_pass(&wgpu::ComputePassDescriptor {
                 label: Some("1. Denoising Pass"),
             });
@@ -803,31 +804,48 @@ impl State {
             denoise_pass.dispatch_workgroups(self.config.width, self.config.height, 1);
         }
 
+        // Submit the command encoder for the 1st pass
+        self.queue.submit(std::iter::once(encoder.finish()));
 
-        encoder.copy_texture_to_texture(
-            wgpu::ImageCopyTexture {
-                texture: &self.denoising_texture,
-                mip_level: 0,
-                aspect: wgpu::TextureAspect::All,
-                origin: wgpu::Origin3d::ZERO,
-            },
-            wgpu::ImageCopyTexture {
-                texture: &self.color_texture,
-                mip_level: 0,
-                aspect: wgpu::TextureAspect::All,
-                origin: wgpu::Origin3d::ZERO,
-            },
-            wgpu::Extent3d {
-                width: self.config.width,
-                height: self.config.height,
-                depth_or_array_layers: 1,
-            },
+        // Create a new command encoder for the 2nd denoising pass
+        let mut encoder2 = self.device.create_command_encoder(&wgpu::CommandEncoderDescriptor {
+            label: Some("Render Encoder 2"),
+        });
+
+        //----------2. Denoising pass----------
+        // Set denoising pass number to 1
+        self.queue.write_buffer(
+            &self.denoising_pass_buffer,
+            0,
+            bytemuck::cast_slice(&[1u32]),
         );
+
+        // Perform 1. denoising pass
+        {
+            let mut denoise_pass = encoder2.begin_compute_pass(&wgpu::ComputePassDescriptor {
+                label: Some("1. Denoising Pass"),
+            });
+    
+            // Set denoising pipeline and bind group
+            denoise_pass.set_pipeline(&self.denoising_pipeline);
+            denoise_pass.set_bind_group(0, &self.denoising_bind_group, &[]);
+    
+            // Dispatch workgroups for denoising (adjust dimensions as needed)
+            denoise_pass.dispatch_workgroups(self.config.width, self.config.height, 1);
+        }
+
+        // Submit the command encoder for the 1st pass
+        self.queue.submit(std::iter::once(encoder2.finish()));
+
+        // Create a new command encoder for the 2nd denoising pass
+        let mut encoder3 = self.device.create_command_encoder(&wgpu::CommandEncoderDescriptor {
+            label: Some("Render Encoder 3"),
+        });
     
         // Render pass
         {
             // Begin a render pass
-            let mut render_pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
+            let mut render_pass = encoder3.begin_render_pass(&wgpu::RenderPassDescriptor {
                 label: Some("Render Pass"),
                 color_attachments: &[Some(wgpu::RenderPassColorAttachment {
                     view: &view,
@@ -852,9 +870,14 @@ impl State {
             // Draw using the render pass (adjust the range as needed)
             render_pass.draw(0..6, 0..1);
         }
+        self.queue.write_buffer(
+            &self.denoising_camera_buffer,
+            0,
+            bytemuck::cast_slice(&[self.camera_uniform]),
+        );
     
         // Submit the command encoder
-        self.queue.submit(std::iter::once(encoder.finish()));
+        self.queue.submit(std::iter::once(encoder3.finish()));
     
         // Present the frame
         output.present();
