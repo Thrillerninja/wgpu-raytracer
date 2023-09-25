@@ -63,7 +63,7 @@ fn hit_sphere(ray: Ray, sphere: Sphere) -> f32 {
 }
 
 // Constants
-var<private> _SAMPLES: i32 = 1; // Adjust the number of samples as needed
+var<private> _SAMPLES: i32 = 5; // Adjust the number of samples as needed
 
 // Flag to indicate if it's the first frame (for buffer initialization)
 var<private> first_frame: bool = true;
@@ -95,8 +95,21 @@ fn main(@builtin(global_invocation_id) GlobalInvocationID: vec3<u32>) {
     // Weighted average of pixel colors
     pixel_color /= f32(_SAMPLES);
 
+    //pixel_color = rand_color();
+
     // Store the pixel color in the color buffer
     textureStore(color_buffer, vec2<i32>(screen_pos), vec4<f32>(pixel_color, 1.0));
+}
+
+fn rand_color() -> vec3<f32> {
+    let rand = rngNextFloat();
+    if (rand<0.0){
+        return vec3<f32>(1.0, 0.0, 0.0);
+    } else if (rand<1.0 && rand>0.0){
+        return vec3<f32>(0.0, 1.0, 0.0);
+    } else {
+        return vec3<f32>(0.0, 0.0, 1.0);
+    }
 }
 
 fn calc_ray(screen_pos: vec2<u32>, screen_size: vec2<u32>) -> Ray {
@@ -112,7 +125,7 @@ fn calc_ray(screen_pos: vec2<u32>, screen_size: vec2<u32>) -> Ray {
 
 
     let focus_dist: f32 = 2.5; // Focus distance
-    let aperture: f32 = 0.001; // Aperture size
+    let aperture: f32 = 0.05; // Aperture size
 
     let theta: f32 = radians(vfov);
     let h: f32 = tan(theta / 2.0);
@@ -131,7 +144,7 @@ fn calc_ray(screen_pos: vec2<u32>, screen_size: vec2<u32>) -> Ray {
     let lower_left_corner: vec3<f32> = look_from - 0.5 * horizontal - 0.5 * vertical - w*focus_dist;
 
     // Depth of field settings
-    let lens_radius: f32 = 0.05; // Radius of the lens aperture
+    let lens_radius: f32 = 0.0; // Radius of the lens aperture
 
     // Randomly sample a point within the lens aperture
     let random_in_unit_disk: vec2<f32> = rngNextVec2InUnitDisk() * lens_radius;
@@ -231,7 +244,7 @@ fn color(primary_ray: Ray, MAX_BOUNCES: i32, t_max: f32) -> vec4<f32> {
             if (depth == 0){
                 return vec4<f32>(pixel_color, 1.0);
             } else {
-                pixel_color = mix(pixel_color, sky_color(ray), weight/4.0);
+                pixel_color = mix(pixel_color, sky_color(ray), weight);
                 return vec4<f32>(pixel_color, 1.0);
             }
         }
@@ -306,7 +319,7 @@ fn dielectric_scatter(ray: Ray, hit_point: vec3<f32>, normal: vec3<f32>, materia
 
     let cannot_refract = etai_over_etat * sin_theta > 1.0;
 
-    if rngNextFloat() < reflect_prob || cannot_refract {
+    if ((rngNextFloat() - 0.5) < reflect_prob || cannot_refract) {
         // Reflect
         let reflected_direction: vec3<f32> = reflect(unit_direction, normal);
         return Ray(hit_point, reflected_direction);

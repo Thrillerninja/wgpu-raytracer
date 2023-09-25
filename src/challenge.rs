@@ -19,8 +19,6 @@ use camera::{Camera, CameraController};
 mod models;
 use models::{Material, Sphere, Triangle, Object};
 
-const NUM_INSTANCES_PER_ROW: u32 = 10;
-
 #[repr(C)]
 #[derive(Copy, Clone, bytemuck::Pod, bytemuck::Zeroable)]
 struct CameraUniform {
@@ -104,7 +102,10 @@ struct State {
     //Antialiasing Sample Textures
     color_texture: wgpu::Texture,
     denoising_texture: wgpu::Texture,
+    denoising_camera_buffer: wgpu::Buffer,
+    denoising_pass_buffer: wgpu::Buffer,
     denoising_bind_group: wgpu::BindGroup,
+    denoising_buffer_view: wgpu::TextureView,
     denoising_pipeline: wgpu::ComputePipeline,
     denoising_shader: wgpu::ShaderModule,
     //Raytracing
@@ -135,7 +136,6 @@ async fn hardware_launch(window: &Window) -> (wgpu::Surface, wgpu::Device, wgpu:
 
     let surface = unsafe { instance.create_surface(window) }.unwrap();
 
-    let features = Features::TEXTURE_ADAPTER_SPECIFIC_FORMAT_FEATURES;
 
     let adapter = instance
         .request_adapter(&wgpu::RequestAdapterOptions {
@@ -151,7 +151,7 @@ async fn hardware_launch(window: &Window) -> (wgpu::Surface, wgpu::Device, wgpu:
     let (device, queue) = adapter
         .request_device(
             &wgpu::DeviceDescriptor {
-                features,
+                features: Features::TEXTURE_ADAPTER_SPECIFIC_FORMAT_FEATURES,
                 label: None,
                 limits: wgpu::Limits::default(),
             },
@@ -215,105 +215,7 @@ impl State {
         
         let color_buffer_view = color_texture.create_view(&wgpu::TextureViewDescriptor::default());
 
-        //----------Anit-Aliasing-------------
-        // Inside the State struct, add a denoising buffer and a bind group for it.
-        // denoising buffer and bind group
-        let denoising_texture = device.create_texture(&wgpu::TextureDescriptor {
-            label: Some("denoising Buffer"),
-            view_formats: &[config.format], // Use the same format as the color buffer
-            size: wgpu::Extent3d {
-                width: config.width,
-                height: config.height,
-                depth_or_array_layers: 1,
-            },
-            mip_level_count: 1,
-            sample_count: 1,
-            dimension: wgpu::TextureDimension::D2,
-            format: config.format, // Use the same format as the color buffer
-            usage: wgpu::TextureUsages::TEXTURE_BINDING
-                | wgpu::TextureUsages::COPY_DST
-                | wgpu::TextureUsages::STORAGE_BINDING,
-        });
-        let denoising_buffer_view = denoising_texture.create_view(&wgpu::TextureViewDescriptor::default());
-
-        
-        //Create a Sampler for trasfering color data from render to screen texture
-        let denoise_sampler = device.create_sampler(&wgpu::SamplerDescriptor {
-            label: Some("Denoise Sampler"),
-            address_mode_u: wgpu::AddressMode::Repeat,
-            address_mode_v: wgpu::AddressMode::Repeat,
-            address_mode_w: wgpu::AddressMode::Repeat,
-            mag_filter: wgpu::FilterMode::Linear,
-            min_filter: wgpu::FilterMode::Nearest,
-            mipmap_filter: wgpu::FilterMode::Nearest,
-            anisotropy_clamp: 1,
-            ..Default::default()
-        });
-
-        let denoising_bind_group_layout =
-            device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
-                entries: &[
-                    wgpu::BindGroupLayoutEntry {
-                        binding: 0, // This should match the binding number in the shader
-                        visibility: wgpu::ShaderStages::COMPUTE,
-                        ty: wgpu::BindingType::StorageTexture {
-                        access: wgpu::StorageTextureAccess::ReadWrite,
-                        format: config.format, // Match the texture format in the shader
-                        view_dimension: wgpu::TextureViewDimension::D2,
-                        },
-                        count: None,            
-                    },
-                    wgpu::BindGroupLayoutEntry {
-                        binding: 1, // This should match the binding number in the shader
-                        visibility: wgpu::ShaderStages::COMPUTE,
-                        ty: wgpu::BindingType::StorageTexture {
-                        access: wgpu::StorageTextureAccess::ReadWrite,
-                        format: config.format, // Match the texture format in the shader
-                        view_dimension: wgpu::TextureViewDimension::D2,
-                        },
-                        count: None,            
-                    },
-                ],
-                label: Some("denoising_bind_group_layout"),
-            });
-
-        let denoising_bind_group = device.create_bind_group(&wgpu::BindGroupDescriptor {
-            layout: &denoising_bind_group_layout,
-            entries: &[
-                wgpu::BindGroupEntry {
-                    binding: 0, // This should match the binding number in the shader
-                    resource: wgpu::BindingResource::TextureView(&color_buffer_view),
-                },
-                wgpu::BindGroupEntry {
-                    binding: 1, // This should match the binding number in the shader
-                    resource: wgpu::BindingResource::TextureView(&denoising_buffer_view),
-                },
-            ],
-            label: Some("denoising_bind_group"),
-        });
-
-        // Create a pipeline layout for denoising denoising
-        let denoising_pipeline_layout = device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
-            label: Some("denoising Denoising Pipeline Layout"),
-            bind_group_layouts: &[&denoising_bind_group_layout],
-            push_constant_ranges: &[],
-        });
-
-        // Load your denoising denoising shader
-        let denoising_shader = device.create_shader_module(wgpu::ShaderModuleDescriptor {
-            label: Some("denoising Denoising Shader"),
-            source: wgpu::ShaderSource::Wgsl(include_str!("denoising.wgsl").into()), // Replace with your actual shader source
-        });
-
-        // Create a denoising denoising pipeline
-        let denoising_pipeline = device.create_compute_pipeline(&wgpu::ComputePipelineDescriptor {
-            label: Some("denoising Denoising Pipeline"),
-            layout: Some(&denoising_pipeline_layout),
-            module: &denoising_shader,
-            entry_point: "main", // Change to your actual entry point name
-        });
         //----------Camera-------------
-
         let camera = camera::Camera::new((4.0, 6.0, -4.0), cgmath::Deg(-80.0), cgmath::Deg(15.0));
         let projection =
             camera::Projection::new(config.width, config.height, cgmath::Deg(45.0), 0.1, 100.0);
@@ -325,7 +227,7 @@ impl State {
         let camera_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
             label: Some("Camera Buffer"),
             contents: bytemuck::cast_slice(&[camera_uniform]),
-            usage: wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST,
+            usage: wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST | wgpu::BufferUsages::COPY_SRC,
         });
 
         let camera_bind_group_layout =
@@ -351,6 +253,153 @@ impl State {
             }],
             label: Some("camera_bind_group"),
         });
+
+        //----------Anit-Aliasing-------------
+        // Inside the State struct, add a denoising buffer and a bind group for it.
+        // denoising buffer and bind group
+        let denoising_texture = device.create_texture(&wgpu::TextureDescriptor {
+            label: Some("denoising Buffer"),
+            view_formats: &[config.format], // Use the same format as the color buffer
+            size: wgpu::Extent3d {
+                width: config.width,
+                height: config.height,
+                depth_or_array_layers: 1,
+            },
+            mip_level_count: 1,
+            sample_count: 1,
+            dimension: wgpu::TextureDimension::D2,
+            format: config.format, // Use the same format as the color buffer
+            usage: wgpu::TextureUsages::TEXTURE_BINDING
+                | wgpu::TextureUsages::COPY_DST
+                | wgpu::TextureUsages::STORAGE_BINDING
+                | wgpu::TextureUsages::COPY_SRC,
+        });
+        let denoising_buffer_view = denoising_texture.create_view(&wgpu::TextureViewDescriptor::default());
+
+        // Pass camera info to denoising shader
+        let denoising_camera: Camera = camera.clone();
+
+        let mut denoising_camera_uniform = CameraUniform::new();
+        denoising_camera_uniform.update_view_proj(&denoising_camera, &projection);
+
+        let denoising_camera_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
+            label: Some("Denoising Camera Buffer"),
+            contents: bytemuck::cast_slice(&[denoising_camera_uniform]),
+            usage: wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST,
+        });
+
+        // Small uniform buffer for denoising pass number indicator
+        let denoising_pass_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
+            label: Some("Denoising Pass Buffer"),
+            contents: bytemuck::cast_slice(&[0u32]),
+            usage: wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST,
+        });
+
+        let denoising_bind_group_layout =
+            device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
+                entries: &[
+                    wgpu::BindGroupLayoutEntry {
+                        binding: 0, // This should match the binding number in the shader
+                        visibility: wgpu::ShaderStages::COMPUTE,
+                        ty: wgpu::BindingType::StorageTexture {
+                        access: wgpu::StorageTextureAccess::ReadWrite,
+                        format: config.format, // Match the texture format in the shader
+                        view_dimension: wgpu::TextureViewDimension::D2,
+                        },
+                        count: None,            
+                    },
+                    wgpu::BindGroupLayoutEntry {
+                        binding: 1, // This should match the binding number in the shader
+                        visibility: wgpu::ShaderStages::COMPUTE,
+                        ty: wgpu::BindingType::StorageTexture {
+                        access: wgpu::StorageTextureAccess::ReadWrite,
+                        format: config.format, // Match the texture format in the shader
+                        view_dimension: wgpu::TextureViewDimension::D2,
+                        },
+                        count: None,            
+                    },
+                    wgpu::BindGroupLayoutEntry {
+                        binding: 2,
+                        visibility: wgpu::ShaderStages::COMPUTE,
+                        ty: wgpu::BindingType::Buffer {
+                            ty: wgpu::BufferBindingType::Uniform,
+                            has_dynamic_offset: false,
+                            min_binding_size: None,
+                        },
+                        count: None,
+                    },
+                    wgpu::BindGroupLayoutEntry {
+                        binding: 3,
+                        visibility: wgpu::ShaderStages::COMPUTE,
+                        ty: wgpu::BindingType::Buffer {
+                            ty: wgpu::BufferBindingType::Uniform,
+                            has_dynamic_offset: false,
+                            min_binding_size: None,
+                        },
+                        count: None,
+                    },
+                    wgpu::BindGroupLayoutEntry {
+                        binding: 4,
+                        visibility: wgpu::ShaderStages::COMPUTE,
+                        ty: wgpu::BindingType::Buffer {
+                            ty: wgpu::BufferBindingType::Uniform,
+                            has_dynamic_offset: false,
+                            min_binding_size: None,
+                        },
+                        count: None,
+                    },
+                ],
+                label: Some("denoising_bind_group_layout"),
+            });
+
+        let denoising_bind_group = device.create_bind_group(&wgpu::BindGroupDescriptor {
+            layout: &denoising_bind_group_layout,
+            entries: &[
+                wgpu::BindGroupEntry {
+                    binding: 0, // This should match the binding number in the shader
+                    resource: wgpu::BindingResource::TextureView(&color_buffer_view),
+                },
+                wgpu::BindGroupEntry {
+                    binding: 1, // This should match the binding number in the shader
+                    resource: wgpu::BindingResource::TextureView(&denoising_buffer_view),
+                },
+                wgpu::BindGroupEntry {
+                    binding: 2,
+                    resource: camera_buffer.as_entire_binding(),
+                },
+                wgpu::BindGroupEntry {
+                    binding: 3,
+                    resource: denoising_camera_buffer.as_entire_binding(),
+                },
+                wgpu::BindGroupEntry {
+                    binding: 4,
+                    resource: denoising_pass_buffer.as_entire_binding(),
+                },
+            ],
+            label: Some("denoising_bind_group"),
+        });
+
+        // Create a pipeline layout for denoising denoising
+        let denoising_pipeline_layout = device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
+            label: Some("Denoising Pipeline Layout"),
+            bind_group_layouts: &[&denoising_bind_group_layout],
+            push_constant_ranges: &[],
+        });
+
+        // Load your denoising denoising shader
+        let denoising_shader = device.create_shader_module(wgpu::ShaderModuleDescriptor {
+            label: Some("Denoising Shader"),
+            source: wgpu::ShaderSource::Wgsl(include_str!("denoising.wgsl").into()), // Replace with your actual shader source
+        });
+
+        // Create a denoising denoising pipeline
+        let denoising_pipeline = device.create_compute_pipeline(&wgpu::ComputePipelineDescriptor {
+            label: Some("Denoising Pipeline"),
+            layout: Some(&denoising_pipeline_layout),
+            module: &denoising_shader,
+            entry_point: "main", // Change to your actual entry point name
+        });
+
 
         //----------Objects-------------
         // Load OBJ file
@@ -379,7 +428,7 @@ impl State {
         let mut spheres: Vec<Sphere> = Vec::new();
         spheres.push(Sphere::new(cgmath::Point3::new(0.5, 0.0, -1.0), 0.5, Material::new([0.0, 1.0, 0.0], [0.2, 1.0, 1.0], 0.2, 0.0, 0.0)));
         spheres.push(Sphere::new(cgmath::Point3::new(-0.5, 0.0, -1.0), 0.5, Material::new([0.0, 0.0, 1.0], [1.0, 1.0, 1.0], 0.0, 0.0, 1.5)));
-        spheres.push(Sphere::new(cgmath::Point3::new(-0.5, 1.0, -1.0), -0.1, Material::new([0.0, 0.0, 1.0], [1.0, 1.0, 1.0], 0.0, 1.0, 0.0)));
+        spheres.push(Sphere::new(cgmath::Point3::new(-0.5, 1.0, -1.0), 0.1, Material::new([0.0, 0.0, 1.0], [1.0, 1.0, 1.0], 0.0, 1.0, 0.0)));
         spheres.push(Sphere::new(cgmath::Point3::new(0.5, -50.5, -1.0), 50.0, Material::new([1.0, 0.3, 0.2], [0.2, 1.0, 1.0], 0.2, 0.0, 0.0)));
         spheres.push(Sphere::new(cgmath::Point3::new(-1.5, 0.0, -1.0), 0.4, Material::new([1.0, 1.0, 1.0], [0.5, 1.0, 1.0], 0.0, 0.0, 0.0)));
 
@@ -616,7 +665,10 @@ impl State {
             size,
             color_texture,
             denoising_texture,
+            denoising_camera_buffer,
+            denoising_pass_buffer,
             denoising_bind_group,
+            denoising_buffer_view,
             denoising_pipeline,
             denoising_shader,
             ray_tracing_pipeline,
@@ -730,33 +782,40 @@ impl State {
             compute_pass.dispatch_workgroups(self.config.width, self.config.height, 1);
         }
     
-        // Perform denoising denoising
+        //set denoising pass number to 1
+        self.queue.write_buffer(
+            &self.denoising_pass_buffer,
+            0,
+            bytemuck::cast_slice(&[0u32]),
+        );
+
+        // Perform 1. denoising pass
         {
-            let mut denoising_denoise_pass = encoder.begin_compute_pass(&wgpu::ComputePassDescriptor {
-                label: Some("denoising Denoising Pass"),
+            let mut denoise_pass = encoder.begin_compute_pass(&wgpu::ComputePassDescriptor {
+                label: Some("1. Denoising Pass"),
             });
     
-            // Set denoising denoising pipeline and bind group
-            denoising_denoise_pass.set_pipeline(&self.denoising_pipeline);
-            denoising_denoise_pass.set_bind_group(0, &self.denoising_bind_group, &[]);
+            // Set denoising pipeline and bind group
+            denoise_pass.set_pipeline(&self.denoising_pipeline);
+            denoise_pass.set_bind_group(0, &self.denoising_bind_group, &[]);
     
-            // Dispatch workgroups for denoising denoising (adjust dimensions as needed)
-            denoising_denoise_pass.dispatch_workgroups(self.config.width, self.config.height, 1);
+            // Dispatch workgroups for denoising (adjust dimensions as needed)
+            denoise_pass.dispatch_workgroups(self.config.width, self.config.height, 1);
         }
-    
-        // After ray tracing, copy the current frame to the denoising buffer
+
+
         encoder.copy_texture_to_texture(
-            wgpu::ImageCopyTexture {
-                texture: &self.color_texture, // Your current noisy image buffer
-                mip_level: 0,
-                origin: wgpu::Origin3d::ZERO,
-                aspect: wgpu::TextureAspect::All,
-            },
             wgpu::ImageCopyTexture {
                 texture: &self.denoising_texture,
                 mip_level: 0,
-                origin: wgpu::Origin3d::ZERO,
                 aspect: wgpu::TextureAspect::All,
+                origin: wgpu::Origin3d::ZERO,
+            },
+            wgpu::ImageCopyTexture {
+                texture: &self.color_texture,
+                mip_level: 0,
+                aspect: wgpu::TextureAspect::All,
+                origin: wgpu::Origin3d::ZERO,
             },
             wgpu::Extent3d {
                 width: self.config.width,

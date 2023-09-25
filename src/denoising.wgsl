@@ -2,43 +2,107 @@
 @group(0) @binding(0) var color_buffer: texture_storage_2d<rgba8unorm, read_write>;
 @group(0) @binding(1) var temporal_buffer: texture_storage_2d<rgba8unorm, read_write>;
 
-struct VertexOutput {
-    @builtin(position) Position: vec4<f32>,
-    @location(0) TexCoord: vec2<f32>,
-};
+struct Camera {
+    current_frame_counter: f32,
+    view_pos: vec4<f32>,
+    view_proj: mat4x4<f32>,
+    inv_view_proj: mat4x4<f32>,
+}
+@group(0) @binding(2) var<uniform> current_camera: Camera;
+@group(0) @binding(3) var<uniform> lastframe_camera: Camera;
+
+@group(0) @binding(4) var<uniform> current_denoising_pass: u32;
+
+// Function to calculate relative movement between frames
+fn calculate_relative_movement(
+    current_camera: Camera,
+    lastframe_camera: Camera,
+) -> vec4<f32> {
+    // Calculate the difference between the view or projection matrices
+    let view_proj_diff = current_camera.view_proj - lastframe_camera.view_proj;
+
+    // Create a vec4 where the x, y, z components represent translational movement
+    // and the w component represents rotational movement.
+    let relative_movement = vec4<f32>(current_camera.view_pos - lastframe_camera.view_pos);
+
+    return vec4<f32>(relative_movement);
+}
+
+fn calculate_relative_direction(
+    current_camera: Camera,
+    lastframe_camera: Camera,
+) -> f32 {
+    // Calculate the difference between the view or projection matrices
+    let view_proj_diff = current_camera.view_proj - lastframe_camera.view_proj;
+    
+    // You can calculate the Frobenius norm (L2 norm) of the difference matrix
+    // to represent the magnitude of rotational movement.
+    // This is just one way to quantify the movement; you can adjust it as needed.
+    let rotation_magnitude = sqrt(
+        view_proj_diff[0][0] * view_proj_diff[0][0] +
+        view_proj_diff[0][1] * view_proj_diff[0][1] +
+        view_proj_diff[0][2] * view_proj_diff[0][2] +
+        view_proj_diff[0][3] * view_proj_diff[0][3] +
+        view_proj_diff[1][0] * view_proj_diff[1][0] +
+        view_proj_diff[1][1] * view_proj_diff[1][1] +
+        view_proj_diff[1][2] * view_proj_diff[1][2] +
+        view_proj_diff[1][3] * view_proj_diff[1][3] +
+        view_proj_diff[2][0] * view_proj_diff[2][0] +
+        view_proj_diff[2][1] * view_proj_diff[2][1] +
+        view_proj_diff[2][2] * view_proj_diff[2][2] +
+        view_proj_diff[2][3] * view_proj_diff[2][3] +
+        view_proj_diff[3][0] * view_proj_diff[3][0] +
+        view_proj_diff[3][1] * view_proj_diff[3][1] +
+        view_proj_diff[3][2] * view_proj_diff[3][2] +
+        view_proj_diff[3][3] * view_proj_diff[3][3]
+    );
+
+    return rotation_magnitude;
+}
 
 @compute @workgroup_size(1, 1, 1)
 fn main(@builtin(global_invocation_id) GlobalInvocationID: vec3<u32>) {
     let screen_pos: vec2<u32> = vec2<u32>(GlobalInvocationID.xy);
-    let screen_size = textureDimensions(color_buffer);
+    let screen_size: vec2<u32> = vec2<u32>(textureDimensions(color_buffer));
 
     // Sample the central pixel
     let centralColor: vec4<f32> = textureLoad(color_buffer, vec2<i32>(screen_pos));
+    let previousColor: vec4<f32> = textureLoad(temporal_buffer, vec2<i32>(screen_pos));
 
-    let temporal_denoised_color = temporal_denoising(centralColor, screen_pos, textureLoad(temporal_buffer, vec2<i32>(screen_pos)));
-    let spacial_denoised_color = spacial_denoising(temporal_denoised_color, screen_pos);
-    let bilateral_denoised_color = bilateral_denoising(temporal_denoised_color, screen_pos);
-    let non_local_means_denoised_color = non_local_means_denoising(temporal_denoised_color, screen_pos);
+    // Calculate relative movement between frames
+    let relative_movement: vec4<f32> = calculate_relative_movement(current_camera, lastframe_camera);
 
-    // Define blending ratios for the combinations
-    let temporal_blend_factor: f32 = 0.5; // Blend temporal and spacial
-    let spatial_blend_factor: f32 = 0.3;  // Blend spatial and bilateral
-    let bilateral_blend_factor: f32 = 0.5; // Blend bilateral and NLM
+    let relative_direction: f32 = calculate_relative_direction(current_camera, lastframe_camera);
 
-    // Combine denoised results based on regions
+    
+
+    // Combine denoised results based on regions (you can modify this logic)
     var final_color: vec4<f32> = vec4<f32>(0.0);
-    if (f32(screen_pos.x) < f32(screen_size.x) * 0.5 && f32(screen_pos.y) < f32(screen_size.y) * 0.5) {
-        final_color = mix(temporal_denoised_color, spacial_denoised_color, temporal_blend_factor);
-    } else if (f32(screen_pos.x) > f32(screen_size.x) * 0.5 && f32(screen_pos.y) < f32(screen_size.y) * 0.5) {
-        final_color = mix(spacial_denoised_color, bilateral_denoised_color, spatial_blend_factor);
-    } else if (f32(screen_pos.x) < f32(screen_size.x) * 0.5 && f32(screen_pos.y) > f32(screen_size.y) * 0.5) {
-        final_color = mix(bilateral_denoised_color, non_local_means_denoised_color, bilateral_blend_factor);
-    } else {
-        final_color = centralColor; // Leave the centralColor for other regions
-    };
-
-    // Store the denoised color back into color_buffer
+    //final_color = adaptive_temporal_denoising(centralColor, screen_pos, previousColor, relative_movement, relative_direction);
+    // if (f32(screen_pos.x) < f32(screen_size.x) * 0.5 && f32(screen_pos.y) < f32(screen_size.y) * 0.5) {
+    //     final_color = temporal_denoising(adaptive_temporal_denoising, screen_pos, previousColor);
+    // } else if (f32(screen_pos.x) > f32(screen_size.x) * 0.5 && f32(screen_pos.y) < f32(screen_size.y) * 0.5) {
+    //     final_color = spacial_denoising(adaptive_temporal_denoising, screen_pos);
+    // } else if (f32(screen_pos.x) < f32(screen_size.x) * 0.5 && f32(screen_pos.y) > f32(screen_size.y) * 0.5) {
+    //     final_color = bilateral_denoising(adaptive_temporal_denoising, screen_pos);
+    // } else {
+    //     final_color = centralColor; // Leave the centralColor for other regions
+    // };
+    if (current_denoising_pass == 0u) {
+        // First do temporal denoising
+        final_color = vec4<f32>(0.0, 1.0, 1.0, 1.0);
     textureStore(color_buffer, vec2<i32>(screen_pos), final_color);
+    } else {
+        // Then denoise spacially
+        if (f32(screen_pos.x)<(f32(screen_size.x)*0.5)) {
+            final_color = vec4<f32>(0.0, 1.0, 0.0, 1.0);
+    textureStore(color_buffer, vec2<i32>(screen_pos), final_color);
+        }else{
+        }
+    }
+
+    // Store the calculated relative movement as color in color_buffer
+    // textureStore(color_buffer, vec2<i32>(screen_pos), final_color);
 }
 
 
@@ -48,13 +112,13 @@ fn spacial_denoising(centralColor: vec4<f32>, screen_pos: vec2<u32>) -> vec4<f32
     var sumColor: vec4<f32> = centralColor;
     
     // Define a kernel size (box filter radius)
-    let kernelSize: i32 = 3; // Adjust as needed
+    let kernelSize: i32 = 10; // Adjust as needed
     
     // Iterate through the neighboring pixels
     for (var dx: i32 = -kernelSize; dx <= kernelSize; dx = dx + 1) {
         for (var dy: i32 = -kernelSize; dy <= kernelSize; dy = dy + 1) {
             let offset: vec2<i32> = vec2<i32>(dx, dy);
-            let neighborColor: vec4<f32> = textureLoad(color_buffer, vec2<i32>(screen_pos) + offset);
+            let neighborColor: vec4<f32> = textureLoad(temporal_buffer, vec2<i32>(screen_pos) + offset);
             sumColor = sumColor + neighborColor;
         }
     }
@@ -85,7 +149,7 @@ fn bilateral_denoising(centralColor: vec4<f32>, screen_pos: vec2<u32>) -> vec4<f
              let neighborPos: vec2<i32> = vec2<i32>(screen_pos) + offset;
             
              // Sample the color of the neighboring pixel
-             let neighborColor: vec4<f32> = textureLoad(color_buffer, neighborPos);
+             let neighborColor: vec4<f32> = textureLoad(temporal_buffer, neighborPos);
             
              // Calculate the spatial and color weights
              let spatialDist: f32 = length(vec2<f32>(offset));
@@ -147,9 +211,57 @@ fn non_local_means_denoising(centralColor: vec4<f32>, screen_pos: vec2<u32>) -> 
 }
 
 fn temporal_denoising(centralColor: vec4<f32>, screen_pos: vec2<u32>, previousColor: vec4<f32>) -> vec4<f32> {
-    // Blend the current and previous frames (you can adjust the blend factor as needed)
-    let blendFactor: f32 = 0.5; // Adjust as needed
+    // Calculate the color difference between centralColor and previousColor
+    let colorDifference: f32 = length(centralColor.rgb - previousColor.rgb);
+    
+    // Define blend factor thresholds (adjust as needed)
+    let lowThreshold: f32 = 0.05; // Example threshold for low color difference
+    let highThreshold: f32 = 0.2; // Example threshold for high color difference
+    
+    // Define blend factors for different cases
+    let lowBlendFactor: f32 = 0.03; // Adjust as needed
+    let highBlendFactor: f32 = 0.2; // Adjust as needed
+    
+    // Choose the appropriate blend factor based on color difference
+    let blendFactor: f32 = mix(lowBlendFactor, highBlendFactor, smoothstep(lowThreshold, highThreshold, colorDifference));
+    
+    // Blend the current and previous frames
     let finalColor: vec4<f32> = mix(previousColor, centralColor, blendFactor);
+    
+    return finalColor;
+}
+
+fn adaptive_temporal_denoising(centralColor: vec4<f32>, screen_pos: vec2<u32>, previousColor: vec4<f32>, relative_movement: vec4<f32>, relative_direction: f32) -> vec4<f32> {
+    // Calculate the color difference between centralColor and previousColor
+    let colorDifference: f32 = length(centralColor.rgb - previousColor.rgb);
+    
+    // Define thresholds for motion detection (adjust as needed)
+    let motionThreshold: f32 = 0.02; // Example threshold for motion detection
+    let directionThreshold: f32 = 0.01; // Example threshold for direction detection
+    let lowThreshold: f32 = 0.05;    // Example threshold for low color difference
+    
+    // Determine if there's significant camera motion
+    let significantMotion: bool = length(relative_movement.xyz) > motionThreshold;
+    let significantDirection: bool = relative_direction > directionThreshold;
+    
+    // Define blend factors for different cases
+    let lowBlendFactor: f32 = 0.03; // Adjust as needed
+    let highBlendFactor: f32 = 0.2; // Adjust as needed
+    
+    // Choose the appropriate blend factor based on motion and color difference
+    let blendFactor: f32 = mix(
+        lowBlendFactor, 
+        highBlendFactor, 
+        smoothstep(lowThreshold, motionThreshold, colorDifference)
+    );
+    
+    // Apply stronger temporal denoising if there's no significant motion
+    var finalColor: vec4<f32> = vec4<f32>(0.0);
+    if (significantMotion || significantDirection) {
+        finalColor = centralColor;
+    } else {
+        finalColor = mix(previousColor, centralColor, blendFactor);
+    }
     
     return finalColor;
 }
