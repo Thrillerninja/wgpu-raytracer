@@ -46,24 +46,8 @@ var<private> screen_pos: vec2<u32>;
 var<private> rand_val: vec2<f32>;
 var<private> pi: f32 = 3.1415926535897932384626433832795;
 
-
-// Function to test for ray-sphere intersection
-fn hit_sphere(ray: Ray, sphere: Sphere) -> f32 {
-    let oc: vec3<f32> = ray.origin - sphere.center.xyz;
-    let a: f32 = dot(ray.direction, ray.direction);
-    let b: f32 = 2.0 * dot(oc, ray.direction);
-    let c: f32 = dot(oc, oc) - sphere.radius.x * sphere.radius.x;
-    let discriminant: f32 = b * b - 4.0 * a * c;
-
-    if (discriminant < -0.000001) {         // If Noise in Sphere rendering is visible, increase this value.
-        return -1.0;
-    } else {
-        return (-b - sqrt(discriminant)) / (2.0 * a);
-    }
-}
-
 // Constants
-var<private> _SAMPLES: i32 = 5; // Adjust the number of samples as needed
+var<private> _SAMPLES: i32 = 10; // Adjust the number of samples as needed
 
 // Flag to indicate if it's the first frame (for buffer initialization)
 var<private> first_frame: bool = true;
@@ -89,7 +73,7 @@ fn main(@builtin(global_invocation_id) GlobalInvocationID: vec3<u32>) {
         var ray = calc_ray(screen_pos, screen_size);
 
         // Get Color of Objects if hit
-        pixel_color += color(ray, 50, 10000.0).xyz;
+        pixel_color += color(ray, 20, 10000.0).xyz;
     }
 
     // Weighted average of pixel colors
@@ -197,6 +181,21 @@ fn hit_tri(ray: Ray, triangle: Triangle) -> f32 {
     return -1.0; // Intersection is behind the ray's origin
 }
 
+// Function to test for ray-sphere intersection
+fn hit_sphere(ray: Ray, sphere: Sphere) -> f32 {
+    let oc: vec3<f32> = ray.origin - sphere.center.xyz;
+    let a: f32 = dot(ray.direction, ray.direction);
+    let b: f32 = 2.0 * dot(oc, ray.direction);
+    let c: f32 = dot(oc, oc) - sphere.radius.x * sphere.radius.x;
+    let discriminant: f32 = b * b - 4.0 * a * c;
+
+    if (discriminant < -0.00001) {         // If Noise in Sphere rendering is visible, increase this value.
+        return -1.0;
+    } else {
+        return (-b - sqrt(discriminant)) / (2.0 * a);
+    }
+}
+
 fn sky_color(ray: Ray) -> vec3<f32> {
     let unit_direction: vec3<f32> = normalize(ray.direction);
     let t: f32 = 0.5 * (unit_direction.y + 1.0);
@@ -269,7 +268,7 @@ fn color(primary_ray: Ray, MAX_BOUNCES: i32, t_max: f32) -> vec4<f32> {
 
                 var reflected_direction: vec3<f32> = reflect(ray.direction, normal + rngNextVec3InUnitSphere() * closest_sphere.material.roughness);
 
-                ray = Ray(hit_point, reflected_direction);
+                ray = Ray(hit_point + normal*0.0001, reflected_direction); //normal*0.01 is a offset to fix z-fighting
             }
           
             is_sphere = false;
@@ -278,7 +277,7 @@ fn color(primary_ray: Ray, MAX_BOUNCES: i32, t_max: f32) -> vec4<f32> {
             let normal: vec3<f32> = normalize(closest_tris.normals.xyz);
             let reflected_direction: vec3<f32> = reflect(ray.direction, normal + rngNextVec3InUnitSphere() * closest_tris.material.roughness);
 
-            ray = Ray(hit_point, reflected_direction);
+            ray = Ray(hit_point + normal*0.0001, reflected_direction); //normal*0.01 is a offset to fix z-fighting
 
             // Emission
             if (closest_tris.material.emission > 0.0) {
@@ -322,11 +321,11 @@ fn dielectric_scatter(ray: Ray, hit_point: vec3<f32>, normal: vec3<f32>, materia
     if ((rngNextFloat() - 0.5) < reflect_prob || cannot_refract) {
         // Reflect
         let reflected_direction: vec3<f32> = reflect(unit_direction, normal);
-        return Ray(hit_point, reflected_direction);
+        return Ray(hit_point, reflected_direction);   //normal*0.01 is a offset to fix z-fighting
     } else {
         // Refract
         let refracted_direction: vec3<f32> = refract(unit_direction, normal, etai_over_etat);
-        return Ray(hit_point, refracted_direction);
+        return Ray(hit_point, refracted_direction);   //normal*0.01 is a offset to fix z-fighting
     }
 }
 

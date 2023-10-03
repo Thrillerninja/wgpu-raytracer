@@ -189,9 +189,8 @@ impl State {
             alpha_mode: surface_caps.alpha_modes[0],
             view_formats: vec![],
         };
-        surface.configure(&device, &config);
+        surface.configure(&device, &config);     
         
-
         //----------Color Buffer-------------
         // Create a color texture with a suitable sRGB format
         let color_texture = device.create_texture(&wgpu::TextureDescriptor {
@@ -426,8 +425,9 @@ impl State {
         });
 
         let mut spheres: Vec<Sphere> = Vec::new();
-        spheres.push(Sphere::new(cgmath::Point3::new(0.5, 0.0, -1.0), 0.5, Material::new([0.0, 1.0, 0.0], [0.2, 1.0, 1.0], 0.2, 0.0, 0.0)));
+        spheres.push(Sphere::new(cgmath::Point3::new(0.5, 0.0, -1.0), 0.5, Material::new([0.0, 1.0, 0.0], [0.5, 1.0, 1.0], 0.2, 0.0, 0.0)));
         spheres.push(Sphere::new(cgmath::Point3::new(-0.5, 0.0, -1.0), 0.5, Material::new([0.0, 0.0, 1.0], [1.0, 1.0, 1.0], 0.0, 0.0, 1.5)));
+        spheres.push(Sphere::new(cgmath::Point3::new(-0.5, 0.0, -1.0), -0.3, Material::new([0.0, 0.0, 1.0], [1.0, 1.0, 1.0], 0.0, 0.0, 1.5)));
         spheres.push(Sphere::new(cgmath::Point3::new(-0.5, 1.0, -1.0), 0.1, Material::new([0.0, 0.0, 1.0], [1.0, 1.0, 1.0], 0.0, 1.0, 0.0)));
         spheres.push(Sphere::new(cgmath::Point3::new(0.5, -50.5, -1.0), 50.0, Material::new([1.0, 0.3, 0.2], [0.2, 1.0, 1.0], 0.2, 0.0, 0.0)));
         spheres.push(Sphere::new(cgmath::Point3::new(-1.5, 0.0, -1.0), 0.4, Material::new([1.0, 1.0, 1.0], [0.5, 1.0, 1.0], 0.0, 0.0, 0.0)));
