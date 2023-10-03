@@ -15,11 +15,11 @@ pub struct Material {
     roughness: f32,     //0.0 - 1.0 0.0 = mirror, 1.0 = diffuse
     emission: f32,      //0.0 - 1.0 0.0 = no emission, >0.0 = emission
     ior: f32,           //index of refraction
-    _padding:f32,
+    texture_id:f32,
 }
 
 impl Material {
-    pub fn new(albedo: [f32; 3], attenuation: [f32; 3], roughness: f32, emission: f32, ior: f32) -> Self {
+    pub fn new(albedo: [f32; 3], attenuation: [f32; 3], roughness: f32, emission: f32, ior: f32, texture_id: i32) -> Self {
         let mut rng = rand::thread_rng();
         Self {
             albedo: [albedo[0], albedo[1], albedo[2], 0.0],
@@ -27,12 +27,12 @@ impl Material {
             roughness: roughness,
             emission: emission,
             ior: ior,
-            _padding: 0.0,
+            texture_id: texture_id as f32,
         }
     }
 
     pub fn clone(&self) -> Material{
-        Material { albedo: self.albedo, attenuation: self.attenuation, roughness: self.roughness, emission: self.emission, ior: self.ior, _padding: self._padding}
+        Material { albedo: self.albedo, attenuation: self.attenuation, roughness: self.roughness, emission: self.emission, ior: self.ior, texture_id: self.texture_id }
     }
 }
 
@@ -163,7 +163,7 @@ pub fn load_obj(file_path: &str) -> Result<Vec<Triangle>, Box<dyn std::error::Er
                     Material::new(
                         [r, g, b], // Use the random values for the color
                         [0.5, 0.5, 0.5],
-                        0.5, 0.0, 0.0
+                        0.5, 0.0, 0.0, -1
                     ),
                 );
                 faces.push(triangle);

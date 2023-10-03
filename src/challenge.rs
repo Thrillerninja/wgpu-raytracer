@@ -19,6 +19,9 @@ use camera::{Camera, CameraController};
 mod models;
 use models::{Material, Sphere, Triangle, Object};
 
+mod texture;
+use texture::{load_textures_to_array};
+
 #[repr(C)]
 #[derive(Copy, Clone, bytemuck::Pod, bytemuck::Zeroable)]
 struct CameraUniform {
@@ -125,6 +128,9 @@ struct State {
     mouse_pressed: bool,
     //Objects
     object_bind_group: wgpu::BindGroup,
+    //Textures
+    texture_array: wgpu::Texture,
+    texture_bind_group: wgpu::BindGroup,
 }
 
 async fn hardware_launch(window: &Window) -> (wgpu::Surface, wgpu::Device, wgpu::Queue, wgpu::Adapter) {
@@ -425,12 +431,19 @@ impl State {
         });
 
         let mut spheres: Vec<Sphere> = Vec::new();
-        spheres.push(Sphere::new(cgmath::Point3::new(0.5, 0.0, -1.0), 0.5, Material::new([0.0, 1.0, 0.0], [0.5, 1.0, 1.0], 0.2, 0.0, 0.0)));
-        spheres.push(Sphere::new(cgmath::Point3::new(-0.5, 0.0, -1.0), 0.5, Material::new([0.0, 0.0, 1.0], [1.0, 1.0, 1.0], 0.0, 0.0, 1.5)));
-        spheres.push(Sphere::new(cgmath::Point3::new(-0.5, 0.0, -1.0), -0.3, Material::new([0.0, 0.0, 1.0], [1.0, 1.0, 1.0], 0.0, 0.0, 1.5)));
-        spheres.push(Sphere::new(cgmath::Point3::new(-0.5, 1.0, -1.0), 0.1, Material::new([0.0, 0.0, 1.0], [1.0, 1.0, 1.0], 0.0, 1.0, 0.0)));
-        spheres.push(Sphere::new(cgmath::Point3::new(0.5, -50.5, -1.0), 50.0, Material::new([1.0, 0.3, 0.2], [0.2, 1.0, 1.0], 0.2, 0.0, 0.0)));
-        spheres.push(Sphere::new(cgmath::Point3::new(-1.5, 0.0, -1.0), 0.4, Material::new([1.0, 1.0, 1.0], [0.5, 1.0, 1.0], 0.0, 0.0, 0.0)));
+        //                                            x    y     z   radius               r     g   b    attenuation      rough emis  ior    texture_id
+        spheres.push(Sphere::new(cgmath::Point3::new(0.5, 0.0, -1.0), 0.5, Material::new([0.0, 1.0, 0.0], [0.5, 1.0, 1.0], 0.2, 0.0, 0.0     , 1)));
+        spheres.push(Sphere::new(cgmath::Point3::new(-0.5, 0.0, -1.0), 0.5, Material::new([0.0, 0.0, 1.0], [1.0, 1.0, 1.0], 0.0, 0.0, 1.5    ,-1)));
+        spheres.push(Sphere::new(cgmath::Point3::new(-0.5, 0.0, -1.0), -0.3, Material::new([0.0, 0.0, 1.0], [1.0, 1.0, 1.0], 0.0, 0.0, 1.5   ,-1)));
+        spheres.push(Sphere::new(cgmath::Point3::new(-0.5, 1.0, -1.0), 0.1, Material::new([0.0, 0.0, 1.0], [1.0, 1.0, 1.0], 0.0, 1.0, 0.0    ,-1)));
+        spheres.push(Sphere::new(cgmath::Point3::new(0.5, -50.5, -1.0), 50.0, Material::new([1.0, 0.3, 0.2], [0.2, 1.0, 1.0], 0.2, 0.0, 0.0  ,-1)));
+        spheres.push(Sphere::new(cgmath::Point3::new(-1.5, 0.0, -1.0), 0.4, Material::new([1.0, 1.0, 1.0], [0.5, 1.0, 1.0], 0.0, 0.0, 0.0    ,-1)));
+
+        // Paths to your texture files
+        let file_paths = vec!["res/barrel_top.png", "res/black_glazed_terracotta.png", "res/blast_furnace_front_on.png"];
+        // Load textures from files into a texture array
+        let texture_array = load_textures_to_array(&device, &queue, file_paths, config.clone());
+        println!("Texture array size: {}x{}x{}", texture_array.size().width, texture_array.size().height, texture_array.size().depth_or_array_layers);
 
         //Triangles to Uniform buffer
         let mut spheres_uniform: Vec<SphereUniform> = Vec::new();
@@ -487,6 +500,56 @@ impl State {
             ],
             label: Some("object_bind_group"),
         });
+
+        //----------Textures-------------
+        let texture_bind_group_layout = device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
+            entries: &[
+                wgpu::BindGroupLayoutEntry {
+                    binding: 0,
+                    visibility: wgpu::ShaderStages::COMPUTE,
+                    ty: wgpu::BindingType::Sampler(wgpu::SamplerBindingType::Filtering),
+                    count: None,
+                },
+                wgpu::BindGroupLayoutEntry {
+                    binding: 1,
+                    visibility: wgpu::ShaderStages::COMPUTE,
+                    ty: wgpu::BindingType::Texture {
+                        multisampled: false,
+                        view_dimension: wgpu::TextureViewDimension::D2Array,
+                        sample_type: wgpu::TextureSampleType::Float { filterable: true },
+                    },
+                    count: None,
+                },
+            ],
+            label: Some("texture_bind_group_layout"),
+        });
+
+        let texture_sampler = device.create_sampler(&wgpu::SamplerDescriptor {
+            label: Some("Sampler"),
+            address_mode_u: wgpu::AddressMode::Repeat,
+            address_mode_v: wgpu::AddressMode::Repeat,
+            address_mode_w: wgpu::AddressMode::Repeat,
+            mag_filter: wgpu::FilterMode::Linear,
+            min_filter: wgpu::FilterMode::Nearest,
+            mipmap_filter: wgpu::FilterMode::Nearest,
+            anisotropy_clamp: 1,
+            ..Default::default()
+        });
+
+        let texture_bind_group = device.create_bind_group(&wgpu::BindGroupDescriptor {
+            layout: &texture_bind_group_layout,
+            entries: &[
+                wgpu::BindGroupEntry {
+                    binding: 0,
+                    resource: wgpu::BindingResource::Sampler(&texture_sampler),
+                },
+                wgpu::BindGroupEntry {
+                    binding: 1,
+                    resource: wgpu::BindingResource::TextureView(&texture_array.create_view(&wgpu::TextureViewDescriptor::default())),
+                },
+            ],
+            label: Some("texture_bind_group"),
+        });
         
         //----------Raytracing-------------
 
@@ -533,6 +596,7 @@ impl State {
                 &raytracing_bind_group_layout,
                 &camera_bind_group_layout,
                 &object_bind_group_layout,
+                &texture_bind_group_layout,
             ],
             push_constant_ranges: &[],
         });
@@ -685,6 +749,8 @@ impl State {
             camera_uniform,
             mouse_pressed: false,
             object_bind_group,
+            texture_bind_group,
+            texture_array,
         }
     }
 
@@ -778,6 +844,7 @@ impl State {
             compute_pass.set_bind_group(0, &self.raytracing_bind_group, &[]);
             compute_pass.set_bind_group(1, &self.camera_bind_group, &[]);
             compute_pass.set_bind_group(2, &self.object_bind_group, &[]);
+            compute_pass.set_bind_group(3, &self.texture_bind_group, &[]);
     
             // Dispatch workgroups for ray tracing (adjust dimensions as needed)
             compute_pass.dispatch_workgroups(self.config.width, self.config.height, 1);

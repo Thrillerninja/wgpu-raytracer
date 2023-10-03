@@ -1,82 +1,70 @@
-use std::num::NonZeroU32;
+use std::path::Path;
+use image::{DynamicImage, GenericImageView};
+use wgpu::{Device, Queue, Texture, TextureDescriptor, TextureDimension, TextureFormat, TextureUsages};
 
-use anyhow::*;
-use image::GenericImageView;
-
-pub struct Texture {
-    pub texture: wgpu::Texture,
-    pub view: wgpu::TextureView,
-    pub sampler: wgpu::Sampler,
+// Load an image from a file and return it as DynamicImage
+fn load_image(file_path: &str) -> DynamicImage {
+    image::open(file_path).expect("Failed to load image")
 }
 
-impl Texture {
-    pub fn from_bytes(
-        device: &wgpu::Device,
-        queue: &wgpu::Queue,
-        bytes: &[u8],
-        label: &str,
-    ) -> Result<Self> {
-        let img = image::load_from_memory(bytes)?;
-        Self::from_image(device, queue, &img, Some(label))
-    }
+// Load textures from image files and store them in a texture array
+pub fn load_textures_to_array(device: &Device, queue: &Queue, file_paths: Vec<&str>, config: wgpu::SurfaceConfiguration) -> wgpu::Texture {
+    // Load images and calculate the size of the texture array
+    let images: Vec<DynamicImage> = file_paths.iter().map(|&path| load_image(path)).collect();
+    let max_texture_size: u32 = 32; // Adjust as needed
+    let texture_width = max_texture_size;
+    let texture_height = max_texture_size;
+    let num_textures = images.len() as u32;
+    
+    // Create a texture array
+    let texture = device.create_texture(&wgpu::TextureDescriptor {
+        label: Some("Texture Array"),
+        view_formats: &[config.format], // Use sRGB format for storage
+        size: wgpu::Extent3d {
+            width: texture_width,
+            height: texture_height,
+            depth_or_array_layers: num_textures,
+        },
+        mip_level_count: 1,
+        sample_count: 1,
+        dimension: TextureDimension::D2,
+        format: TextureFormat::Rgba8Unorm, // Adjust format as needed
+        usage: wgpu::TextureUsages::COPY_DST | wgpu::TextureUsages::TEXTURE_BINDING | wgpu::TextureUsages::RENDER_ATTACHMENT,
+    });
 
-    pub fn from_image(
-        device: &wgpu::Device,
-        queue: &wgpu::Queue,
-        img: &image::DynamicImage,
-        label: Option<&str>,
-    ) -> Result<Self> {
-        let rgba = img.to_rgba8();
-        let dimensions = img.dimensions();
-
-        let size = wgpu::Extent3d {
-            width: dimensions.0,
-            height: dimensions.1,
-            depth_or_array_layers: 1,
+    // Copy images into the texture array
+    for (index, image) in images.iter().enumerate() {
+        let offset = wgpu::Origin3d {
+            x: 0,
+            y: 0,
+            z: index as u32,
         };
-        let format = wgpu::TextureFormat::Rgba8UnormSrgb;
-        let texture = device.create_texture(&wgpu::TextureDescriptor {
-            label,
-            size,
-            mip_level_count: 1,
-            sample_count: 1,
-            dimension: wgpu::TextureDimension::D2,
-            format,
-            usage: wgpu::TextureUsages::TEXTURE_BINDING | wgpu::TextureUsages::COPY_DST,
-            view_formats: &[],
-        });
+        
+        let (width, height) = image.dimensions();
+        let bytes_per_pixel = 4; // Assuming RGBA8Unorm format
+        let bytes_per_row = width * bytes_per_pixel;
+        let image_data = image.to_rgba8().into_raw();
 
         queue.write_texture(
             wgpu::ImageCopyTexture {
-                aspect: wgpu::TextureAspect::All,
                 texture: &texture,
                 mip_level: 0,
-                origin: wgpu::Origin3d::ZERO,
+                origin: offset,
+                aspect: wgpu::TextureAspect::All,
             },
-            &rgba,
+            &image_data,
             wgpu::ImageDataLayout {
                 offset: 0,
-                bytes_per_row: Some(4 * dimensions.0),
-                rows_per_image: Some(dimensions.1),
+                bytes_per_row: bytes_per_row.into(),
+                rows_per_image: height.into(),
             },
-            size,
+            wgpu::Extent3d {
+                width,
+                height,
+                depth_or_array_layers: 1,
+            },
         );
-
-        let view = texture.create_view(&wgpu::TextureViewDescriptor::default());
-        let sampler = device.create_sampler(&wgpu::SamplerDescriptor {
-            address_mode_u: wgpu::AddressMode::ClampToEdge,
-            address_mode_v: wgpu::AddressMode::ClampToEdge,
-            address_mode_w: wgpu::AddressMode::ClampToEdge,
-            mag_filter: wgpu::FilterMode::Linear,
-            min_filter: wgpu::FilterMode::Nearest,
-            mipmap_filter: wgpu::FilterMode::Nearest,
-            ..Default::default()
-        });
-
-        Ok(Self {
-            texture,
-            view,
-            sampler,
-        })
     }
+
+    texture
 }
