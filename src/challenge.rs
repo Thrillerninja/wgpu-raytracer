@@ -20,7 +20,7 @@ mod models;
 use models::{Material, Sphere, Triangle, Object};
 
 mod texture;
-use texture::{load_textures_to_array};
+use texture::{load_textures_to_array, create_textureset, load_texture_set, TextureSet};
 
 #[repr(C)]
 #[derive(Copy, Clone, bytemuck::Pod, bytemuck::Zeroable)]
@@ -129,7 +129,7 @@ struct State {
     //Objects
     object_bind_group: wgpu::BindGroup,
     //Textures
-    texture_array: wgpu::Texture,
+    textureset: TextureSet,
     texture_bind_group: wgpu::BindGroup,
 }
 
@@ -432,18 +432,21 @@ impl State {
 
         let mut spheres: Vec<Sphere> = Vec::new();
         //                                            x    y     z   radius               r     g   b    attenuation      rough emis  ior    texture_id
-        spheres.push(Sphere::new(cgmath::Point3::new(0.5, 0.0, -1.0), 0.5, Material::new([0.0, 1.0, 0.0], [0.5, 1.0, 1.0], 0.2, 0.0, 0.0     , 1)));
-        spheres.push(Sphere::new(cgmath::Point3::new(-0.5, 0.0, -1.0), 0.5, Material::new([0.0, 0.0, 1.0], [1.0, 1.0, 1.0], 0.0, 0.0, 1.5    ,-1)));
-        spheres.push(Sphere::new(cgmath::Point3::new(-0.5, 0.0, -1.0), -0.3, Material::new([0.0, 0.0, 1.0], [1.0, 1.0, 1.0], 0.0, 0.0, 1.5   ,-1)));
+        spheres.push(Sphere::new(cgmath::Point3::new(0.5, 0.0, -1.0), 0.5, Material::new([0.0, 1.0, 0.0], [0.5, 1.0, 1.0], 0.8, 0.0, 0.0     , 0)));
+        spheres.push(Sphere::new(cgmath::Point3::new(-0.5, 0.0, -1.0), 0.5, Material::new([1.0, 0.5, 1.0], [1.0, 1.0, 1.0], 0.8, 0.0, 0.0    ,-1)));
         spheres.push(Sphere::new(cgmath::Point3::new(-0.5, 1.0, -1.0), 0.1, Material::new([0.0, 0.0, 1.0], [1.0, 1.0, 1.0], 0.0, 1.0, 0.0    ,-1)));
         spheres.push(Sphere::new(cgmath::Point3::new(0.5, -50.5, -1.0), 50.0, Material::new([1.0, 0.3, 0.2], [0.2, 1.0, 1.0], 0.2, 0.0, 0.0  ,-1)));
         spheres.push(Sphere::new(cgmath::Point3::new(-1.5, 0.0, -1.0), 0.4, Material::new([1.0, 1.0, 1.0], [0.5, 1.0, 1.0], 0.0, 0.0, 0.0    ,-1)));
 
         // Paths to your texture files
-        let file_paths = vec!["res/barrel_top.png", "res/black_glazed_terracotta.png", "res/blast_furnace_front_on.png"];
+        let file_paths = vec!["res/cobble-diffuse.png", "res/cobble-normal.png", "res/cube-diffuse.jpg"];
+        // Load textures from files into a textureset
+        let mut textureset = create_textureset(&device, &config, 1024, 1024, 3);    //3 = max numer of textures
         // Load textures from files into a texture array
-        let texture_array = load_textures_to_array(&device, &queue, file_paths, config.clone());
-        println!("Texture array size: {}x{}x{}", texture_array.size().width, texture_array.size().height, texture_array.size().depth_or_array_layers);
+        textureset = load_texture_set(&device, &queue, &config, textureset, "res/cobble-diffuse.png", "res/cobble-normal.png", "res/cube-diffuse.jpg", 0);
+        textureset = load_texture_set(&device, &queue, &config, textureset, "res/Unbenannt2.png", "res/Unbenannt.png", "res/Unbenannt.png", 1);
+        textureset = load_texture_set(&device, &queue, &config, textureset, "res/pavement_26_basecolor-1K.png", "res/pavement_26_normal-1K.png", "res/pavement_26_normal-1K.png", 2);
+        println!("Texture array size: {}x{}x{}", textureset.diffuse.size().width, textureset.diffuse.size().height, textureset.diffuse.size().depth_or_array_layers);
 
         //Triangles to Uniform buffer
         let mut spheres_uniform: Vec<SphereUniform> = Vec::new();
@@ -520,6 +523,26 @@ impl State {
                     },
                     count: None,
                 },
+                wgpu::BindGroupLayoutEntry {
+                    binding: 2,
+                    visibility: wgpu::ShaderStages::COMPUTE,
+                    ty: wgpu::BindingType::Texture {
+                        multisampled: false,
+                        view_dimension: wgpu::TextureViewDimension::D2Array,
+                        sample_type: wgpu::TextureSampleType::Float { filterable: true },
+                    },
+                    count: None,
+                },
+                wgpu::BindGroupLayoutEntry {
+                    binding: 3,
+                    visibility: wgpu::ShaderStages::COMPUTE,
+                    ty: wgpu::BindingType::Texture {
+                        multisampled: false,
+                        view_dimension: wgpu::TextureViewDimension::D2Array,
+                        sample_type: wgpu::TextureSampleType::Float { filterable: true },
+                    },
+                    count: None,
+                },
             ],
             label: Some("texture_bind_group_layout"),
         });
@@ -545,7 +568,15 @@ impl State {
                 },
                 wgpu::BindGroupEntry {
                     binding: 1,
-                    resource: wgpu::BindingResource::TextureView(&texture_array.create_view(&wgpu::TextureViewDescriptor::default())),
+                    resource: wgpu::BindingResource::TextureView(&textureset.diffuse.create_view(&wgpu::TextureViewDescriptor::default())),
+                },
+                wgpu::BindGroupEntry {
+                    binding: 2,
+                    resource: wgpu::BindingResource::TextureView(&textureset.normal.create_view(&wgpu::TextureViewDescriptor::default())),
+                },
+                wgpu::BindGroupEntry {
+                    binding: 3,
+                    resource: wgpu::BindingResource::TextureView(&textureset.roughness.create_view(&wgpu::TextureViewDescriptor::default())),
                 },
             ],
             label: Some("texture_bind_group"),
@@ -750,7 +781,7 @@ impl State {
             mouse_pressed: false,
             object_bind_group,
             texture_bind_group,
-            texture_array,
+            textureset,
         }
     }
 

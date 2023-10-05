@@ -41,7 +41,9 @@ struct Ray {
 }
 
 @group(3) @binding(0) var texture_sampler : sampler;
-@group(3) @binding(1) var textures: texture_2d_array<f32>;
+@group(3) @binding(1) var diffuse: texture_2d_array<f32>;
+@group(3) @binding(2) var normal: texture_2d_array<f32>;
+@group(3) @binding(3) var roughness: texture_2d_array<f32>;
 
 var<private> seed: f32;
 var<private> screen_size: vec2<u32>;
@@ -50,7 +52,7 @@ var<private> rand_val: vec2<f32>;
 var<private> pi: f32 = 3.1415926535897932384626433832795;
 
 // Constants
-var<private> _SAMPLES: i32 = 10; // Adjust the number of samples as needed
+var<private> _SAMPLES: i32 = 1; // Adjust the number of samples as needed
 
 // Flag to indicate if it's the first frame (for buffer initialization)
 var<private> first_frame: bool = true;
@@ -215,7 +217,7 @@ fn color(primary_ray: Ray, MAX_BOUNCES: i32, t_max: f32) -> vec4<f32> {
     var pixel_color = vec3<f32>(sky_color(ray));
     var weight = 1.0;
 
-    while (depth <= 0) {
+    while (depth <= MAX_BOUNCES) {
         var t = t_max;
         var closest_sphere: Sphere;
         var closest_tris: Triangle;
@@ -250,61 +252,42 @@ fn color(primary_ray: Ray, MAX_BOUNCES: i32, t_max: f32) -> vec4<f32> {
                 return vec4<f32>(pixel_color, 1.0);
             }
         }
-
-        // Get color of the closest hit object and reflect ray if needed
-        if (is_sphere) {
-            let hit_point: vec3<f32> = ray.origin + ray.direction * t;
-            let normal: vec3<f32> = normalize(hit_point - closest_sphere.center.xyz);
-
-            if closest_sphere.material.texture_id > -1.0 {
-                let uv = sphereUVMapping(hit_point, closest_sphere);
-                pixel_color *= get_texture_color(closest_sphere.material.texture_id, uv);
-
-                var reflected_direction: vec3<f32> = reflect(ray.direction, normal + rngNextVec3InUnitSphere() * closest_sphere.material.roughness);
-                ray = Ray(hit_point + normal*0.0001, reflected_direction); //normal*0.01 is a offset to fix z-fighting
-            } else 
-
-            // Emission
-            if (closest_sphere.material.emission > 0.0) {
-                // Handle emissive material directly
-                pixel_color += closest_sphere.material.albedo.xyz * closest_sphere.material.emission * weight;
-                return vec4<f32>(pixel_color, 1.0); // Terminate the loop when an emissive object is hit
-
-            } else if (closest_sphere.material.ior > 0.0) {
-            // Dielectric
-                ray = dielectric_scatter(ray, hit_point, normal, closest_sphere.material);
-            } else {
-                // Accumulate color for non-emissive objects
-                pixel_color *= closest_sphere.material.albedo.xyz;
-
-                var reflected_direction: vec3<f32> = reflect(ray.direction, normal + rngNextVec3InUnitSphere() * closest_sphere.material.roughness);
-
-                ray = Ray(hit_point + normal*0.0001, reflected_direction); //normal*0.01 is a offset to fix z-fighting
-            }
-          
-            is_sphere = false;
+        
+        let hit_point: vec3<f32> = ray.origin + ray.direction * t;
+        var uv: vec2<f32> = sphereUVMapping(hit_point, closest_sphere);
+        var normal: vec3<f32>;
+        var material: Material;
+        if (is_sphere){
+            normal = normalize(hit_point - closest_sphere.center.xyz);
+            material = closest_sphere.material;
+            uv = sphereUVMapping(hit_point, closest_sphere);
         } else {
-            let hit_point: vec3<f32> = ray.origin + ray.direction * t;
-            let normal: vec3<f32> = normalize(closest_tris.normals.xyz);
-            let reflected_direction: vec3<f32> = reflect(ray.direction, normal + rngNextVec3InUnitSphere() * closest_tris.material.roughness);
-
-            ray = Ray(hit_point + normal*0.0001, reflected_direction); //normal*0.01 is a offset to fix z-fighting
-
-            // Emission
-            if (closest_tris.material.emission > 0.0) {
-                // Handle emissive material directly
-                pixel_color += closest_tris.material.albedo.xyz * closest_tris.material.emission * weight;
-                return vec4<f32>(pixel_color, 1.0); // Terminate the loop when an emissive object is hit
-            } else {
-                // Accumulate color for non-emissive objects
-                pixel_color *= closest_tris.material.albedo.xyz;
-            }
-            
-            // Accumulate color for non-emissive objects
-            pixel_color *= closest_tris.material.albedo.xyz;
+            normal = normalize(closest_tris.normals.xyz);
+            material = closest_tris.material;
+            uv = sphereUVMapping(hit_point, closest_sphere);
         }
 
-        weight *= closest_sphere.material.attenuation.x; // Update weight based on material attenuation
+        // Update color
+        if material.texture_id > -1.0 {
+            pixel_color *= get_texture_color(material.texture_id, uv, 0);
+        } else if (material.emission > 0.0) {
+            // Handle emissive material directly
+            pixel_color += material.albedo.xyz * material.emission * weight;
+            return vec4<f32>(pixel_color, 1.0); // Terminate the loop when an emissive object is hit
+        } else {
+            pixel_color *= material.albedo.xyz;
+        }
+
+        // Calculate new ray
+        if (material.texture_id > -1.0){
+            ray = Ray(hit_point + normal*0.0001, reflect(ray.direction, normal + rngNextVec3InUnitSphere() * (vec3<f32>(1.0)-get_texture_color(material.texture_id, uv, 2))));
+        } else if (material.ior > 0.0) {
+            ray = dielectric_scatter(ray, hit_point, normal, material);
+        } else {
+            ray = Ray(hit_point + normal*0.0001, reflect(ray.direction, normal + rngNextVec3InUnitSphere() * material.roughness)); //normal*0.01 is a offset to fix z-fighting
+        }
+
+        weight *= material.attenuation.x; // Update weight based on material attenuation
         depth += 1;
     }
 
@@ -365,12 +348,16 @@ fn length_squared(v: vec3<f32>) -> f32 {
 
 
 // Textures
+fn get_texture_color(texture_id: f32, uv: vec2<f32>, tex_flavour: i32) -> vec3<f32> {
+    var texture_color : vec3<f32>;
+    if tex_flavour == 0{
+        texture_color = textureSampleLevel(diffuse, texture_sampler, uv, i32(texture_id), 0.0).xyz;   
+    } else if tex_flavour == 1{
+        texture_color = textureSampleLevel(normal, texture_sampler, uv, i32(texture_id), 0.0).xyz;   
+    } else {
+        texture_color = textureSampleLevel(normal, texture_sampler, uv, i32(texture_id), 0.0).xyz; 
+    }
 
-fn get_texture_color(texture_id: f32, uv: vec2<f32>) -> vec3<f32> {
-    let texture_size: vec2<u32> = vec2<u32>(textureDimensions(textures));
-    let texture_pos: vec2<f32> = vec2<f32>(texture_size) * uv;
-
-    var texture_color = textureSampleLevel(textures, texture_sampler, texture_pos/32.0, 1, 0.0).xyz;   
     return texture_color;
 }
 
