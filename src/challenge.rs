@@ -60,16 +60,20 @@ struct TriangleUniform {
     vertex2: [f32; 4],
     vertex3: [f32; 4],
     normal: [f32; 4],
+    texture_coords: [f32; 4],
+    texture_coords2: [f32; 4],
     material: Material,
 }
 
 impl TriangleUniform {
-    fn new(triangle: Triangle) -> Self {
+    fn new(triangle: Triangle, count: i32) -> Self {
         Self {
             vertex1: [triangle.points[0][0], triangle.points[0][1], triangle.points[0][2], 0.0],
             vertex2: [triangle.points[1][0], triangle.points[1][1], triangle.points[1][2], 0.0],
             vertex3: [triangle.points[2][0], triangle.points[2][1], triangle.points[2][2], 0.0],
             normal: [triangle.normal[0],triangle.normal[1],triangle.normal[2], 0.0],
+            texture_coords: [triangle.texture_coords[0][0], triangle.texture_coords[0][1], triangle.texture_coords[1][0], triangle.texture_coords[1][1]],
+            texture_coords2: [triangle.texture_coords[2][0], triangle.texture_coords[2][1], count as f32, 0.0],
             material: triangle.material,
         }
     }
@@ -419,8 +423,9 @@ impl State {
 
         //Triangles to Uniform buffer
         let mut triangles_uniform: Vec<TriangleUniform> = Vec::new();
+        let triangles_count = triangles.len() as i32;
         for triangle in triangles.iter(){
-            triangles_uniform.push(TriangleUniform::new(*triangle));
+            triangles_uniform.push(TriangleUniform::new(*triangle, triangles_count));
         }
         
         // Create a buffer to hold the vertex data
@@ -432,23 +437,21 @@ impl State {
 
         let mut spheres: Vec<Sphere> = Vec::new();
         //                                            x    y     z   radius               r     g   b    attenuation      rough emis  ior    texture_id
-        spheres.push(Sphere::new(cgmath::Point3::new(0.5, 0.0, -1.0), 0.5, Material::new([0.0, 1.0, 0.0], [0.5, 1.0, 1.0], 0.8, 0.0, 0.0     , 0)));
-        spheres.push(Sphere::new(cgmath::Point3::new(-0.5, 0.0, -1.0), 0.5, Material::new([1.0, 0.5, 1.0], [1.0, 1.0, 1.0], 0.8, 0.0, 0.0    ,-1)));
-        spheres.push(Sphere::new(cgmath::Point3::new(-0.5, 1.0, -1.0), 0.1, Material::new([0.0, 0.0, 1.0], [1.0, 1.0, 1.0], 0.0, 1.0, 0.0    ,-1)));
+        spheres.push(Sphere::new(cgmath::Point3::new(0.5, 0.0, -1.0), 0.5, Material::new([0.0, 1.0, 0.0], [0.5, 1.0, 1.0], 0.8, 0.0, 0.0     , 2)));
+        spheres.push(Sphere::new(cgmath::Point3::new(-0.5, 0.0, -1.0), 0.5, Material::new([0.5, 0.2, 0.5], [1.0, 1.0, 1.0], 0.8, 0.0, 0.0    ,-1)));
+        spheres.push(Sphere::new(cgmath::Point3::new(0.5, 1.0, -1.0), 0.3, Material::new([0.0, 0.0, 1.0], [1.0, 1.0, 1.0], 0.0, 5.0, 0.0    ,-1)));
         spheres.push(Sphere::new(cgmath::Point3::new(0.5, -50.5, -1.0), 50.0, Material::new([1.0, 0.3, 0.2], [0.2, 1.0, 1.0], 0.2, 0.0, 0.0  ,-1)));
         spheres.push(Sphere::new(cgmath::Point3::new(-1.5, 0.0, -1.0), 0.4, Material::new([1.0, 1.0, 1.0], [0.5, 1.0, 1.0], 0.0, 0.0, 0.0    ,-1)));
 
-        // Paths to your texture files
-        let file_paths = vec!["res/cobble-diffuse.png", "res/cobble-normal.png", "res/cube-diffuse.jpg"];
         // Load textures from files into a textureset
         let mut textureset = create_textureset(&device, &config, 1024, 1024, 3);    //3 = max numer of textures
         // Load textures from files into a texture array
-        textureset = load_texture_set(&device, &queue, &config, textureset, "res/cobble-diffuse.png", "res/cobble-normal.png", "res/cube-diffuse.jpg", 0);
-        textureset = load_texture_set(&device, &queue, &config, textureset, "res/Unbenannt2.png", "res/Unbenannt.png", "res/Unbenannt.png", 1);
-        textureset = load_texture_set(&device, &queue, &config, textureset, "res/pavement_26_basecolor-1K.png", "res/pavement_26_normal-1K.png", "res/pavement_26_normal-1K.png", 2);
+        textureset = load_texture_set(&device, &queue, &config, textureset, "res/cobble-diffuse.png", "res/cobble-normal.png", "res/cobble-diffuse.png", 0);
+        textureset = load_texture_set(&device, &queue, &config, textureset, "res/Unbenannt.png", "res/Unbenannt2.png", "res/Unbenannt2.png", 1);
+        textureset = load_texture_set(&device, &queue, &config, textureset, "res/PavingStones134_1K-PNG_Color.png", "res/PavingStones134_1K-PNG_NormalDX.png", "res/PavingStones134_1K-PNG_Roughness.png", 2);
         println!("Texture array size: {}x{}x{}", textureset.diffuse.size().width, textureset.diffuse.size().height, textureset.diffuse.size().depth_or_array_layers);
 
-        //Triangles to Uniform buffer
+        //Triangles to Uniform buffer                                  
         let mut spheres_uniform: Vec<SphereUniform> = Vec::new();
         for sphere in spheres.iter(){
             spheres_uniform.push(SphereUniform::new(*sphere));

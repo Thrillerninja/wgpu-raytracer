@@ -54,13 +54,13 @@ impl Sphere {
 pub struct Triangle{
     pub points: [[f32; 3]; 3],
     pub normal: [f32; 3],
+    pub texture_coords: [[f32; 2]; 3],
     pub material: Material
 }
 
 impl Triangle{
-
-    pub fn new(points: [[f32; 3]; 3], normal: [f32; 3], material: Material) -> Triangle{
-        Self{points, normal, material}
+    pub fn new(points: [[f32; 3]; 3], normal: [f32; 3], texture_coords: [[f32; 2]; 3], material: Material) -> Triangle{
+        Self{points, normal, texture_coords, material}
     }
 }
 
@@ -70,6 +70,7 @@ impl Triangle{
 pub struct TriangleUniform {
     pub points: [Vector3<f32>; 3],
     pub normal: Vector3<f32>,
+    pub texture_coords: [Vector2<f32>; 3],
     pub material: Material
 }
 
@@ -121,8 +122,6 @@ pub fn load_obj(file_path: &str) -> Result<Vec<Triangle>, Box<dyn std::error::Er
                 .map(|x| x.parse::<f32>())
                 .collect::<Result<_, _>>()?;
 
-            println!("{} {} {}", val[0], val[1], val[2]);
-
             if val.len() >= 3 {
                 let normal = [val[0], val[1], val[2]];
                 normals.push(normal);
@@ -140,19 +139,21 @@ pub fn load_obj(file_path: &str) -> Result<Vec<Triangle>, Box<dyn std::error::Er
                     (indices[0], indices[1], indices[2])
                 })
                 .collect();
-
+        
             if indices.len() >= 3 {
-                let v1_index = indices[0].0 - 1;    //inices of vertecies to be added
+                let v1_index = indices[0].0 - 1;
                 let v2_index = indices[1].0 - 1;
                 let v3_index = indices[2].0 - 1;
-                let n_index = indices[0].2 - 1;     //index of normal to be added calced with rand. vertex value as all have equal normals
+                let uv1_index = indices[0].1 - 1; // UV index
+                let uv2_index = indices[1].1 - 1; // UV index
+                let uv3_index = indices[2].1 - 1; // UV index
+                let n_index = indices[0].2 - 1;
 
-                // Generate random RGB values for the material color
                 let mut rng = rand::thread_rng();
                 let r: f32 = rng.gen_range(0.0..1.0);
                 let g: f32 = rng.gen_range(0.0..1.0);
                 let b: f32 = rng.gen_range(0.0..1.0);
-
+        
                 let triangle = Triangle::new(
                     [
                         vertices[v1_index],
@@ -160,12 +161,22 @@ pub fn load_obj(file_path: &str) -> Result<Vec<Triangle>, Box<dyn std::error::Er
                         vertices[v3_index],
                     ],
                     normals[n_index],
+                    [
+                        texture_coords[uv1_index],
+                        texture_coords[uv2_index],
+                        texture_coords[uv3_index],
+                    ],
                     Material::new(
-                        [r, g, b], // Use the random values for the color
+                        [r, g, b],
                         [0.5, 0.5, 0.5],
-                        0.5, 0.0, 0.0, -1
+                        0.5,
+                        0.0,
+                        0.0,
+                        1,
                     ),
                 );
+                
+                println!("{} {} {}", vertices[v1_index][0], vertices[v2_index][0], vertices[v3_index][0]);
                 faces.push(triangle);
             }
         }

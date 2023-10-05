@@ -24,6 +24,8 @@ struct Triangle {
     vertex2: vec4<f32>,
     vertex3: vec4<f32>,
     normals: vec4<f32>,
+    texture_coords1: vec4<f32>,
+    texture_coords2: vec4<f32>, // Z of first tris is count of triangles
     material: Material,
 }
 @group(2) @binding(0) var<storage> triangles : array<Triangle>;
@@ -234,7 +236,7 @@ fn color(primary_ray: Ray, MAX_BOUNCES: i32, t_max: f32) -> vec4<f32> {
         }
 
         // Check if a Triangle is hit
-        for (var j = 0; j < 3; j = j + 1) {
+        for (var j = 0; j < i32(triangles[0].texture_coords2.z); j = j + 1) {   // Amount of triangles -> i32(triangles[0].texture_coords2.z)
             var hit: f32 = hit_tri(ray, triangles[j]);
             if (hit > 0.0 && hit < t) {
                 t = hit;
@@ -246,7 +248,7 @@ fn color(primary_ray: Ray, MAX_BOUNCES: i32, t_max: f32) -> vec4<f32> {
         // Return background color if no object is hit
         if (t == t_max) {
             if (depth == 0){
-                return vec4<f32>(pixel_color, 1.0);
+                return vec4<f32>(sky_color(ray), 1.0);
             } else {
                 pixel_color = mix(pixel_color, sky_color(ray), weight);
                 return vec4<f32>(pixel_color, 1.0);
@@ -264,7 +266,7 @@ fn color(primary_ray: Ray, MAX_BOUNCES: i32, t_max: f32) -> vec4<f32> {
         } else {
             normal = normalize(closest_tris.normals.xyz);
             material = closest_tris.material;
-            uv = sphereUVMapping(hit_point, closest_sphere);
+            uv = trisUVMapping(hit_point, closest_tris);
         }
 
         // Update color
@@ -280,7 +282,7 @@ fn color(primary_ray: Ray, MAX_BOUNCES: i32, t_max: f32) -> vec4<f32> {
 
         // Calculate new ray
         if (material.texture_id > -1.0){
-            ray = Ray(hit_point + normal*0.0001, reflect(ray.direction, normal + rngNextVec3InUnitSphere() * (vec3<f32>(1.0)-get_texture_color(material.texture_id, uv, 2))));
+            ray = Ray(hit_point + normal*0.0001, reflect(ray.direction, normal * get_texture_color(material.texture_id, uv, 1) + rngNextVec3InUnitSphere() * (vec3<f32>(1.0)-get_texture_color(material.texture_id, uv, 2))));
         } else if (material.ior > 0.0) {
             ray = dielectric_scatter(ray, hit_point, normal, material);
         } else {
@@ -374,6 +376,37 @@ fn sphereUVMapping(hit_point: vec3<f32>, sphere: Sphere) -> vec2<f32> {
     let v: f32 = (theta + pi / 2.0) / pi * aspect_ratio;
     
     return vec2<f32>(u, v);
+}
+
+fn trisUVMapping(hit_point: vec3<f32>, closest_tris: Triangle) -> vec2<f32> {
+    let p0 = closest_tris.vertex1.xyz;
+    let p1 = closest_tris.vertex2.xyz;	
+    let p2 = closest_tris.vertex3.xyz;
+
+    let uv0 = closest_tris.texture_coords1.xy;
+    let uv1 = closest_tris.texture_coords1.xy;
+    let uv2 = closest_tris.texture_coords2.xy;
+
+    let v0 = p1 - p0;
+    let v1 = p2 - p0;
+    let v2 = hit_point - p0;
+
+    let dot00 = dot(v0,v0);
+    let dot01 = dot(v0,v1);
+    let dot02 = dot(v0,v2);
+    let dot11 = dot(v1,v1);
+    let dot12 = dot(v1,v2);
+
+    let denom = dot00 * dot11 - dot01 * dot01;
+
+    // Calculate barycentric coordinates
+    let u = (dot11 * dot02 - dot01 * dot12) / denom;
+    let v = (dot00 * dot12 - dot01 * dot02) / denom;
+
+    // Interpolate the UV coordinates
+    let interpolated_uv = uv0 * (1.0 - u - v) + uv1 * u + uv2 * v;
+
+    return vec2<f32>(interpolated_uv[0], interpolated_uv[1]);
 }
 
 
