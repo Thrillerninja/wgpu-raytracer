@@ -50,13 +50,12 @@ impl Sphere {
 pub struct Triangle{
     pub points: [[f32; 3]; 3],
     pub normal: [f32; 3],
-    pub texture_coords: [[f32; 2]; 3],
     pub material: Material
 }
 
 impl Triangle{
-    pub fn new(points: [[f32; 3]; 3], normal: [f32; 3], texture_coords: [[f32; 2]; 3], material: Material) -> Triangle{
-        Self{points, normal, texture_coords, material}
+    pub fn new(points: [[f32; 3]; 3], normal: [f32; 3], material: Material) -> Triangle{
+        Self{points, normal, material}
     }
 }
 
@@ -147,11 +146,6 @@ pub fn load_obj(file_path: &str) -> Result<Vec<Triangle>, Box<dyn std::error::Er
                         vertices[v3_index],
                     ],
                     normals[n_index],
-                    [
-                        texture_coords[uv1_index],
-                        texture_coords[uv2_index],
-                        texture_coords[uv3_index],
-                    ],
                     Material::new(
                         [r, g, b],
                         [0.5, 0.5, 0.5],
@@ -161,8 +155,6 @@ pub fn load_obj(file_path: &str) -> Result<Vec<Triangle>, Box<dyn std::error::Er
                         1,
                     ),
                 );
-                
-                println!("{} {} {}", vertices[v1_index][0], vertices[v2_index][0], vertices[v3_index][0]);
                 faces.push(triangle);
             }
         }
@@ -171,13 +163,13 @@ pub fn load_obj(file_path: &str) -> Result<Vec<Triangle>, Box<dyn std::error::Er
     Ok(faces)
 }
 
-pub fn load_svg(file_path: &str) -> Result<Vec<[f32; 2]>, Box<dyn std::error::Error>> {
+pub fn load_svg(file_path: &str) -> Result<Vec<Vec<[f32; 2]>>, Box<dyn std::error::Error>> {
     let mut file = File::open(file_path).expect("Failed to open SVG file");
     let mut svg_content = String::new();
     file.read_to_string(&mut svg_content).expect("Failed to read SVG content");
 
     // Parse the SVG content
-    let mut points = Vec::new();
+    let mut tris = Vec::new();
     let mut height: f32 = 1.0;
     let mut width: f32 = 1.0;
 
@@ -197,19 +189,16 @@ pub fn load_svg(file_path: &str) -> Result<Vec<[f32; 2]>, Box<dyn std::error::Er
 
             //split into single points
             let point_string = point_string.split(" ").collect::<Vec<&str>>();
+            let mut points = Vec::new();
             for point in point_string {
                 let point = point.split(",").collect::<Vec<&str>>();
                 let x = point[0].parse::<f32>().unwrap();
                 let y = point[1].parse::<f32>().unwrap();
-                points.push([x,y]);
+                points.push([x / width, y / height]);   //scale points to 0.0 - 1.0
             }
+            tris.push(points);
         }
     }
 
-    //scale points to be between 0.0 and 1.0 as uv coords
-    for point in points.iter_mut() {
-        point[0] = point[0] / width;
-        point[1] = point[1] / height;
-    }
-    return Ok(points);
+    return Ok(tris);
 }

@@ -60,20 +60,20 @@ struct TriangleUniform {
     vertex2: [f32; 4],
     vertex3: [f32; 4],
     normal: [f32; 4],
-    texture_coords: [f32; 4],
-    texture_coords2: [f32; 4],
+    uv1: [f32; 4],
+    uv2: [f32; 4],
     material: Material,
 }
 
 impl TriangleUniform {
-    fn new(triangle: Triangle, count: i32) -> Self {
+    fn new(triangle: Triangle, uv: Vec<[f32; 2]>, count: i32) -> Self {
         Self {
             vertex1: [triangle.points[0][0], triangle.points[0][1], triangle.points[0][2], 0.0],
             vertex2: [triangle.points[1][0], triangle.points[1][1], triangle.points[1][2], 0.0],
             vertex3: [triangle.points[2][0], triangle.points[2][1], triangle.points[2][2], 0.0],
             normal: [triangle.normal[0],triangle.normal[1],triangle.normal[2], 0.0],
-            texture_coords: [triangle.texture_coords[0][0], triangle.texture_coords[0][1], triangle.texture_coords[1][0], triangle.texture_coords[1][1]],
-            texture_coords2: [triangle.texture_coords[2][0], triangle.texture_coords[2][1], count as f32, 0.0],
+            uv1: [uv[0][0], uv[0][1], uv[1][0], uv[1][1]],
+            uv2: [uv[2][0], uv[2][1], count as f32, 0.0],
             material: triangle.material,
         }
     }
@@ -225,7 +225,7 @@ impl State {
         let color_buffer_view = color_texture.create_view(&wgpu::TextureViewDescriptor::default());
 
         //----------Camera-------------
-        let camera = camera::Camera::new((4.0, 6.0, -4.0), cgmath::Deg(-80.0), cgmath::Deg(15.0));
+        let camera = camera::Camera::new((2.0, 6.0, -2.0), cgmath::Deg(-80.0), cgmath::Deg(60.0));
         let projection =
             camera::Projection::new(config.width, config.height, cgmath::Deg(45.0), 0.1, 100.0);
         let camera_controller = camera::CameraController::new(4.0, 0.4);
@@ -412,7 +412,7 @@ impl State {
 
         //----------Objects-------------
         // Load SVG UV mapping file
-        let tris_uv_mapping = match load_svg(r"res\Cube.svg") {
+        let mut tris_uv_mapping = match load_svg(r"res\Cube.svg") {
             Err(error) => {
                 // Handle the error
                 eprintln!("Error loading SVG file: {:?}", error);
@@ -421,7 +421,7 @@ impl State {
             Ok(data) => data,
         };   
         for i in 0..tris_uv_mapping.len(){
-            println!("{} {}", tris_uv_mapping[i][0], tris_uv_mapping[i][1]);
+            println!("UV: {},{} {},{} {},{} ", tris_uv_mapping[i][0][0], tris_uv_mapping[i][0][1], tris_uv_mapping[i][1][0], tris_uv_mapping[i][1][1], tris_uv_mapping[i][2][0], tris_uv_mapping[i][2][1]);
         }
         
         // Load OBJ file
@@ -432,13 +432,25 @@ impl State {
                 std::process::exit(1);
             }
             Ok(data) => data,
-        };        
+        };   
+        for i in 0..triangles.len(){
+            println!("Triangle: {} {} {}", triangles[i].points[0][0], triangles[i].points[0][1], triangles[i].points[0][2]);
+        }     
 
-        //Triangles to Uniform buffer
+        //Triangles and UV to Uniform buffer
         let mut triangles_uniform: Vec<TriangleUniform> = Vec::new();
         let triangles_count = triangles.len() as i32;
-        for triangle in triangles.iter(){
-            triangles_uniform.push(TriangleUniform::new(*triangle, triangles_count));
+        //if there are less uv than tris, restart uv from the front
+        if let times = triangles.len() / tris_uv_mapping.len(){
+            for i in 0..times{
+                for j in 0..tris_uv_mapping.len(){
+                    tris_uv_mapping.push(tris_uv_mapping[j].clone());
+                }
+            }
+        }
+
+        for i in 0..triangles.len(){
+            triangles_uniform.push(TriangleUniform::new(triangles[i], tris_uv_mapping[i].clone(), triangles_count));
         }
         
         // Create a buffer to hold the vertex data
@@ -460,7 +472,7 @@ impl State {
         let mut textureset = create_textureset(&device, &config, 1024, 1024, 3);    //3 = max numer of textures
         // Load textures from files into a texture array
         textureset = load_texture_set(&device, &queue, &config, textureset, "res/cobble-diffuse.png", "res/cobble-normal.png", "res/cobble-diffuse.png", 0);
-        textureset = load_texture_set(&device, &queue, &config, textureset, "res/Unbenannt.png", "res/Unbenannt2.png", "res/Unbenannt2.png", 1);
+        textureset = load_texture_set(&device, &queue, &config, textureset, "res/COlor.png", "res/Unbenannt2.png", "res/roughness.png", 1);
         textureset = load_texture_set(&device, &queue, &config, textureset, "res/PavingStones134_1K-PNG_Color.png", "res/PavingStones134_1K-PNG_NormalDX.png", "res/PavingStones134_1K-PNG_Roughness.png", 2);
         println!("Texture array size: {}x{}x{}", textureset.diffuse.size().width, textureset.diffuse.size().height, textureset.diffuse.size().depth_or_array_layers);
 

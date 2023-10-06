@@ -24,8 +24,8 @@ struct Triangle {
     vertex2: vec4<f32>,
     vertex3: vec4<f32>,
     normals: vec4<f32>,
-    texture_coords1: vec4<f32>,
-    texture_coords2: vec4<f32>, // Z of first tris is count of triangles
+    uv1: vec4<f32>,
+    uv2: vec4<f32>, // Z of first tris is count of triangles
     material: Material,
 }
 @group(2) @binding(0) var<storage> triangles : array<Triangle>;
@@ -236,7 +236,7 @@ fn color(primary_ray: Ray, MAX_BOUNCES: i32, t_max: f32) -> vec4<f32> {
         }
 
         // Check if a Triangle is hit
-        for (var j = 0; j < i32(triangles[0].texture_coords2.z); j = j + 1) {   // Amount of triangles -> i32(triangles[0].texture_coords2.z)
+        for (var j = 0; j < i32(triangles[0].uv2.z); j = j + 1) {   // Amount of triangles -> i32(triangles[0].texture_coords2.z)
             var hit: f32 = hit_tri(ray, triangles[j]);
             if (hit > 0.0 && hit < t) {
                 t = hit;
@@ -383,9 +383,9 @@ fn trisUVMapping(hit_point: vec3<f32>, closest_tris: Triangle) -> vec2<f32> {
     let p1 = closest_tris.vertex2.xyz;	
     let p2 = closest_tris.vertex3.xyz;
 
-    let uv0 = closest_tris.texture_coords1.xy;
-    let uv1 = closest_tris.texture_coords1.xy;
-    let uv2 = closest_tris.texture_coords2.xy;
+    let uv0 = closest_tris.uv1.xy;
+    let uv1 = closest_tris.uv1.zw;
+    let uv2 = closest_tris.uv2.xy;
 
     let v0 = p1 - p0;
     let v1 = p2 - p0;
