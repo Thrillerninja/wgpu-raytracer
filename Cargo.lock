@@ -1520,32 +1520,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "a464a4b34948a5f67fddd2b823c62d9d92e44be75058b99939eae6c5b6960b33"
 
 [[package]]
-name = "tutorial2-surface"
-version = "0.1.0"
-dependencies = [
- "anyhow",
- "bytemuck",
- "cfg-if",
- "cgmath",
- "console_error_panic_hook",
- "console_log",
- "env_logger",
- "fs_extra",
- "glob",
- "image",
- "instant",
- "log",
- "pollster",
- "rand",
- "tobj",
- "wasm-bindgen",
- "wasm-bindgen-futures",
- "web-sys",
- "wgpu",
- "winit",
-]
-
-[[package]]
 name = "unicode-ident"
 version = "1.0.11"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1827,6 +1801,32 @@ dependencies = [
  "bitflags 2.4.0",
  "js-sys",
  "web-sys",
+]
+
+[[package]]
+name = "wgpu_raytracer"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "bytemuck",
+ "cfg-if",
+ "cgmath",
+ "console_error_panic_hook",
+ "console_log",
+ "env_logger",
+ "fs_extra",
+ "glob",
+ "image",
+ "instant",
+ "log",
+ "pollster",
+ "rand",
+ "tobj",
+ "wasm-bindgen",
+ "wasm-bindgen-futures",
+ "web-sys",
+ "wgpu",
+ "winit",
 ]
 
 [[package]]

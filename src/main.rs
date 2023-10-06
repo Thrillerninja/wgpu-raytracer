@@ -1,6 +1,3 @@
-use std::iter;
-
-use cgmath::prelude::*;
 use wgpu::util::DeviceExt;
 use wgpu::Features;
 use winit::{
@@ -8,120 +5,39 @@ use winit::{
     event_loop::{ControlFlow, EventLoop},
     window::Window,
 };
-use rand::Rng;
 
 #[cfg(target_arch = "wasm32")]
 use wasm_bindgen::prelude::*;
 
 mod camera;
-use camera::{Camera, CameraController};
+use camera::Camera;
 
 mod models;
-use models::{Material, Sphere, Triangle, Object, load_obj, load_svg};
+use models::{load_obj, load_svg};
 
 mod texture;
-use texture::{load_textures_to_array, create_textureset, load_texture_set, TextureSet};
+use texture::{create_textureset, load_texture_set};
 
-#[repr(C)]
-#[derive(Copy, Clone, bytemuck::Pod, bytemuck::Zeroable)]
-struct CameraUniform {
-    frame:  [f32; 4],
-    view_position: [f32; 4],
-    view_proj: [[f32; 4]; 4],
-    inv_view_proj: [[f32; 4]; 4],
-}
-
-impl CameraUniform {
-    fn new() -> Self {
-        Self {
-            view_position: [0.0; 4],
-            view_proj: cgmath::Matrix4::identity().into(),
-            inv_view_proj: cgmath::Matrix4::identity().into(),
-            frame: [0.0, 0.0, 0.0, 0.0],
-        }
-    }
-
-    // UPDATED!
-    fn update_view_proj(&mut self, camera: &camera::Camera, projection: &camera::Projection) {
-        self.view_position = camera.position.to_homogeneous().into();
-        self.view_proj = (projection.calc_matrix() * camera.calc_matrix()).into();
-        self.inv_view_proj = (projection.calc_matrix() * camera.calc_matrix()).invert().unwrap().into();
-    }
-
-    fn update_frame(&mut self) {
-        self.frame = [self.frame[0] + 1.0, 0.0, 0.0, 0.0];
-    }
-}
-
-#[repr(C)]
-#[derive(Clone, Copy, bytemuck::Pod, bytemuck::Zeroable)]
-struct TriangleUniform {
-    vertex1: [f32; 4],
-    vertex2: [f32; 4],
-    vertex3: [f32; 4],
-    normal: [f32; 4],
-    uv1: [f32; 4],
-    uv2: [f32; 4],
-    material: Material,
-}
-
-impl TriangleUniform {
-    fn new(triangle: Triangle, uv: Vec<[f32; 2]>, count: i32) -> Self {
-        Self {
-            vertex1: [triangle.points[0][0], triangle.points[0][1], triangle.points[0][2], 0.0],
-            vertex2: [triangle.points[1][0], triangle.points[1][1], triangle.points[1][2], 0.0],
-            vertex3: [triangle.points[2][0], triangle.points[2][1], triangle.points[2][2], 0.0],
-            normal: [triangle.normal[0],triangle.normal[1],triangle.normal[2], 0.0],
-            uv1: [uv[0][0], uv[0][1], uv[1][0], uv[1][1]],
-            uv2: [uv[2][0], uv[2][1], count as f32, 0.0],
-            material: triangle.material,
-        }
-    }
-}
-
-#[repr(C)]
-#[derive(Clone, Copy, bytemuck::Pod, bytemuck::Zeroable)]
-struct SphereUniform {
-    center: [f32; 4],
-    radius: [f32; 4],
-    material: Material,
-}
-
-impl SphereUniform {
-    fn new(sphere: Sphere) -> Self {
-        let mut rng = rand::thread_rng();
-        Self {
-            center: [sphere.center[0], sphere.center[1], sphere.center[2], rng.gen_range(0.0..1.0)],//rand number in last slot
-            radius: [sphere.radius, 0.0, 0.0, 0.0],
-            material: sphere.material,
-        }
-    }
-}
+mod structs;
+use structs::{CameraUniform, TriangleUniform, SphereUniform, Material, Sphere};
 
 struct State {
     window: Window,
     surface: wgpu::Surface,
-    color_buffer_view: wgpu::TextureView,
     device: wgpu::Device,
     queue: wgpu::Queue,
     config: wgpu::SurfaceConfiguration,
     size: winit::dpi::PhysicalSize<u32>,
     //Antialiasing Sample Textures
-    color_texture: wgpu::Texture,
-    denoising_texture: wgpu::Texture,
     denoising_camera_buffer: wgpu::Buffer,
     denoising_pass_buffer: wgpu::Buffer,
     denoising_bind_group: wgpu::BindGroup,
-    denoising_buffer_view: wgpu::TextureView,
     denoising_pipeline: wgpu::ComputePipeline,
-    denoising_shader: wgpu::ShaderModule,
     //Raytracing
     ray_tracing_pipeline: wgpu::ComputePipeline,
-    ray_generation_shader: wgpu::ShaderModule,
     raytracing_bind_group: wgpu::BindGroup,
     screen_render_pipeline: wgpu::RenderPipeline,
     screen_bind_group: wgpu::BindGroup,
-    sampler: wgpu::Sampler,
     //Camera
     camera: camera::Camera,
     projection: camera::Projection,
@@ -133,14 +49,13 @@ struct State {
     //Objects
     object_bind_group: wgpu::BindGroup,
     //Textures
-    textureset: TextureSet,
     texture_bind_group: wgpu::BindGroup,
 }
 
 async fn hardware_launch(window: &Window) -> (wgpu::Surface, wgpu::Device, wgpu::Queue, wgpu::Adapter) {
     // The instance is a handle to our GPU
     let instance = wgpu::Instance::new(wgpu::InstanceDescriptor {
-        backends: wgpu::Backends::DX12,
+        backends: wgpu::Backends::PRIMARY,
         dx12_shader_compiler: Default::default(),
     });
 
@@ -178,15 +93,6 @@ impl State {
         let (surface, device, queue, adapter) = hardware_launch(&window).await;
 
         let surface_caps = surface.get_capabilities(&adapter);
-        // Shader code in this tutorial assumes an Srgb surface texture. Using a different
-        // one will result all the colors comming out darker. If you want to support non
-        // Srgb surfaces, you'll need to account for that when drawing to the frame.
-        let surface_format = surface_caps
-            .formats
-            .iter()
-            .copied()
-            .find(|f| f.is_srgb())
-            .unwrap_or(surface_caps.formats[0]);
         
         let size = window.inner_size();
 
@@ -441,8 +347,9 @@ impl State {
         let mut triangles_uniform: Vec<TriangleUniform> = Vec::new();
         let triangles_count = triangles.len() as i32;
         //if there are less uv than tris, restart uv from the front
-        if let times = triangles.len() / tris_uv_mapping.len(){
-            for i in 0..times{
+        let times = triangles.len() / tris_uv_mapping.len();
+        if times > 1{
+            for _i in 0..times{
                 for j in 0..tris_uv_mapping.len(){
                     tris_uv_mapping.push(tris_uv_mapping[j].clone());
                 }
@@ -464,16 +371,16 @@ impl State {
         //                                            x    y     z   radius               r     g   b    attenuation      rough emis  ior    texture_id
         spheres.push(Sphere::new(cgmath::Point3::new(0.5, 0.0, -1.0), 0.5, Material::new([0.0, 1.0, 0.0], [0.5, 1.0, 1.0], 0.8, 0.0, 0.0     , 2)));
         spheres.push(Sphere::new(cgmath::Point3::new(-0.5, 0.0, -1.0), 0.5, Material::new([0.5, 0.2, 0.5], [1.0, 1.0, 1.0], 0.8, 0.0, 0.0    ,-1)));
-        spheres.push(Sphere::new(cgmath::Point3::new(0.5, 1.0, -1.0), 0.3, Material::new([0.0, 0.0, 1.0], [1.0, 1.0, 1.0], 0.0, 5.0, 0.0    ,-1)));
+        spheres.push(Sphere::new(cgmath::Point3::new(0.5, 1.0, -1.0), 0.3, Material::new([0.0, 0.0, 1.0], [1.0, 1.0, 1.0], 0.0, 50.0, 0.0    ,-1)));
         spheres.push(Sphere::new(cgmath::Point3::new(0.5, -50.5, -1.0), 50.0, Material::new([1.0, 0.3, 0.2], [0.2, 1.0, 1.0], 0.2, 0.0, 0.0  ,-1)));
-        spheres.push(Sphere::new(cgmath::Point3::new(-1.5, 0.0, -1.0), 0.4, Material::new([1.0, 1.0, 1.0], [0.5, 1.0, 1.0], 0.0, 0.0, 0.0    ,-1)));
+        spheres.push(Sphere::new(cgmath::Point3::new(-1.5, 0.0, -1.0), 0.4, Material::new([1.0, 1.0, 1.0], [0.5, 1.0, 1.0], 0.0, 0.0, 1.0    ,-1)));
 
         // Load textures from files into a textureset
         let mut textureset = create_textureset(&device, &config, 1024, 1024, 3);    //3 = max numer of textures
         // Load textures from files into a texture array
-        textureset = load_texture_set(&device, &queue, &config, textureset, "res/cobble-diffuse.png", "res/cobble-normal.png", "res/cobble-diffuse.png", 0);
-        textureset = load_texture_set(&device, &queue, &config, textureset, "res/COlor.png", "res/Unbenannt2.png", "res/roughness.png", 1);
-        textureset = load_texture_set(&device, &queue, &config, textureset, "res/PavingStones134_1K-PNG_Color.png", "res/PavingStones134_1K-PNG_NormalDX.png", "res/PavingStones134_1K-PNG_Roughness.png", 2);
+        textureset = load_texture_set(&queue, textureset, "res/cobble-diffuse.png", "res/cobble-normal.png", "res/cobble-diffuse.png", 0);
+        //textureset = load_texture_set(&queue, textureset, "res/COlor.png", "res/Unbenannt2.png", "res/roughness.png", 1);
+        textureset = load_texture_set(&queue, textureset, "res/pavement_26_basecolor-1K.png", "res/pavement_26_normal-1K.png", "res/pavement_26_roughness-1K.png", 2);
         println!("Texture array size: {}x{}x{}", textureset.diffuse.size().width, textureset.diffuse.size().height, textureset.diffuse.size().depth_or_array_layers);
 
         //Triangles to Uniform buffer                                  
@@ -780,26 +687,19 @@ impl State {
         
         Self {
             surface,
-            color_buffer_view,
             device,
             queue,
             config,
             window,
             size,
-            color_texture,
-            denoising_texture,
             denoising_camera_buffer,
             denoising_pass_buffer,
             denoising_bind_group,
-            denoising_buffer_view,
             denoising_pipeline,
-            denoising_shader,
             ray_tracing_pipeline,
-            ray_generation_shader,
             raytracing_bind_group,
             screen_render_pipeline,
             screen_bind_group,
-            sampler,
             camera,
             projection,
             camera_controller,
@@ -809,7 +709,6 @@ impl State {
             mouse_pressed: false,
             object_bind_group,
             texture_bind_group,
-            textureset,
         }
     }
 
@@ -827,7 +726,6 @@ impl State {
         }
     }
 
-    // UPDATED!
     fn input(&mut self, event: &WindowEvent) -> bool {
         match event {
             WindowEvent::KeyboardInput {
@@ -1059,14 +957,12 @@ pub async fn run() {
         *control_flow = ControlFlow::Poll;
         match event {
             Event::MainEventsCleared => state.window().request_redraw(),
-            // NEW!
             Event::DeviceEvent {
                 event: DeviceEvent::MouseMotion{ delta, },
-                .. // We're not using device_id currently
+                ..
             } => if state.mouse_pressed {
                 state.camera_controller.process_mouse(delta.0, delta.1)
             }
-            // UPDATED!
             Event::WindowEvent {
                 ref event,
                 window_id,

@@ -1,69 +1,7 @@
-use cgmath::*;
 use std::fs::File;
 use std::io::{BufRead, BufReader, Read};
 use rand::Rng;
-
-#[repr(C)]
-#[derive(Clone, Copy, bytemuck::Pod, bytemuck::Zeroable)]
-pub struct Material {
-    albedo: [f32; 4],
-    attenuation: [f32; 4],
-    roughness: f32,     //0.0 - 1.0 0.0 = mirror, 1.0 = diffuse
-    emission: f32,      //0.0 - 1.0 0.0 = no emission, >0.0 = emission
-    ior: f32,           //index of refraction
-    texture_id:f32,
-}
-
-impl Material {
-    pub fn new(albedo: [f32; 3], attenuation: [f32; 3], roughness: f32, emission: f32, ior: f32, texture_id: i32) -> Self {
-        let mut rng = rand::thread_rng();
-        Self {
-            albedo: [albedo[0], albedo[1], albedo[2], 0.0],
-            attenuation: [attenuation[0], attenuation[1], attenuation[2], 0.0],
-            roughness: roughness,
-            emission: emission,
-            ior: ior,
-            texture_id: texture_id as f32,
-        }
-    }
-
-    pub fn clone(&self) -> Material{
-        Material { albedo: self.albedo, attenuation: self.attenuation, roughness: self.roughness, emission: self.emission, ior: self.ior, texture_id: self.texture_id }
-    }
-}
-
-//all objects in scene
-#[derive(Clone, Copy)]
-pub struct Sphere {
-    pub center: Point3<f32>,
-    pub radius: f32,
-    pub material: Material
-}  
-
-impl Sphere {
-    pub fn new(center: Point3<f32>, radius: f32, material: Material) -> Self{
-        Self {center, radius, material}
-    }
-}
-
-#[derive(Clone, Copy)]
-pub struct Triangle{
-    pub points: [[f32; 3]; 3],
-    pub normal: [f32; 3],
-    pub material: Material
-}
-
-impl Triangle{
-    pub fn new(points: [[f32; 3]; 3], normal: [f32; 3], material: Material) -> Triangle{
-        Self{points, normal, material}
-    }
-}
-
-#[derive(Clone)]
-pub enum Object{
-    Sphere(Sphere),
-    Triangle(Triangle)
-}
+use crate::structs::{Material, Triangle};
 
 pub fn load_obj(file_path: &str) -> Result<Vec<Triangle>, Box<dyn std::error::Error>> {
     let file = File::open(file_path)?;
@@ -129,10 +67,7 @@ pub fn load_obj(file_path: &str) -> Result<Vec<Triangle>, Box<dyn std::error::Er
                 let v1_index = indices[0].0 - 1;
                 let v2_index = indices[1].0 - 1;
                 let v3_index = indices[2].0 - 1;
-                let uv1_index = indices[0].1 - 1; // UV index
-                let uv2_index = indices[1].1 - 1; // UV index
-                let uv3_index = indices[2].1 - 1; // UV index
-                let n_index = indices[0].2 - 1;
+                let normal_index = indices[0].2 - 1;
 
                 let mut rng = rand::thread_rng();
                 let r: f32 = rng.gen_range(0.0..1.0);
@@ -145,7 +80,7 @@ pub fn load_obj(file_path: &str) -> Result<Vec<Triangle>, Box<dyn std::error::Er
                         vertices[v2_index],
                         vertices[v3_index],
                     ],
-                    normals[n_index],
+                    normals[normal_index],
                     Material::new(
                         [r, g, b],
                         [0.5, 0.5, 0.5],
@@ -164,9 +99,15 @@ pub fn load_obj(file_path: &str) -> Result<Vec<Triangle>, Box<dyn std::error::Er
 }
 
 pub fn load_svg(file_path: &str) -> Result<Vec<Vec<[f32; 2]>>, Box<dyn std::error::Error>> {
-    let mut file = File::open(file_path).expect("Failed to open SVG file");
+    let mut file = match File::open(file_path){
+        Ok(file) => file,
+        Err(e) => panic!("Failed to open SVG: {} | Error: {}", file_path, e),
+    };
     let mut svg_content = String::new();
-    file.read_to_string(&mut svg_content).expect("Failed to read SVG content");
+    match file.read_to_string(&mut svg_content){
+        Ok(_) => (),
+        Err(e) => panic!("Failed to read SVG: {} | Error: {}", file_path, e),
+    }
 
     // Parse the SVG content
     let mut tris = Vec::new();

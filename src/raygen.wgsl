@@ -274,7 +274,7 @@ fn color(primary_ray: Ray, MAX_BOUNCES: i32, t_max: f32) -> vec4<f32> {
             pixel_color *= get_texture_color(material.texture_id, uv, 0);
         } else if (material.emission > 0.0) {
             // Handle emissive material directly
-            pixel_color += material.albedo.xyz * material.emission * weight;
+            pixel_color *= material.albedo.xyz * material.emission * weight;
             return vec4<f32>(pixel_color, 1.0); // Terminate the loop when an emissive object is hit
         } else {
             pixel_color *= material.albedo.xyz;
@@ -357,7 +357,7 @@ fn get_texture_color(texture_id: f32, uv: vec2<f32>, tex_flavour: i32) -> vec3<f
     } else if tex_flavour == 1{
         texture_color = textureSampleLevel(normal, texture_sampler, uv, i32(texture_id), 0.0).xyz;   
     } else {
-        texture_color = textureSampleLevel(normal, texture_sampler, uv, i32(texture_id), 0.0).xyz; 
+        texture_color = textureSampleLevel(roughness, texture_sampler, uv, i32(texture_id), 0.0).xyz; 
     }
 
     return texture_color;
