@@ -1,10 +1,6 @@
 use cgmath::*;
-use std::f32::consts::FRAC_PI_2;
-use std::time::Duration;
-use winit::dpi::PhysicalPosition;
-use winit::event::*;
-use std::{time::{Instant}, fs::File, io::BufReader};
-use std::io::BufRead;
+use std::fs::File;
+use std::io::{BufRead, BufReader, Read};
 use rand::Rng;
 
 #[repr(C)]
@@ -62,16 +58,6 @@ impl Triangle{
     pub fn new(points: [[f32; 3]; 3], normal: [f32; 3], texture_coords: [[f32; 2]; 3], material: Material) -> Triangle{
         Self{points, normal, texture_coords, material}
     }
-}
-
-// Uniform for transferin the tris to the gpu
-#[repr(C)]
-#[derive(Copy, Clone)]
-pub struct TriangleUniform {
-    pub points: [Vector3<f32>; 3],
-    pub normal: Vector3<f32>,
-    pub texture_coords: [Vector2<f32>; 3],
-    pub material: Material
 }
 
 #[derive(Clone)]
@@ -183,4 +169,47 @@ pub fn load_obj(file_path: &str) -> Result<Vec<Triangle>, Box<dyn std::error::Er
     }
 
     Ok(faces)
+}
+
+pub fn load_svg(file_path: &str) -> Result<Vec<[f32; 2]>, Box<dyn std::error::Error>> {
+    let mut file = File::open(file_path).expect("Failed to open SVG file");
+    let mut svg_content = String::new();
+    file.read_to_string(&mut svg_content).expect("Failed to read SVG content");
+
+    // Parse the SVG content
+    let mut points = Vec::new();
+    let mut height: f32 = 1.0;
+    let mut width: f32 = 1.0;
+
+    for line in svg_content.lines() {
+        // FIlter for svg size info
+        if line.trim().starts_with("<svg ") {
+            let width_string = line.split("width=\"").collect::<Vec<&str>>()[1].to_string();
+            width = width_string.split("\" ").collect::<Vec<&str>>()[0].to_string().parse::<f32>().unwrap();
+
+            let height_string = line.split("height=\"").collect::<Vec<&str>>()[1].to_string();
+            height = height_string.split("\" ").collect::<Vec<&str>>()[0].to_string().parse::<f32>().unwrap();
+        // Filter for polygons
+        }else if line.trim().starts_with("<polygon") {
+            //filter for points
+            let mut point_string = line.split("points=\"").collect::<Vec<&str>>()[1].to_string();  //xxxxx points="xxxxx" yyyyy => "xxxxx" yyyyy
+            point_string = point_string.split(" \" />").collect::<Vec<&str>>()[0].to_string();      //"xxxxx" yyyyy => "xxxxx"
+
+            //split into single points
+            let point_string = point_string.split(" ").collect::<Vec<&str>>();
+            for point in point_string {
+                let point = point.split(",").collect::<Vec<&str>>();
+                let x = point[0].parse::<f32>().unwrap();
+                let y = point[1].parse::<f32>().unwrap();
+                points.push([x,y]);
+            }
+        }
+    }
+
+    //scale points to be between 0.0 and 1.0 as uv coords
+    for point in points.iter_mut() {
+        point[0] = point[0] / width;
+        point[1] = point[1] / height;
+    }
+    return Ok(points);
 }

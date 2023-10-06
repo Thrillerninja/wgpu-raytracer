@@ -17,7 +17,7 @@ mod camera;
 use camera::{Camera, CameraController};
 
 mod models;
-use models::{Material, Sphere, Triangle, Object};
+use models::{Material, Sphere, Triangle, Object, load_obj, load_svg};
 
 mod texture;
 use texture::{load_textures_to_array, create_textureset, load_texture_set, TextureSet};
@@ -411,15 +411,28 @@ impl State {
 
 
         //----------Objects-------------
+        // Load SVG UV mapping file
+        let tris_uv_mapping = match load_svg(r"res\Cube.svg") {
+            Err(error) => {
+                // Handle the error
+                eprintln!("Error loading SVG file: {:?}", error);
+                std::process::exit(1);
+            }
+            Ok(data) => data,
+        };   
+        for i in 0..tris_uv_mapping.len(){
+            println!("{} {}", tris_uv_mapping[i][0], tris_uv_mapping[i][1]);
+        }
+        
         // Load OBJ file
-        let triangles = match models::load_obj(r"res\untitled.obj") {
+        let triangles = match load_obj(r"res\untitled.obj") {
             Err(error) => {
                 // Handle the error
                 eprintln!("Error loading OBJ file: {:?}", error);
                 std::process::exit(1);
             }
             Ok(data) => data,
-        };
+        };        
 
         //Triangles to Uniform buffer
         let mut triangles_uniform: Vec<TriangleUniform> = Vec::new();
