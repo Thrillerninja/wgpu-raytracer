@@ -21,6 +21,8 @@ use texture::{create_textureset, load_texture_set};
 mod structs;
 use structs::{CameraUniform, TriangleUniform, SphereUniform, Material, Sphere};
 
+mod config;
+use config::Config;
 struct State {
     window: Window,
     surface: wgpu::Surface,
@@ -107,6 +109,7 @@ impl State {
         };
         surface.configure(&device, &config);     
         
+        let userconfig = Config::new();
         //----------Color Buffer-------------
         // Create a color texture with a suitable sRGB format
         let color_texture = device.create_texture(&wgpu::TextureDescriptor {
@@ -131,9 +134,9 @@ impl State {
         let color_buffer_view = color_texture.create_view(&wgpu::TextureViewDescriptor::default());
 
         //----------Camera-------------
-        let camera = camera::Camera::new((2.0, 6.0, -2.0), cgmath::Deg(-80.0), cgmath::Deg(60.0));
+        let camera = camera::Camera::new(userconfig.camera_position, cgmath::Deg(userconfig.camera_rotation[0]), cgmath::Deg(userconfig.camera_rotation[1]));
         let projection =
-            camera::Projection::new(config.width, config.height, cgmath::Deg(45.0), 0.1, 100.0);
+            camera::Projection::new(config.width, config.height, cgmath::Deg(userconfig.camera_fov), userconfig.camera_near_far[0], userconfig.camera_near_far[1]);
         let camera_controller = camera::CameraController::new(4.0, 0.4);
 
         let mut camera_uniform = CameraUniform::new();
@@ -318,7 +321,7 @@ impl State {
 
         //----------Objects-------------
         // Load SVG UV mapping file
-        let mut tris_uv_mapping = match load_svg(r"res\Cube.svg") {
+        let mut tris_uv_mapping = match load_svg(userconfig.triangle_svg_uv_mapping_path){
             Err(error) => {
                 // Handle the error
                 eprintln!("Error loading SVG file: {:?}", error);
@@ -331,7 +334,7 @@ impl State {
         }
         
         // Load OBJ file
-        let triangles = match load_obj(r"res\untitled.obj") {
+        let triangles = match load_obj(userconfig.triangle_obj_path) {
             Err(error) => {
                 // Handle the error
                 eprintln!("Error loading OBJ file: {:?}", error);
@@ -367,25 +370,17 @@ impl State {
             usage: wgpu::BufferUsages::STORAGE | wgpu::BufferUsages::COPY_DST,
         });
 
-        let mut spheres: Vec<Sphere> = Vec::new();
-        //                                            x    y     z   radius               r     g   b    attenuation      rough emis  ior    texture_id
-        spheres.push(Sphere::new(cgmath::Point3::new(0.5, 0.0, -1.0), 0.5, Material::new([0.0, 1.0, 0.0], [0.5, 1.0, 1.0], 0.8, 0.0, 0.0     , 2)));
-        spheres.push(Sphere::new(cgmath::Point3::new(-0.5, 0.0, -1.0), 0.5, Material::new([0.5, 0.2, 0.5], [1.0, 1.0, 1.0], 0.8, 0.0, 0.0    ,-1)));
-        spheres.push(Sphere::new(cgmath::Point3::new(0.5, 1.0, -1.0), 0.3, Material::new([0.0, 0.0, 1.0], [1.0, 1.0, 1.0], 0.0, 50.0, 0.0    ,-1)));
-        spheres.push(Sphere::new(cgmath::Point3::new(0.5, -50.5, -1.0), 50.0, Material::new([1.0, 0.3, 0.2], [0.2, 1.0, 1.0], 0.2, 0.0, 0.0  ,-1)));
-        spheres.push(Sphere::new(cgmath::Point3::new(-1.5, 0.0, -1.0), 0.4, Material::new([1.0, 1.0, 1.0], [0.5, 1.0, 1.0], 0.0, 0.0, 1.0    ,-1)));
-
+        
         // Load textures from files into a textureset
         let mut textureset = create_textureset(&device, &config, 1024, 1024, 3);    //3 = max numer of textures
-        // Load textures from files into a texture array
-        textureset = load_texture_set(&queue, textureset, "res/cobble-diffuse.png", "res/cobble-normal.png", "res/cobble-diffuse.png", 0);
-        //textureset = load_texture_set(&queue, textureset, "res/COlor.png", "res/Unbenannt2.png", "res/roughness.png", 1);
-        textureset = load_texture_set(&queue, textureset, "res/pavement_26_basecolor-1K.png", "res/pavement_26_normal-1K.png", "res/pavement_26_roughness-1K.png", 2);
+        for i in 0..userconfig.textures.len(){
+            textureset = load_texture_set(&queue, textureset, &userconfig.textures[i][0], &userconfig.textures[i][1], &userconfig.textures[i][2], i as i32);
+        }
         println!("Texture array size: {}x{}x{}", textureset.diffuse.size().width, textureset.diffuse.size().height, textureset.diffuse.size().depth_or_array_layers);
 
         //Triangles to Uniform buffer                                  
         let mut spheres_uniform: Vec<SphereUniform> = Vec::new();
-        for sphere in spheres.iter(){
+        for sphere in userconfig.spheres.iter(){
             spheres_uniform.push(SphereUniform::new(*sphere));
         }
         
@@ -440,6 +435,12 @@ impl State {
         });
 
         //----------Textures-------------
+        let material_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
+            label: Some("Material Buffer"),
+            contents: bytemuck::cast_slice(&userconfig.materials),
+            usage: wgpu::BufferUsages::STORAGE | wgpu::BufferUsages::COPY_DST,
+        });
+
         let texture_bind_group_layout = device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
             entries: &[
                 wgpu::BindGroupLayoutEntry {
@@ -478,6 +479,16 @@ impl State {
                     },
                     count: None,
                 },
+                wgpu::BindGroupLayoutEntry {
+                    binding: 4,
+                    visibility: wgpu::ShaderStages::COMPUTE,
+                    ty: wgpu::BindingType::Buffer {
+                        ty: wgpu::BufferBindingType::Storage { read_only: true },
+                        has_dynamic_offset: false,
+                        min_binding_size: None,
+                    },
+                    count: None,         
+                },
             ],
             label: Some("texture_bind_group_layout"),
         });
@@ -512,6 +523,10 @@ impl State {
                 wgpu::BindGroupEntry {
                     binding: 3,
                     resource: wgpu::BindingResource::TextureView(&textureset.roughness.create_view(&wgpu::TextureViewDescriptor::default())),
+                },
+                wgpu::BindGroupEntry {
+                    binding: 4, 
+                    resource: material_buffer.as_entire_binding(),
                 },
             ],
             label: Some("texture_bind_group"),

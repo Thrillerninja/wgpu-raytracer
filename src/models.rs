@@ -81,14 +81,8 @@ pub fn load_obj(file_path: &str) -> Result<Vec<Triangle>, Box<dyn std::error::Er
                         vertices[v3_index],
                     ],
                     normals[normal_index],
-                    Material::new(
-                        [r, g, b],
-                        [0.5, 0.5, 0.5],
-                        0.5,
-                        0.0,
-                        0.0,
-                        1,
-                    ),
+                    0,
+                    -1,
                 );
                 faces.push(triangle);
             }

@@ -15,7 +15,7 @@ struct Material {
     roughness: f32,
     emission: f32,
     ior: f32,
-    texture_id: f32,
+    _padding: f32,
 }
 
 // Triangles
@@ -26,14 +26,14 @@ struct Triangle {
     normals: vec4<f32>,
     uv1: vec4<f32>,
     uv2: vec4<f32>, // Z of first tris is count of triangles
-    material: Material,
+    material_texture_id: vec4<f32>, //material_id, texture_id, 0.0, 0.0
 }
 @group(2) @binding(0) var<storage> triangles : array<Triangle>;
 
 struct Sphere {
     center: vec4<f32>,
     radius: vec4<f32>,
-    material: Material,
+    material_texture_id: vec4<f32>, //material_id, texture_id, 0.0, 0.0
 }
 @group(2) @binding(1) var<storage> spheres : array<Sphere>;
 
@@ -46,6 +46,7 @@ struct Ray {
 @group(3) @binding(1) var diffuse: texture_2d_array<f32>;
 @group(3) @binding(2) var normal: texture_2d_array<f32>;
 @group(3) @binding(3) var roughness: texture_2d_array<f32>;
+@group(3) @binding(4) var<storage> materials: array<Material>;
 
 var<private> seed: f32;
 var<private> screen_size: vec2<u32>;
@@ -259,30 +260,33 @@ fn color(primary_ray: Ray, MAX_BOUNCES: i32, t_max: f32) -> vec4<f32> {
         var uv: vec2<f32> = sphereUVMapping(hit_point, closest_sphere);
         var normal: vec3<f32>;
         var material: Material;
+        var texture_id: i32;
         if (is_sphere){
             normal = normalize(hit_point - closest_sphere.center.xyz);
-            material = closest_sphere.material;
+            material = materials[i32(closest_sphere.material_texture_id[0])];
             uv = sphereUVMapping(hit_point, closest_sphere);
+            texture_id = i32(closest_sphere.material_texture_id[1]);
         } else {
             normal = normalize(closest_tris.normals.xyz);
-            material = closest_tris.material;
+            material = materials[i32(closest_tris.material_texture_id[0])];
             uv = trisUVMapping(hit_point, closest_tris);
+            texture_id = i32(closest_tris.material_texture_id[1]);
         }
 
         // Update color
-        if material.texture_id > -1.0 {
-            pixel_color *= get_texture_color(material.texture_id, uv, 0);
+        if texture_id > -1 {
+            pixel_color *= get_texture_color(texture_id, uv, 0);
         } else if (material.emission > 0.0) {
             // Handle emissive material directly
-            pixel_color *= material.albedo.xyz * material.emission * weight;
+            pixel_color += material.albedo.xyz * material.emission * weight;
             return vec4<f32>(pixel_color, 1.0); // Terminate the loop when an emissive object is hit
         } else {
             pixel_color *= material.albedo.xyz;
         }
 
         // Calculate new ray
-        if (material.texture_id > -1.0){
-            ray = Ray(hit_point + normal*0.0001, reflect(ray.direction, normal * get_texture_color(material.texture_id, uv, 1) + rngNextVec3InUnitSphere() * (vec3<f32>(1.0)-get_texture_color(material.texture_id, uv, 2))));
+        if (texture_id > -1){
+            ray = Ray(hit_point + normal*0.0001, reflect(ray.direction, normal * get_texture_color(texture_id, uv, 1) + rngNextVec3InUnitSphere() * (vec3<f32>(1.0)-get_texture_color(texture_id, uv, 2))));
         } else if (material.ior > 0.0) {
             ray = dielectric_scatter(ray, hit_point, normal, material);
         } else {
@@ -350,14 +354,14 @@ fn length_squared(v: vec3<f32>) -> f32 {
 
 
 // Textures
-fn get_texture_color(texture_id: f32, uv: vec2<f32>, tex_flavour: i32) -> vec3<f32> {
+fn get_texture_color(texture_id: i32, uv: vec2<f32>, tex_flavour: i32) -> vec3<f32> {
     var texture_color : vec3<f32>;
     if tex_flavour == 0{
-        texture_color = textureSampleLevel(diffuse, texture_sampler, uv, i32(texture_id), 0.0).xyz;   
+        texture_color = textureSampleLevel(diffuse, texture_sampler, uv, texture_id, 0.0).xyz;   
     } else if tex_flavour == 1{
-        texture_color = textureSampleLevel(normal, texture_sampler, uv, i32(texture_id), 0.0).xyz;   
+        texture_color = textureSampleLevel(normal, texture_sampler, uv, texture_id, 0.0).xyz;   
     } else {
-        texture_color = textureSampleLevel(roughness, texture_sampler, uv, i32(texture_id), 0.0).xyz; 
+        texture_color = textureSampleLevel(roughness, texture_sampler, uv, texture_id, 0.0).xyz; 
     }
 
     return texture_color;

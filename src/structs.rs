@@ -46,18 +46,18 @@ pub struct Material {
     roughness: f32,     //0.0 - 1.0 0.0 = mirror, 1.0 = diffuse
     emission: f32,      //0.0 - 1.0 0.0 = no emission, >0.0 = emission
     ior: f32,           //index of refraction
-    texture_id:f32,
+    __padding: f32,
 }
 
 impl Material {
-    pub fn new(albedo: [f32; 3], attenuation: [f32; 3], roughness: f32, emission: f32, ior: f32, texture_id: i32) -> Self {
+    pub fn new(albedo: [f32; 3], attenuation: [f32; 3], roughness: f32, emission: f32, ior: f32) -> Self {
         Self {
             albedo: [albedo[0], albedo[1], albedo[2], 0.0],
             attenuation: [attenuation[0], attenuation[1], attenuation[2], 0.0],
             roughness: roughness,
             emission: emission,
             ior: ior,
-            texture_id: texture_id as f32,
+            __padding: 0.0,
         }
     }
 }
@@ -74,12 +74,13 @@ pub struct TextureSet{
 pub struct Sphere {
     pub center: Point3<f32>,
     pub radius: f32,
-    pub material: Material
+    pub material_id: i32,
+    pub texture_id: i32,
 }  
 
 impl Sphere {
-    pub fn new(center: Point3<f32>, radius: f32, material: Material) -> Self{
-        Self {center, radius, material}
+    pub fn new(center: Point3<f32>, radius: f32, material_id: i32, texture_id: i32) -> Self{
+        Self {center, radius, material_id, texture_id}
     }
 }
 
@@ -88,7 +89,7 @@ impl Sphere {
 pub struct SphereUniform {
     center: [f32; 4],
     radius: [f32; 4],
-    material: Material,
+    material_texture_id: [f32; 4], //[material_id, texture_id, 0.0, 0.0]
 }
 
 impl SphereUniform {
@@ -97,7 +98,7 @@ impl SphereUniform {
         Self {
             center: [sphere.center[0], sphere.center[1], sphere.center[2], rng.gen_range(0.0..1.0)],//rand number in last slot
             radius: [sphere.radius, 0.0, 0.0, 0.0],
-            material: sphere.material,
+            material_texture_id: [sphere.material_id as f32, sphere.texture_id as f32, 0.0, 0.0], //[material_id, texture_id, 0.0, 0.0]
         }
     }
 }
@@ -107,12 +108,13 @@ impl SphereUniform {
 pub struct Triangle{
     pub points: [[f32; 3]; 3],
     pub normal: [f32; 3],
-    pub material: Material
+    pub material_id: i32,
+    pub texture_id: i32,
 }
 
 impl Triangle{
-    pub fn new(points: [[f32; 3]; 3], normal: [f32; 3], material: Material) -> Triangle{
-        Self{points, normal, material}
+    pub fn new(points: [[f32; 3]; 3], normal: [f32; 3], material_id: i32, texture_id: i32) -> Triangle{
+        Self{points, normal, material_id, texture_id}
     }
 }
 
@@ -125,7 +127,7 @@ pub struct TriangleUniform {
     normal: [f32; 4],
     uv1: [f32; 4],
     uv2: [f32; 4],
-    material: Material,
+    material_texture_id: [f32; 4], //[material_id, texture_id, 0.0, 0.0]
 }
 
 impl TriangleUniform {
@@ -137,7 +139,7 @@ impl TriangleUniform {
             normal: [triangle.normal[0],triangle.normal[1],triangle.normal[2], 0.0],
             uv1: [uv[0][0], uv[0][1], uv[1][0], uv[1][1]],
             uv2: [uv[2][0], uv[2][1], count as f32, 0.0],
-            material: triangle.material,
+            material_texture_id: [triangle.material_id as f32, triangle.texture_id as f32, 0.0, 0.0],
         }
     }
 }
