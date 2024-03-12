@@ -26,20 +26,20 @@ impl Config {
         //                            r     g    b      attenuation      rough emis  ior 
         materials.push(Material::new([0.0, 1.0, 0.0], [0.5, 1.0, 1.0], 0.8, 0.0, 0.0));
         materials.push(Material::new([0.5, 0.2, 0.5], [1.0, 1.0, 1.0], 0.8, 0.0, 0.0));
-        materials.push(Material::new([0.0, 0.0, 1.0], [1.0, 1.0, 1.0], 0.0, 50.0, 0.0));
+        materials.push(Material::new([0.0, 0.0, 1.0], [1.0, 1.0, 1.0], 0.0, 0.0, 0.0));
         materials.push(Material::new([1.0, 0.3, 0.2], [0.2, 1.0, 1.0], 0.2, 0.0, 0.0));
         materials.push(Material::new([1.0, 1.0, 1.0], [0.5, 1.0, 1.0], 0.0, 0.0, 1.0));
 
         // Load textures from files into a textures
         let mut textures = Vec::new();
         textures.push(["res/cobble-diffuse.png", "res/cobble-normal.png", "res/cobble-diffuse.png"]);
-        //textures = load_texture_set(&queue, textures, "res/COlor.png", "res/Unbenannt2.png", "res/roughness.png", 1);
-        textures.push([ "res/pavement_26_basecolor-1K.png", "res/pavement_26_normal-1K.png", "res/pavement_26_roughness-1K.png"]);
+        textures.push(["res/COlor.png", "res/Unbenannt2.png", "res/roughness.png"]);
+        //textures.push([ "res/pavement_26_basecolor-1K.png", "res/pavement_26_normal-1K.png", "res/pavement_26_roughness-1K.png"]);
         
         Self {
             // Camera
             camera_position: (2.0, 6.0, -2.0),
-            camera_rotation: [-80.0, 60.0],
+            camera_rotation: [0.0, 0.0],
             camera_near_far: [0.1, 100.0],
             camera_fov: 45.0,
 

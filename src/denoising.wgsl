@@ -92,7 +92,7 @@ fn calculate_relative_direction(
         view_proj_diff[3][3] * view_proj_diff[3][3]
     );
 
-    return rotation_magnitude;
+    return rotation_magnitude*10.0;
 }
 
 

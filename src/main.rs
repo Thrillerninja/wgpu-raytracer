@@ -5,6 +5,7 @@ use winit::{
     event_loop::{ControlFlow, EventLoop},
     window::Window,
 };
+use rtbvh::*;
 
 #[cfg(target_arch = "wasm32")]
 use wasm_bindgen::prelude::*;
@@ -19,10 +20,11 @@ mod texture;
 use texture::{create_textureset, load_texture_set};
 
 mod structs;
-use structs::{CameraUniform, TriangleUniform, SphereUniform, Material, Sphere};
+use structs::{CameraUniform, TriangleUniform, SphereUniform, BvhUniform};
 
 mod config;
 use config::Config;
+
 struct State {
     window: Window,
     surface: wgpu::Surface,
@@ -50,6 +52,7 @@ struct State {
     mouse_pressed: bool,
     //Objects
     object_bind_group: wgpu::BindGroup,
+    bvh_bind_group: wgpu::BindGroup,
     //Textures
     texture_bind_group: wgpu::BindGroup,
 }
@@ -57,7 +60,7 @@ struct State {
 async fn hardware_launch(window: &Window) -> (wgpu::Surface, wgpu::Device, wgpu::Queue, wgpu::Adapter) {
     // The instance is a handle to our GPU
     let instance = wgpu::Instance::new(wgpu::InstanceDescriptor {
-        backends: wgpu::Backends::PRIMARY,
+        backends: wgpu::Backends::DX12,
         dx12_shader_compiler: Default::default(),
     });
 
@@ -80,7 +83,10 @@ async fn hardware_launch(window: &Window) -> (wgpu::Surface, wgpu::Device, wgpu:
             &wgpu::DeviceDescriptor {
                 features: Features::TEXTURE_ADAPTER_SPECIFIC_FORMAT_FEATURES,
                 label: None,
-                limits: wgpu::Limits::default(),
+                limits: wgpu::Limits {
+                    max_bind_groups: 5,
+                    ..Default::default()
+                }
             },
             None,
         )
@@ -137,7 +143,7 @@ impl State {
         let camera = camera::Camera::new(userconfig.camera_position, cgmath::Deg(userconfig.camera_rotation[0]), cgmath::Deg(userconfig.camera_rotation[1]));
         let projection =
             camera::Projection::new(config.width, config.height, cgmath::Deg(userconfig.camera_fov), userconfig.camera_near_far[0], userconfig.camera_near_far[1]);
-        let camera_controller = camera::CameraController::new(4.0, 0.4);
+        let camera_controller = camera::CameraController::new(4.0, 1.6);
 
         let mut camera_uniform = CameraUniform::new();
         camera_uniform.update_view_proj(&camera, &projection);
@@ -434,6 +440,88 @@ impl State {
             label: Some("object_bind_group"),
         });
 
+        //-------------BVH---------------
+        
+        // Build BVH for triangles
+        let aabbs = triangles.iter().map(|t| t.aabb()).collect::<Vec<Aabb>>();
+
+        let prim_per_leaf = Some(std::num::NonZeroUsize::new(2).expect("NonZeroUsize creation failed"));
+        let builder = Builder {
+            aabbs: aabbs.as_slice().into(),
+            primitives: triangles.as_slice(),
+            primitives_per_leaf: prim_per_leaf,
+        };
+
+        // Choose one of these algorithms:
+        //let bvh = builder.construct_locally_ordered_clustered().unwrap();
+        //let bvh = builder.construct_binned_sah().unwrap();
+        let bvh = builder.construct_spatial_sah().unwrap();
+
+        // Display the BVH tree
+        //display_bvh_tree(&bvh, 0);
+        if bvh.validate(12) {
+            println!("BVH is valid");
+        } else {
+            println!("BVH is invalid");
+        }
+
+        
+
+        let raw = bvh.into_raw();
+
+        //print nodebound extra and number
+        for i in 0..raw.0.len(){
+            //replace raw.1[i] with 100 if error
+            if i >= raw.1.len(){
+                println!("Node {} : {} {} |{}", i, raw.0[i].bounds.extra1, raw.0[i].bounds.extra2, 100); 
+            }
+            else{
+                println!("Node {} : {} {}  |{}", i, raw.0[i].bounds.extra1, raw.0[i].bounds.extra2, raw.1[i]); 
+            }
+        }
+
+
+
+
+        let mut bvh_uniform: Vec<BvhUniform> = vec![];
+        for i in 0..raw.0.len(){
+            bvh_uniform.push(BvhUniform::new(&raw.0[i]));
+        }
+        
+        let bvh_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
+            label: Some("BVH Buffer"),
+            contents: bytemuck::cast_slice(&bvh_uniform),
+            usage: wgpu::BufferUsages::STORAGE | wgpu::BufferUsages::COPY_DST,
+        });
+
+        let bvh_bind_goup_layout = device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
+            entries: &[
+                wgpu::BindGroupLayoutEntry {
+                    binding: 0, // This should match the binding number in the shader for object data
+                    visibility: wgpu::ShaderStages::COMPUTE,
+                    ty: wgpu::BindingType::Buffer {
+                        ty: wgpu::BufferBindingType::Storage { read_only: true },
+                        has_dynamic_offset: false,
+                        min_binding_size: None,
+                    },
+                    count: None,            
+                }
+            ],
+            label: Some("bvh_bind_group_layout"),
+        });
+
+        let bvh_bind_group = device.create_bind_group(&wgpu::BindGroupDescriptor {
+            layout: &bvh_bind_goup_layout,
+            entries: &[
+                wgpu::BindGroupEntry {
+                    binding: 0, // This should match the binding number in the shader for object data
+                    resource: bvh_buffer.as_entire_binding(),
+                }
+            ],
+            label: Some("bvh_bind_group"),
+        });
+
+
         //----------Textures-------------
         let material_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
             label: Some("Material Buffer"),
@@ -578,6 +666,7 @@ impl State {
                 &camera_bind_group_layout,
                 &object_bind_group_layout,
                 &texture_bind_group_layout,
+                &bvh_bind_goup_layout,
             ],
             push_constant_ranges: &[],
         });
@@ -723,6 +812,7 @@ impl State {
             camera_uniform,
             mouse_pressed: false,
             object_bind_group,
+            bvh_bind_group,
             texture_bind_group,
         }
     }
@@ -798,10 +888,9 @@ impl State {
             });
             
         println!(
-            "Camera Position: {:?}, Camera Rotation {:?} {:?}",
+            "Camera Position: {:?}, Camera Quaternion: {:?}",
             self.camera.position,
-            self.camera.yaw,
-            self.camera.pitch
+            self.camera.quaternion,
         );
     
         //----------Raytracing pass----------
@@ -817,6 +906,7 @@ impl State {
             compute_pass.set_bind_group(1, &self.camera_bind_group, &[]);
             compute_pass.set_bind_group(2, &self.object_bind_group, &[]);
             compute_pass.set_bind_group(3, &self.texture_bind_group, &[]);
+            compute_pass.set_bind_group(4, &self.bvh_bind_group, &[]);
     
             // Dispatch workgroups for ray tracing (adjust dimensions as needed)
             compute_pass.dispatch_workgroups(self.config.width, self.config.height, 1);

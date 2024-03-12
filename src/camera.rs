@@ -4,13 +4,13 @@ use std::time::Duration;
 use winit::dpi::PhysicalPosition;
 use winit::event::*;
 
-#[rustfmt::skip]
-pub const OPENGL_TO_WGPU_MATRIX: cgmath::Matrix4<f32> = cgmath::Matrix4::new(
-    1.0, 0.0, 0.0, 0.0,
-    0.0, 1.0, 0.0, 0.0,
-    0.0, 0.0, 0.5, 0.5,
-    0.0, 0.0, 0.0, 1.0,
-);
+// #[rustfmt::skip]
+// pub const OPENGL_TO_WGPU_MATRIX: cgmath::Matrix4<f32> = cgmath::Matrix4::new(
+//     1.0, 0.0, 0.0, 0.0,
+//     0.0, 1.0, 0.0, 0.0,
+//     0.0, 0.0, 0.5, 0.5,
+//     0.0, 0.0, 0.0, 1.0,
+// );
 
 const SAFE_FRAC_PI_2: f32 = FRAC_PI_2 - 0.0001;
 
@@ -18,32 +18,37 @@ const SAFE_FRAC_PI_2: f32 = FRAC_PI_2 - 0.0001;
 #[derive(Debug, Clone, Copy)]
 pub struct Camera {
     pub position: Point3<f32>,
-    pub yaw: Rad<f32>,
-    pub pitch: Rad<f32>,
+    // pub yaw: Rad<f32>,
+    // pub pitch: Rad<f32>,
+    pub quaternion: Quaternion<f32>,
 }
 
 impl Camera {
-    pub fn new<V: Into<Point3<f32>>, Y: Into<Rad<f32>>, P: Into<Rad<f32>>>(
+    pub fn new<V: Into<Point3<f32>>, Y: Into<Rad<f32>> + std::marker::Copy, P: Into<Rad<f32>> + std::marker::Copy>(
         position: V,
         yaw: Y,
         pitch: P,
     ) -> Self {
+        let quaternion = Quaternion::from_angle_y(yaw) * Quaternion::from_angle_x(pitch);
+        println!("Camera::new: Quaternion::from_angle_y(yaw) * Quaternion::from_angle_x(pitch) = {:?}", quaternion);
         Self {
             position: position.into(),
-            yaw: yaw.into(),
-            pitch: pitch.into(),
+            // yaw: yaw.into(),
+            // pitch: pitch.into(),
+            quaternion: quaternion,
         }
     }
 
     pub fn calc_matrix(&self) -> Matrix4<f32> {
-        let (sin_pitch, cos_pitch) = self.pitch.0.sin_cos();
-        let (sin_yaw, cos_yaw) = self.yaw.0.sin_cos();
-
-        Matrix4::look_to_rh(
-            self.position,
-            Vector3::new(cos_pitch * cos_yaw, sin_pitch, cos_pitch * sin_yaw).normalize(),
-            Vector3::unit_y(),
-        )
+        // let (sin_pitch, cos_pitch) = self.pitch.0.sin_cos();
+        // let (sin_yaw, cos_yaw) = self.yaw.0.sin_cos();
+        // 
+        // Matrix4::look_to_rh(
+        //     self.position,
+        //     Vector3::new(cos_pitch * cos_yaw, sin_pitch, cos_pitch * sin_yaw).normalize(),
+        //     Vector3::unit_y(),
+        // )
+        Matrix4::look_at_rh(self.position, self.position + self.quaternion.rotate_vector(Vector3::unit_z()), Vector3::unit_y())
     }
 }
 
@@ -69,7 +74,8 @@ impl Projection {
     }
 
     pub fn calc_matrix(&self) -> Matrix4<f32> {
-        OPENGL_TO_WGPU_MATRIX * perspective(self.fovy, self.aspect, self.znear, self.zfar)
+        // OPENGL_TO_WGPU_MATRIX * 
+        perspective(self.fovy, self.aspect, self.znear, self.zfar)
     }
 }
 
@@ -113,19 +119,19 @@ impl CameraController {
         };
         match key {
             VirtualKeyCode::W | VirtualKeyCode::Up => {
-                self.amount_forward = -amount;
+                self.amount_forward = amount;
                 true
             }
             VirtualKeyCode::S | VirtualKeyCode::Down => {
-                self.amount_backward = -amount;
+                self.amount_backward = amount;
                 true
             }
             VirtualKeyCode::A | VirtualKeyCode::Left => {
-                self.amount_left = -amount;
+                self.amount_left = amount;
                 true
             }
             VirtualKeyCode::D | VirtualKeyCode::Right => {
-                self.amount_right = -amount;
+                self.amount_right = amount;
                 true
             }
             VirtualKeyCode::Space => {
@@ -142,7 +148,7 @@ impl CameraController {
 
     pub fn process_mouse(&mut self, mouse_dx: f64, mouse_dy: f64) {
         self.rotate_horizontal = -mouse_dx as f32;
-        self.rotate_vertical = -mouse_dy as f32;
+        self.rotate_vertical = mouse_dy as f32;
     }
 
     pub fn process_scroll(&mut self, delta: &MouseScrollDelta) {
@@ -157,41 +163,34 @@ impl CameraController {
         let dt = dt.as_secs_f32();
 
         // Move forward/backward and left/right
-        let (yaw_sin, yaw_cos) = camera.yaw.0.sin_cos();
-        let forward = Vector3::new(yaw_cos, 0.0, yaw_sin).normalize();
-        let right = Vector3::new(-yaw_sin, 0.0, yaw_cos).normalize();
+        let forward = camera.quaternion.rotate_vector(Vector3::new(0.0, 0.0, -1.0)).normalize();
+        let right = camera.quaternion.rotate_vector(Vector3::new(1.0, 0.0, 0.0)).normalize();
         camera.position += forward * (self.amount_forward - self.amount_backward) * self.speed * dt;
         camera.position += right * (self.amount_right - self.amount_left) * self.speed * dt;
 
-        // Move in/out (aka. "zoom")
-        // Note: this isn't an actual zoom. The camera's position
-        // changes when zooming. I've added this to make it easier
-        // to get closer to an object you want to focus on.
-        let (pitch_sin, pitch_cos) = camera.pitch.0.sin_cos();
-        let scrollward =
-            Vector3::new(pitch_cos * yaw_cos, pitch_sin, pitch_cos * yaw_sin).normalize();
-        camera.position += scrollward * self.scroll * self.speed * self.sensitivity * dt;
-        self.scroll = 0.0;
-
-        // Move up/down. Since we don't use roll, we can just
-        // modify the y coordinate directly.
+        // Move up/down
         camera.position.y += (self.amount_up - self.amount_down) * self.speed * dt;
+        
 
-        // Rotate
-        camera.yaw += Rad(self.rotate_horizontal) * self.sensitivity * dt;
-        camera.pitch += Rad(-self.rotate_vertical) * self.sensitivity * dt;
+        // Rotate using quaternion
+        let pitch_quaternion = Quaternion::from_axis_angle(Vector3::unit_x(), Rad(-self.rotate_vertical) * self.sensitivity * dt);
+        let yaw_quaternion = Quaternion::from_axis_angle(Vector3::unit_y(), Rad(self.rotate_horizontal) * self.sensitivity * dt);
 
-        // If process_mouse isn't called every frame, these values
-        // will not get set to zero, and the camera will rotate
-        // when moving in a non cardinal direction.
+        // Combine pitch and yaw rotations using quaternion multiplication
+        camera.quaternion = yaw_quaternion * camera.quaternion * pitch_quaternion;
+
+        // Keep the camera's angle from going too high/low.
+        // if camera.quaternion.v.x < -SAFE_FRAC_PI_2 {
+        //     camera.quaternion.v.x = -SAFE_FRAC_PI_2;
+        // } else if camera.quaternion.v.x > SAFE_FRAC_PI_2 {
+        //     camera.quaternion.v.x = SAFE_FRAC_PI_2;
+        // }
+
+        // Reset rotation values
         self.rotate_horizontal = 0.0;
         self.rotate_vertical = 0.0;
 
-        // Keep the camera's angle from going too high/low.
-        if camera.pitch < -Rad(SAFE_FRAC_PI_2) {
-            camera.pitch = -Rad(SAFE_FRAC_PI_2);
-        } else if camera.pitch > Rad(SAFE_FRAC_PI_2) {
-            camera.pitch = Rad(SAFE_FRAC_PI_2);
-        }
+        // Update the scroll value if you want to use it for zooming
+        self.scroll = 0.0;
     }
 }

@@ -2,7 +2,8 @@ use cgmath::prelude::*;
 use rand::Rng;
 use cgmath::*;
 use crate::camera::{Camera, Projection};
-
+use rtbvh::*;
+use glam::*;
 //-----------Camera-----------------
 
 #[repr(C)]
@@ -27,7 +28,7 @@ impl CameraUniform {
     // UPDATED!
     pub fn update_view_proj(&mut self, camera: &Camera, projection: &Projection) {
         self.view_position = camera.position.to_homogeneous().into();
-        self.view_proj = (projection.calc_matrix() * camera.calc_matrix()).into();
+        self.view_proj = (cgmath::Matrix4::from_translation(camera.position.to_vec()) * cgmath::Matrix4::from(camera.quaternion)).into();//(projection.calc_matrix() * camera.calc_matrix()).into();
         self.inv_view_proj = (projection.calc_matrix() * camera.calc_matrix()).invert().unwrap().into();
     }
 
@@ -104,7 +105,7 @@ impl SphereUniform {
 }
 
 //-----------Triangle-----------------
-#[derive(Clone, Copy)]
+#[derive(Clone, Copy, Debug)]
 pub struct Triangle{
     pub points: [[f32; 3]; 3],
     pub normal: [f32; 3],
@@ -140,6 +141,56 @@ impl TriangleUniform {
             uv1: [uv[0][0], uv[0][1], uv[1][0], uv[1][1]],
             uv2: [uv[2][0], uv[2][1], count as f32, 0.0],
             material_texture_id: [triangle.material_id as f32, triangle.texture_id as f32, 0.0, 0.0],
+        }
+    }
+}
+
+impl Primitive for Triangle {
+    fn center(&self) -> Vec3 {
+        Vec3::new(self.points[0][0] + self.points[1][0] + self.points[2][0],
+                  self.points[0][1] + self.points[1][1] + self.points[2][1],
+                  self.points[0][2] + self.points[1][2] + self.points[2][2]) / 3.0
+        
+    }
+
+    fn aabb(&self) -> Aabb {
+        let mut aabb = Aabb::new();
+        aabb.grow(self.points[0].into());
+        aabb.grow(self.points[1].into());
+        aabb.grow(self.points[2].into());
+        aabb
+    }
+}
+
+impl SpatialTriangle for Triangle {
+    fn vertex0(&self) -> Vec3 {
+        self.points[0].into()
+    }
+
+    fn vertex1(&self) -> Vec3 {
+        self.points[1].into()
+    }
+
+    fn vertex2(&self) -> Vec3 {
+        self.points[2].into()
+    }
+}
+
+
+#[repr(C)]
+#[derive(Clone, Copy, bytemuck::Pod, bytemuck::Zeroable)]
+pub struct BvhUniform {
+    min: [f32; 4],
+    left_first_count: [f32; 4], //only first 2 used
+    max: [f32; 4]
+}
+
+impl BvhUniform {
+    pub fn new(bvh: &BvhNode) -> Self {
+        Self {
+            min: [bvh.bounds.min.x, bvh.bounds.min.y, bvh.bounds.min.z, 0.0],
+            left_first_count: [bvh.bounds.extra1 as f32, bvh.bounds.extra2 as f32, 0.0, 0.0],
+            max: [bvh.bounds.max.x, bvh.bounds.max.y, bvh.bounds.max.z, 0.0],
         }
     }
 }

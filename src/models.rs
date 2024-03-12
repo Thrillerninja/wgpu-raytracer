@@ -1,7 +1,7 @@
 use std::fs::File;
 use std::io::{BufRead, BufReader, Read};
 use rand::Rng;
-use crate::structs::{Material, Triangle};
+use crate::structs::{Triangle};
 
 pub fn load_obj(file_path: &str) -> Result<Vec<Triangle>, Box<dyn std::error::Error>> {
     let file = File::open(file_path)?;
@@ -70,9 +70,9 @@ pub fn load_obj(file_path: &str) -> Result<Vec<Triangle>, Box<dyn std::error::Er
                 let normal_index = indices[0].2 - 1;
 
                 let mut rng = rand::thread_rng();
-                let r: f32 = rng.gen_range(0.0..1.0);
-                let g: f32 = rng.gen_range(0.0..1.0);
-                let b: f32 = rng.gen_range(0.0..1.0);
+                // let r: f32 = rng.gen_range(0.0..1.0);
+                // let g: f32 = rng.gen_range(0.0..1.0);
+                // let b: f32 = rng.gen_range(0.0..1.0);
         
                 let triangle = Triangle::new(
                     [

@@ -48,6 +48,14 @@ struct Ray {
 @group(3) @binding(3) var roughness: texture_2d_array<f32>;
 @group(3) @binding(4) var<storage> materials: array<Material>;
 
+struct BVHNodes {   //BvhNode { min: [-1.0002, -1.0002, -1.0002], left_first: 1, max: [1.0002, 1.0002, 1.0002], count: -1 }
+    min: vec4<f32>,
+    left_first_count: vec4<f32>, //left_child, count, 0.0, 0.0
+    max: vec4<f32>,
+}
+
+@group(4) @binding(0) var<storage> bvh: array<BVHNodes>;
+
 var<private> seed: f32;
 var<private> screen_size: vec2<u32>;
 var<private> screen_pos: vec2<u32>;
@@ -81,6 +89,11 @@ fn main(@builtin(global_invocation_id) GlobalInvocationID: vec3<u32>) {
         var ray = calc_ray(screen_pos, screen_size);
 
         // Get Color of Objects if hit
+        // if (f32(screen_pos.x) < (f32(screen_size.x)/2.0)) {
+        //     pixel_color += mix(color(ray, 10, 10000.0).xyz,camera.view_proj[0].xyz, 0.5);
+        // } else {
+        //     pixel_color += ray.direction;
+        // }
         pixel_color += color(ray, 10, 10000.0).xyz;
     }
 
@@ -245,6 +258,15 @@ fn color(primary_ray: Ray, MAX_BOUNCES: i32, t_max: f32) -> vec4<f32> {
                 is_sphere = false;
             }
         }
+
+        // Check if a BVH node is hit
+        // var hit_bvh = intersectBVHNode(ray, bvh);
+        // if (hit_bvh > -1 && hit_bvh < t) {
+        //     // Set 'bvh_hit' to the index of the hit BVH node
+        //     bvh_hit = hit_bvh;
+        //     t = hit_bvh;
+        // }
+        
 
         // Return background color if no object is hit
         if (t == t_max) {
@@ -413,6 +435,42 @@ fn trisUVMapping(hit_point: vec3<f32>, closest_tris: Triangle) -> vec2<f32> {
     return vec2<f32>(interpolated_uv[0], interpolated_uv[1]);
 }
 
+
+//BVH
+
+// Intersection function for BVH nodes
+fn intersectBVHNode(node: BVHNodes, ray: Ray, t_min: f32, t_max: f32) -> f32 {
+    // Perform ray-box intersection with the BVH node's bounding box
+    // Replace with your ray-box intersection code
+    if !rayIntersectsBox(ray, vec3<f32>(node.min[0],node.min[1],node.min[2]), vec3<f32>(node.max[0],node.max[1],node.max[2]), t_min, t_max) {
+        return -1.0; // No intersection
+    }
+
+    // Check if this is an inner node or a leaf node
+    if (node.left_first_count.z > 0.0) {
+        // This is an inner node, indicate intersection
+        return t_max; // Or another value to indicate intersection
+    } else {
+        // This is a leaf node, indicate no intersection
+        return -1.0; // No intersection
+    }
+}
+
+// Ray-box intersection function
+fn rayIntersectsBox(ray: Ray, min: vec3<f32>, max: vec3<f32>, t_min: f32, t_max: f32) -> bool {
+    // Ray-box intersection
+    var invDirection = 1.0 / ray.direction;
+    var t0 = (min - ray.origin) * invDirection;
+    var t1 = (max - ray.origin) * invDirection;
+
+    var tMinVec = min(t0, t1);
+    var tMaxVec = max(t0, t1);
+
+    var tEnter = max(max(tMinVec.x, tMinVec.y), tMinVec.z);
+    var tExit = min(min(tMaxVec.x, tMaxVec.y), tMaxVec.z);
+
+    return (tEnter < tExit) && (tExit > 0.0) && (tEnter < 10000.0);
+}
 
 
 
