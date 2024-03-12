@@ -2,10 +2,9 @@
 @group(3) @binding(0) var temporal_color_buffer: sampler;
 // Camera
 struct Camera {
-    current_frame_counter: f32,
-    view_pos: vec4<f32>,
+    frame: vec4<f32>,
+    view_pos: vec4<f32>, // 4. is a frame counter
     view_proj: mat4x4<f32>,
-    inv_view_proj: mat4x4<f32>,
 }
 @group(1) @binding(0) var<uniform> camera: Camera;
 
@@ -48,13 +47,15 @@ struct Ray {
 @group(3) @binding(3) var roughness: texture_2d_array<f32>;
 @group(3) @binding(4) var<storage> materials: array<Material>;
 
-struct BVHNodes {   //BvhNode { min: [-1.0002, -1.0002, -1.0002], left_first: 1, max: [1.0002, 1.0002, 1.0002], count: -1 }
+struct BVHNodes {
     min: vec4<f32>,
-    left_first_count: vec4<f32>, //left_child, count, 0.0, 0.0
     max: vec4<f32>,
+    extra1: vec4<f32>,
+    extra2: vec4<f32>, 
 }
 
 @group(4) @binding(0) var<storage> bvh: array<BVHNodes>;
+@group(4) @binding(1) var<storage> bvh_prim_indices: array<f32>;
 
 var<private> seed: f32;
 var<private> screen_size: vec2<u32>;
@@ -81,20 +82,38 @@ fn main(@builtin(global_invocation_id) GlobalInvocationID: vec3<u32>) {
     var pixel_color = vec3<f32>(0.0, 0.0, 0.0);
 
     // Start rand seed
-    seed = f32(initRng(screen_pos, screen_size, u32(camera.current_frame_counter)));
+    seed = f32(initRng(screen_pos, screen_size, u32(camera.frame[0])));
+
+    // // Multiple Samples as Antialiasing
+    // for (var color_samples = 0; color_samples < _SAMPLES; color_samples += 1) {
+    //     // Calculate Ray
+    //     var ray = calc_ray(screen_pos, screen_size);
+
+    //     pixel_color += color(ray, 10, 10000.0).xyz;
+    // }
 
     // Multiple Samples as Antialiasing
     for (var color_samples = 0; color_samples < _SAMPLES; color_samples += 1) {
         // Calculate Ray
         var ray = calc_ray(screen_pos, screen_size);
 
-        // Get Color of Objects if hit
-        // if (f32(screen_pos.x) < (f32(screen_size.x)/2.0)) {
-        //     pixel_color += mix(color(ray, 10, 10000.0).xyz,camera.view_proj[0].xyz, 0.5);
-        // } else {
-        //     pixel_color += ray.direction;
-        // }
-        pixel_color += color(ray, 10, 10000.0).xyz;
+        // Check if a BVH node is hit
+        var hit_bvh = -1.0;
+        
+        for (var i = 0; i < i32(arrayLength(&bvh)); i = i + 1) {
+            var temp = intersectBVHNode(bvh[i], ray, 0.0, 10000.0);
+            if (temp > -1.0) {
+                hit_bvh += 1.0;
+            }
+            
+        }
+        if (hit_bvh > -1.0) {
+            // BVH node hit, color the pixel red
+            pixel_color += vec3<f32>(0.2, 0.0, 0.0) * hit_bvh;
+        } else {
+            // No BVH node hit, color the pixel based on your ray tracing logic
+            pixel_color += mix(color(ray, 10, 10000.0).xyz, vec3<f32>(0.0, 0.0, 0.0), 0.8);
+        }
     }
 
     // Weighted average of pixel colors
@@ -125,7 +144,7 @@ fn calc_ray(screen_pos: vec2<u32>, screen_size: vec2<u32>) -> Ray {
     let aspect_ratio: f32 = f32(screen_size.x) / f32(screen_size.y);
     let look_from: vec3<f32> = camera.view_pos.xyz; // Camera position
 
-    //REdefine Lookat from cameralet 
+    // Redefine Lookat from cameralet 
     let look_at: vec3<f32> = camera.view_pos.xyz + normalize(camera.view_proj * vec4<f32>(0.0, 0.0, -1.0, 0.0)).xyz;
 
 
@@ -439,21 +458,13 @@ fn trisUVMapping(hit_point: vec3<f32>, closest_tris: Triangle) -> vec2<f32> {
 //BVH
 
 // Intersection function for BVH nodes
+// Intersection function for BVH nodes
 fn intersectBVHNode(node: BVHNodes, ray: Ray, t_min: f32, t_max: f32) -> f32 {
-    // Perform ray-box intersection with the BVH node's bounding box
-    // Replace with your ray-box intersection code
-    if !rayIntersectsBox(ray, vec3<f32>(node.min[0],node.min[1],node.min[2]), vec3<f32>(node.max[0],node.max[1],node.max[2]), t_min, t_max) {
-        return -1.0; // No intersection
-    }
-
-    // Check if this is an inner node or a leaf node
-    if (node.left_first_count.z > 0.0) {
-        // This is an inner node, indicate intersection
-        return t_max; // Or another value to indicate intersection
+   if rayIntersectsBox(ray, node.min.xyz, node.max.xyz, t_min, t_max) {
+         return 1.0;
     } else {
-        // This is a leaf node, indicate no intersection
-        return -1.0; // No intersection
-    }
+        return -1.0;
+    }   
 }
 
 // Ray-box intersection function

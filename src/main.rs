@@ -447,7 +447,7 @@ impl State {
 
         let prim_per_leaf = Some(std::num::NonZeroUsize::new(2).expect("NonZeroUsize creation failed"));
         let builder = Builder {
-            aabbs: aabbs.as_slice().into(),
+            aabbs: Some(aabbs.as_slice()),
             primitives: triangles.as_slice(),
             primitives_per_leaf: prim_per_leaf,
         };
@@ -458,17 +458,20 @@ impl State {
         let bvh = builder.construct_spatial_sah().unwrap();
 
         // Display the BVH tree
-        //display_bvh_tree(&bvh, 0);
+        // display_bvh_tree(&bvh, 0);
         if bvh.validate(12) {
             println!("BVH is valid");
         } else {
             println!("BVH is invalid");
         }
 
-        
+        // Display bvh tree
+        println!("BVH Tree: {:?}", bvh);
+        println!("BVH Tree as raw: {:?}", bvh.clone().into_raw());
+
+
 
         let raw = bvh.into_raw();
-
         //print nodebound extra and number
         for i in 0..raw.0.len(){
             //replace raw.1[i] with 100 if error
@@ -494,10 +497,28 @@ impl State {
             usage: wgpu::BufferUsages::STORAGE | wgpu::BufferUsages::COPY_DST,
         });
 
+        let mut bvh_prim_indices: Vec<f32> = raw.1.iter().map(|x| *x as f32).collect();
+
+        let bvh_prim_indices_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
+            label: Some("BVH Prim Indices Buffer"),
+            contents: bytemuck::cast_slice(&bvh_prim_indices),
+            usage: wgpu::BufferUsages::STORAGE | wgpu::BufferUsages::COPY_DST,
+        });
+
         let bvh_bind_goup_layout = device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
             entries: &[
                 wgpu::BindGroupLayoutEntry {
                     binding: 0, // This should match the binding number in the shader for object data
+                    visibility: wgpu::ShaderStages::COMPUTE,
+                    ty: wgpu::BindingType::Buffer {
+                        ty: wgpu::BufferBindingType::Storage { read_only: true },
+                        has_dynamic_offset: false,
+                        min_binding_size: None,
+                    },
+                    count: None,            
+                },
+                wgpu::BindGroupLayoutEntry {
+                    binding: 1, // This should match the binding number in the shader for object data
                     visibility: wgpu::ShaderStages::COMPUTE,
                     ty: wgpu::BindingType::Buffer {
                         ty: wgpu::BufferBindingType::Storage { read_only: true },
@@ -516,6 +537,10 @@ impl State {
                 wgpu::BindGroupEntry {
                     binding: 0, // This should match the binding number in the shader for object data
                     resource: bvh_buffer.as_entire_binding(),
+                },
+                wgpu::BindGroupEntry {
+                    binding: 1, // This should match the binding number in the shader for object data
+                    resource: bvh_prim_indices_buffer.as_entire_binding(),
                 }
             ],
             label: Some("bvh_bind_group"),
@@ -861,8 +886,7 @@ impl State {
     fn update(&mut self, dt: std::time::Duration) {
         println!("FPS: {}", 1.0 / dt.as_secs_f32());
         self.camera_controller.update_camera(&mut self.camera, dt);
-        self.camera_uniform
-            .update_view_proj(&self.camera, &self.projection);
+        self.camera_uniform.update_view_proj(&self.camera, &self.projection);
         self.camera_uniform.update_frame();
         self.queue.write_buffer(
             &self.camera_buffer,
@@ -887,11 +911,11 @@ impl State {
                 label: Some("Render Encoder"),
             });
             
-        println!(
-            "Camera Position: {:?}, Camera Quaternion: {:?}",
-            self.camera.position,
-            self.camera.quaternion,
-        );
+        // println!(
+        //     "Camera Position: {:?}, Camera Quaternion: {:?}",
+        //     self.camera.position,
+        //     self.camera.rotation
+        // );
     
         //----------Raytracing pass----------
         {

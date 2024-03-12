@@ -9,31 +9,28 @@ use glam::*;
 #[repr(C)]
 #[derive(Copy, Clone, bytemuck::Pod, bytemuck::Zeroable)]
 pub struct CameraUniform {
-    frame:  [f32; 4],
+    frame: [f32; 4],
     view_position: [f32; 4],
     view_proj: [[f32; 4]; 4],
-    inv_view_proj: [[f32; 4]; 4],
 }
 
 impl CameraUniform {
     pub fn new() -> Self {
         Self {
+            frame: [0.0; 4],
             view_position: [0.0; 4],
             view_proj: cgmath::Matrix4::identity().into(),
-            inv_view_proj: cgmath::Matrix4::identity().into(),
-            frame: [0.0, 0.0, 0.0, 0.0],
         }
     }
 
     // UPDATED!
     pub fn update_view_proj(&mut self, camera: &Camera, projection: &Projection) {
         self.view_position = camera.position.to_homogeneous().into();
-        self.view_proj = (cgmath::Matrix4::from_translation(camera.position.to_vec()) * cgmath::Matrix4::from(camera.quaternion)).into();//(projection.calc_matrix() * camera.calc_matrix()).into();
-        self.inv_view_proj = (projection.calc_matrix() * camera.calc_matrix()).invert().unwrap().into();
+        self.view_proj = (cgmath::Matrix4::from_translation(camera.position.to_vec()) * cgmath::Matrix4::from(camera.rotation)).into();
     }
 
     pub fn update_frame(&mut self) {
-        self.frame = [self.frame[0] + 1.0, 0.0, 0.0, 0.0];
+        self.frame[0] += 1.0;
     }
 }
 
@@ -180,17 +177,32 @@ impl SpatialTriangle for Triangle {
 #[repr(C)]
 #[derive(Clone, Copy, bytemuck::Pod, bytemuck::Zeroable)]
 pub struct BvhUniform {
-    min: [f32; 4],
-    left_first_count: [f32; 4], //only first 2 used
-    max: [f32; 4]
+    bounds_min: [f32; 4],
+    bounds_max: [f32; 4],
+    bounds_extra1: [f32; 4],
+    bounds_extra2: [f32; 4],
 }
 
 impl BvhUniform {
     pub fn new(bvh: &BvhNode) -> Self {
         Self {
-            min: [bvh.bounds.min.x, bvh.bounds.min.y, bvh.bounds.min.z, 0.0],
-            left_first_count: [bvh.bounds.extra1 as f32, bvh.bounds.extra2 as f32, 0.0, 0.0],
-            max: [bvh.bounds.max.x, bvh.bounds.max.y, bvh.bounds.max.z, 0.0],
+            bounds_min: [bvh.bounds.min.x, bvh.bounds.min.y, bvh.bounds.min.z, 0.0],
+            bounds_max: [bvh.bounds.max.x, bvh.bounds.max.y, bvh.bounds.max.z, 0.0],
+            bounds_extra1: [bvh.bounds.extra1 as f32, 0.0, 0.0, 0.0],
+            bounds_extra2: [bvh.bounds.extra2 as f32, 0.0, 0.0, 0.0],
         }
     }
 }
+// ([
+//     BvhNode { bounds: Aabb { min: Vec3(-1.0002, -1.0002, -1.0002), extra1: -1, max: Vec3(1.0002, 1.0002, 1.0002), extra2: 1 } }, 
+//     BvhNode { bounds: Aabb { min: Vec3(-1.0, -1.0, -1.0), extra1: 2, max: Vec3(-1.0, 1.0, 1.0), extra2: 10 } }, 
+//     BvhNode { bounds: Aabb { min: Vec3(-1.0001, -1.0001, -1.0001), extra1: -1, max: Vec3(1.0001, 1.0001, 1.0001), extra2: 3 } }, 
+//     BvhNode { bounds: Aabb { min: Vec3(-1.0001, -1.0001, -1.0001), extra1: -1, max: Vec3(1.0001, 1.0001, 1.0001), extra2: 5 } }, 
+//     BvhNode { bounds: Aabb { min: Vec3(1.0, -1.0, -1.0), extra1: 2, max: Vec3(1.0, 1.0, 1.0), extra2: 8 } }, 
+//     BvhNode { bounds: Aabb { min: Vec3(-1.0, -1.0, -1.0), extra1: 2, max: Vec3(1.0, -1.0, 1.0), extra2: 6 } }, 
+//     BvhNode { bounds: Aabb { min: Vec3(-1.0001, -1.0001, -1.0001), extra1: -1, max: Vec3(1.0001, 1.0001, 1.0001), extra2: 7 } }, 
+//     BvhNode { bounds: Aabb { min: Vec3(-1.0001, -1.0001, -1.0001), extra1: -1, max: Vec3(1.0001, 1.0001, 1.0001), extra2: 9 } }, 
+//     BvhNode { bounds: Aabb { min: Vec3(-1.0, 1.0, -1.0), extra1: 2, max: Vec3(1.0, 1.0, 1.0), extra2: 4 } }, 
+//     BvhNode { bounds: Aabb { min: Vec3(-1.0, -1.0, -1.0), extra1: 2, max: Vec3(1.0, 1.0, -1.0), extra2: 0 } }, 
+//     BvhNode { bounds: Aabb { min: Vec3(-1.0, -1.0, 1.0), extra1: 2, max: Vec3(1.0, 1.0, 1.0), extra2: 2 } }], 
+//     [5, 11, 7, 1, 6, 0, 3, 9, 4, 10, 2, 8, 0, 0, 0, 0, 0, 0, 0, 0, 0])

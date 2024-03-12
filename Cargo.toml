@@ -16,6 +16,8 @@ wgpu = { version = "0.17"}
 winit = "0.28"
 instant = "0.1"
 rand = "0.8.5"
+rtbvh = "0.6.2"
+glam = "0.24.2"
 
 [dependencies.image]
 version = "0.24"

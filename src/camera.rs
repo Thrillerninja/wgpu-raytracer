@@ -18,9 +18,7 @@ const SAFE_FRAC_PI_2: f32 = FRAC_PI_2 - 0.0001;
 #[derive(Debug, Clone, Copy)]
 pub struct Camera {
     pub position: Point3<f32>,
-    // pub yaw: Rad<f32>,
-    // pub pitch: Rad<f32>,
-    pub quaternion: Quaternion<f32>,
+    pub rotation: Quaternion<f32>,
 }
 
 impl Camera {
@@ -33,22 +31,12 @@ impl Camera {
         println!("Camera::new: Quaternion::from_angle_y(yaw) * Quaternion::from_angle_x(pitch) = {:?}", quaternion);
         Self {
             position: position.into(),
-            // yaw: yaw.into(),
-            // pitch: pitch.into(),
-            quaternion: quaternion,
+            rotation: quaternion,
         }
     }
 
     pub fn calc_matrix(&self) -> Matrix4<f32> {
-        // let (sin_pitch, cos_pitch) = self.pitch.0.sin_cos();
-        // let (sin_yaw, cos_yaw) = self.yaw.0.sin_cos();
-        // 
-        // Matrix4::look_to_rh(
-        //     self.position,
-        //     Vector3::new(cos_pitch * cos_yaw, sin_pitch, cos_pitch * sin_yaw).normalize(),
-        //     Vector3::unit_y(),
-        // )
-        Matrix4::look_at_rh(self.position, self.position + self.quaternion.rotate_vector(Vector3::unit_z()), Vector3::unit_y())
+        Matrix4::look_at_rh(self.position, self.position + self.rotation.rotate_vector(Vector3::unit_z()), Vector3::unit_y())
     }
 }
 
@@ -163,8 +151,8 @@ impl CameraController {
         let dt = dt.as_secs_f32();
 
         // Move forward/backward and left/right
-        let forward = camera.quaternion.rotate_vector(Vector3::new(0.0, 0.0, -1.0)).normalize();
-        let right = camera.quaternion.rotate_vector(Vector3::new(1.0, 0.0, 0.0)).normalize();
+        let forward = camera.rotation.rotate_vector(Vector3::new(0.0, 0.0, -1.0)).normalize();
+        let right = camera.rotation.rotate_vector(Vector3::new(1.0, 0.0, 0.0)).normalize();
         camera.position += forward * (self.amount_forward - self.amount_backward) * self.speed * dt;
         camera.position += right * (self.amount_right - self.amount_left) * self.speed * dt;
 
@@ -177,7 +165,7 @@ impl CameraController {
         let yaw_quaternion = Quaternion::from_axis_angle(Vector3::unit_y(), Rad(self.rotate_horizontal) * self.sensitivity * dt);
 
         // Combine pitch and yaw rotations using quaternion multiplication
-        camera.quaternion = yaw_quaternion * camera.quaternion * pitch_quaternion;
+        camera.rotation = yaw_quaternion * camera.rotation * pitch_quaternion;
 
         // Keep the camera's angle from going too high/low.
         // if camera.quaternion.v.x < -SAFE_FRAC_PI_2 {

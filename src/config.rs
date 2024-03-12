@@ -21,11 +21,14 @@ impl Config {
         spheres.push(Sphere::new(cgmath::Point3::new(0.5, 1.0, -1.0), 0.3    , 2,       -1));
         spheres.push(Sphere::new(cgmath::Point3::new(0.5, -50.5, -1.0), 50.0 , 3,       -1));
         spheres.push(Sphere::new(cgmath::Point3::new(-1.5, 0.0, -1.0), 0.4   , 4,       -1));
+        // for i in 0..100 {
+        //     spheres.push(Sphere::new(cgmath::Point3::new(rand::random::<f32>() * 10.0 - 5.0, rand::random::<f32>() * 10.0 - 5.0, rand::random::<f32>() * 10.0 - 5.0), rand::random::<f32>() * 0.5, 1, -1));
+        // }
         
         let mut materials: Vec<Material> = Vec::new();
         //                            r     g    b      attenuation      rough emis  ior 
         materials.push(Material::new([0.0, 1.0, 0.0], [0.5, 1.0, 1.0], 0.8, 0.0, 0.0));
-        materials.push(Material::new([0.5, 0.2, 0.5], [1.0, 1.0, 1.0], 0.8, 0.0, 0.0));
+        materials.push(Material::new([0.5, 0.2, 0.5], [1.0, 1.0, 1.0], 1.0, 0.0, 0.0));
         materials.push(Material::new([0.0, 0.0, 1.0], [1.0, 1.0, 1.0], 0.0, 0.0, 0.0));
         materials.push(Material::new([1.0, 0.3, 0.2], [0.2, 1.0, 1.0], 0.2, 0.0, 0.0));
         materials.push(Material::new([1.0, 1.0, 1.0], [0.5, 1.0, 1.0], 0.0, 0.0, 1.0));
@@ -38,8 +41,8 @@ impl Config {
         
         Self {
             // Camera
-            camera_position: (2.0, 6.0, -2.0),
-            camera_rotation: [0.0, 0.0],
+            camera_position: (-0.8, 1.29, -2.14),
+            camera_rotation: [195.0, -20.0],
             camera_near_far: [0.1, 100.0],
             camera_fov: 45.0,
 
