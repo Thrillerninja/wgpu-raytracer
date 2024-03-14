@@ -9,6 +9,7 @@ fn load_image(file_path: &str) -> DynamicImage {
         Err(err) => panic!("Failed to load image from {}: {}", file_path, err),
     }
 }
+
 fn create_texture(device: &Device, config: &SurfaceConfiguration, texture_width: u32, texture_height: u32, num_textures: u32) -> Texture {
     return device.create_texture(&wgpu::TextureDescriptor {
         label: Some("Texture Array"),

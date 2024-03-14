@@ -1,4 +1,4 @@
-use crate::structs::{Material, Triangle, Sphere};   
+use crate::structs::{Material, Sphere};   
 pub struct Config {
     pub camera_position: (f32, f32, f32),
     pub camera_rotation: [f32; 2],
@@ -16,7 +16,7 @@ impl Config {
     pub fn new() -> Self {
         let mut spheres: Vec<Sphere> = Vec::new();
         //                                            x    y     z   radius    mat_id texture_id
-        spheres.push(Sphere::new(cgmath::Point3::new(0.5, 0.0, -1.0), 0.5    , 0,        0));
+        spheres.push(Sphere::new(cgmath::Point3::new(0.5, 0.0, -1.0), 0.5    , 0,        -1));
         spheres.push(Sphere::new(cgmath::Point3::new(-0.5, 0.0, -1.0), 0.5   , 1,       -1));
         spheres.push(Sphere::new(cgmath::Point3::new(0.5, 1.0, -1.0), 0.3    , 2,       -1));
         spheres.push(Sphere::new(cgmath::Point3::new(0.5, -50.5, -1.0), 50.0 , 3,       -1));
@@ -35,8 +35,8 @@ impl Config {
 
         // Load textures from files into a textures
         let mut textures = Vec::new();
-        textures.push(["res/cobble-diffuse.png", "res/cobble-normal.png", "res/cobble-diffuse.png"]);
-        textures.push(["res/COlor.png", "res/Unbenannt2.png", "res/roughness.png"]);
+        //textures.push(["res/cobble-diffuse.png", "res/cobble-normal.png", "res/cobble-diffuse.png"]);
+        //textures.push(["res/COlor.png", "res/Unbenannt2.png", "res/roughness.png"]);
         //textures.push([ "res/pavement_26_basecolor-1K.png", "res/pavement_26_normal-1K.png", "res/pavement_26_roughness-1K.png"]);
         
         Self {

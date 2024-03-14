@@ -1,0 +1,124 @@
+    BvhNode { bounds: Aabb { min: Vec3(-1.0002, -1.0002, -1.0002), extra1: -1, max: Vec3(1.0002, 1.0002, 1.0002), extra2: 1
+    BvhNode { bounds: Aabb { min: Vec3(-1.0001, -1.0001, -1.0001), extra1: -1, max: Vec3(1.0001, 1.0001, 1.0001), extra2: 3 } }, 
+    BvhNode { bounds: Aabb { min: Vec3(-1.0001, -1.0001, -1.0001), extra1: -1, max: Vec3(1.0001, 1.0001, 1.0001), extra2: 5 } }, 
+    BvhNode { bounds: Aabb { min: Vec3(1.0, -1.0, -1.0), extra1: 2, max: Vec3(1.0, 1.0, 1.0), extra2: 8 } }, 
+    BvhNode { bounds: Aabb { min: Vec3(-1.0, -1.0, -1.0), extra1: 2, max: Vec3(1.0, -1.0, 1.0), extra2: 6 } }, 
+    BvhNode { bounds: Aabb { min: Vec3(-1.0001, -1.0001, -1.0001), extra1: -1, max: Vec3(1.0001, 1.0001, 1.0001), extra2: 7 } }, 
+    BvhNode { bounds: Aabb { min: Vec3(-1.0001, -1.0001, -1.0001), extra1: -1, max: Vec3(1.0001, 1.0001, 1.0001), extra2: 9 } }, 
+    BvhNode { bounds: Aabb { min: Vec3(-1.0, 1.0, -1.0), extra1: 2, max: Vec3(1.0, 1.0, 1.0), extra2: 4 } }, 
+    BvhNode { bounds: Aabb { min: Vec3(-1.0, -1.0, -1.0), extra1: 2, max: Vec3(1.0, 1.0, -1.0), extra2: 0 } }, 
+    BvhNode { bounds: Aabb { min: Vec3(-1.0, -1.0, 1.0), extra1: 2, max: Vec3(1.0, 1.0, 1.0), extra2: 2 } }], 
+    
+    prim_indices: [5, 11, 7, 1, 6, 0, 3, 9, 4, 10, 2, 8, 0, 0, 0, 0, 0, 0, 0, 0, 0], build_type: Spatial }
+
+```                                 12                  |             9
+
+
+----------------------------------------------------------------
+
+
+BVH Tree: Bvh { nodes: [
+    BvhNode { bounds: Aabb { min: Vec3(-1.1059021, -1.0001, -4.4865603), extra1: 2, max: Vec3(-0.9999, 1.356621, 1.0001), extra2: 0 } }], 
+    prim_indices: [1, 0, 0], build_type: Spatial }
+BVH Tree as raw: ([
+    BvhNode { bounds: Aabb { min: Vec3(-1.1059021, -1.0001, -4.4865603), extra1: 2, max: Vec3(-0.9999, 1.356621, 1.0001), extra2: 0 } }], 
+    [1, 0, 0])        
+Node 0 : 2 0  |1
+
+----------------------------------------------------------------
+
+BVH Tree: Bvh { nodes: [
+    BvhNode { bounds: Aabb { min: Vec3(-1.1060021, -1.0002, -4.4866605), extra1: -1, max: Vec3(1.221652, 1.356721, 1.0002), extra2: 1 } }, 
+    BvhNode { bounds: Aabb { min: Vec3(-1.105802, -1.0, -4.48646), extra1: 2, max: Vec3(-1.0, 1.356521, 1.0), extra2: 0 } }, 
+    BvhNode { bounds: Aabb { min: Vec3(-1.105802, 0.978552, -4.48646), extra1: 1, max: Vec3(1.221452, 1.356521, 1.0), extra2: 2 } }], 
+    prim_indices: [2, 0, 1, 0, 0], build_type: Spatial }
+
+BVH Tree as raw: ([BvhNode { bounds: Aabb { min: Vec3(-1.1060021, -1.0002, -4.4866605), extra1: -1, max: Vec3(1.221652, 1.356721, 1.0002), extra2: 1 } }, BvhNode { bounds: Aabb { min: Vec3(-1.105802, -1.0, -4.48646), extra1: 2, max: Vec3(-1.0, 1.356521, 1.0), extra2: 0 } }, BvhNode { bounds: Aabb { min: Vec3(-1.105802, 0.978552, -4.48646), extra1: 1, max: Vec3(1.221452, 1.356521, 1.0), extra2: 2 } }], [2, 0, 1, 0, 0])
+Node 0 : -1 1  |2
+Node 1 : 2 0  |0
+Node 2 : 1 2  |1
+
+----------------------------------------------------------------
+
+Invalid
+BVH Tree: Bvh { nodes: [
+    BvhNode { bounds: Aabb { min: Vec3(-1.1060021, -1.0002, -4.4866605), extra1: -1, max: Vec3(1.3274541, 1.356721, 1.7894471), extra2: 1 } }, 
+    BvhNode { bounds: Aabb { min: Vec3(-1.105802, -1.0, -4.48646), extra1: 2, max: Vec3(-1.0, 1.356521, 1.0), extra2: 0 } }, 
+    BvhNode { bounds: Aabb { min: Vec3(-1.105802, 0.622031, -4.48646), extra1: 2, max: Vec3(1.327254, 1.356521, 1.789247), extra2: 2 } }], 
+    prim_indices: [2, 0, 1, 1, 0, 0, 0], build_type: Spatial }
+BVH Tree as raw: ([BvhNode { bounds: Aabb { min: Vec3(-1.1060021, -1.0002, -4.4866605), extra1: -1, max: Vec3(1.3274541, 1.356721, 1.7894471), extra2: 1 } }, BvhNode { bounds: Aabb { min: Vec3(-1.105802, -1.0, -4.48646), extra1: 2, max: Vec3(-1.0, 1.356521, 1.0), extra2: 0 } }, BvhNode { bounds: Aabb { min: Vec3(-1.105802, 0.622031, -4.48646), extra1: 2, max: Vec3(1.327254, 1.356521, 1.789247), extra2: 2 } }], [2, 0, 1, 1, 0, 0, 0])
+Node 0 : -1 1  |2
+Node 1 : 2 0  |0
+Node 2 : 2 2  |1
+
+
+
+----------------------------------------------------------------
+
+Node 0 : BvhNode { bounds: Aabb { min: Vec3(-1.0002, -1.0002, -1.0002), extra1: -1, max: Vec3(1.0002, 1.0002, 1.0002), extra2: 1 } }
+Node 1 : BvhNode { bounds: Aabb { min: Vec3(-1.0, -1.0, -1.0), extra1: 2, max: Vec3(-1.0, 1.0, 1.0), extra2: 10 } }
+Node 2 : BvhNode { bounds: Aabb { min: Vec3(-1.0001, -1.0001, -1.0001), extra1: -1, max: Vec3(1.0001, 1.0001, 1.0001), extra2: 3 } }
+Node 3 : BvhNode { bounds: Aabb { min: Vec3(-1.0001, -1.0001, -1.0001), extra1: -1, max: Vec3(1.0001, 1.0001, 1.0001), extra2: 5 } }
+Node 4 : BvhNode { bounds: Aabb { min: Vec3(1.0, -1.0, -1.0), extra1: 2, max: Vec3(1.0, 1.0, 1.0), extra2: 8 } }
+Node 5 : BvhNode { bounds: Aabb { min: Vec3(-1.0, -1.0, -1.0), extra1: 2, max: Vec3(1.0, -1.0, 1.0), extra2: 6 } }
+Node 6 : BvhNode { bounds: Aabb { min: Vec3(-1.0001, -1.0001, -1.0001), extra1: -1, max: Vec3(1.0001, 1.0001, 1.0001), extra2: 7 } }
+Node 7 : BvhNode { bounds: Aabb { min: Vec3(-1.0001, -1.0001, -1.0001), extra1: -1, max: Vec3(1.0001, 1.0001, 1.0001), extra2: 9 } }
+Node 8 : BvhNode { bounds: Aabb { min: Vec3(-1.0, 1.0, -1.0), extra1: 2, max: Vec3(1.0, 1.0, 1.0), extra2: 4 } }
+Node 9 : BvhNode { bounds: Aabb { min: Vec3(-1.0, -1.0, -1.0), extra1: 2, max: Vec3(1.0, 1.0, -1.0), extra2: 0 } }
+Node 10 : BvhNode { bounds: Aabb { min: Vec3(-1.0, -1.0, 1.0), extra1: 2, max: Vec3(1.0, 1.0, 1.0), extra2: 2 } }
+[1, 7, 9, 3, 11, 5, 4, 10, 2, 8, 0, 6, 0, 0, 0, 0, 0, 0, 0, 0, 0])
+
+
+----------------------------------------------------------------
+
+invalid
+
+Node 0 : BvhNode { bounds: Aabb { min: Vec3(-0.95125705, -1.0002, -1.0002), extra1: -1, max: Vec3(0.95125705, 1.0002, 0.80921704), extra2: 1 } }
+Node 1 : BvhNode { bounds: Aabb { min: Vec3(-0.95115703, -1.0001, -1.0001), extra1: -1, max: Vec3(0.95115703, -0.9999, 0.809117), extra2: 19 } }
+Node 2 : BvhNode { bounds: Aabb { min: Vec3(-0.95115703, -1.0001, -1.0001), extra1: -1, max: Vec3(0.95115703, 1.0001, 0.809117), extra2: 3 } }
+Node 3 : BvhNode { bounds: Aabb { min: Vec3(-0.95115703, -1.0001, -1.0001), extra1: -1, max: Vec3(0.0001, 1.0001, 0.809117), extra2: 15 } }
+Node 4 : BvhNode { bounds: Aabb { min: Vec3(-0.587885, -1.0001, -1.0001), extra1: -1, max: Vec3(0.95115703, 1.0001, 0.809117), extra2: 5 } }
+Node 5 : BvhNode { bounds: Aabb { min: Vec3(-0.0001, -1.0001, -1.0001), extra1: -1, max: Vec3(0.95115703, 1.0001, 0.809117), extra2: 7 } }
+Node 6 : BvhNode { bounds: Aabb { min: Vec3(-0.587785, 1.0, -1.0), extra1: 1, max: Vec3(0.587785, 1.0, 0.809017), extra2: 7 } }
+Node 7 : BvhNode { bounds: Aabb { min: Vec3(-0.0001, -1.0001, -1.0001), extra1: -1, max: Vec3(0.95115703, 1.0001, 0.809117), extra2: 9 } }
+Node 8 : BvhNode { bounds: Aabb { min: Vec3(-0.587785, -1.0, 0.809017), extra1: 2, max: Vec3(0.587785, 1.0, 0.809017), extra2: 5 } }
+Node 9 : BvhNode { bounds: Aabb { min: Vec3(-0.0001, -1.0001, -1.0001), extra1: -1, max: Vec3(0.95115703, 1.0001, -0.30891702), extra2: 11 } }
+Node 10 : BvhNode { bounds: Aabb { min: Vec3(0.587785, -1.0, -0.309017), extra1: 1, max: Vec3(0.951057, 1.0, 0.809017), extra2: 4 } }
+Node 11 : BvhNode { bounds: Aabb { min: Vec3(0.0, -1.0, -1.0), extra1: 2, max: Vec3(0.951057, 1.0, -0.309017), extra2: 0 } }
+Node 12 : BvhNode { bounds: Aabb { min: Vec3(-0.0001, -1.0001, -1.0001), extra1: -1, max: Vec3(0.95115703, 1.0001, 0.809117), extra2: 13 } }
+Node 13 : BvhNode { bounds: Aabb { min: Vec3(-0.587785, -1.0, 0.809017), extra1: 1, max: Vec3(0.587785, 1.0, 0.809017), extra2: 2 } }
+Node 14 : BvhNode { bounds: Aabb { min: Vec3(-0.587785, 1.0, -1.0), extra1: 1, max: Vec3(0.587785, 1.0, 0.809017), extra2: 3 } }
+Node 15 : BvhNode { bounds: Aabb { min: Vec3(-0.951057, -1.0, -0.309017), extra1: 2, max: Vec3(-0.587785, 1.0, 0.809017), extra2: 11 } }
+Node 16 : BvhNode { bounds: Aabb { min: Vec3(-0.95115703, -1.0001, -1.0001), extra1: -1, max: Vec3(0.0001, 1.0001, 0.809117), extra2: 17 } }
+Node 17 : BvhNode { bounds: Aabb { min: Vec3(-0.951057, -1.0, -1.0), extra1: 2, max: Vec3(0.0, 1.0, -0.309017), extra2: 8 } }
+Node 18 : BvhNode { bounds: Aabb { min: Vec3(-0.951057, 1.0, -1.0), extra1: 1, max: Vec3(0.0, 1.0, 0.809017), extra2: 10 } }
+Node 19 : BvhNode { bounds: Aabb { min: Vec3(-0.951057, -1.0, -1.0), extra1: 1, max: Vec3(0.951057, -1.0, -0.309017), extra2: 15 } }
+Node 20 : BvhNode { bounds: Aabb { min: Vec3(-0.951057, -1.0, -0.309017), extra1: 2, max: Vec3(0.951057, -1.0, 0.809017), extra2: 13 } }
+
+[0, 10, 9, 3, 2, 9, 3, 2, 5, 13, 11, 12, 4, 6, 15, 14, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]
+
+
+ Mbvh { nodes: [
+    BvhNode { bounds: Aabb { min: Vec3(-1.0002, -1.0002, -1.0002), extra1: -1, max: Vec3(1.0002, 1.0002, 1.0002), extra2: 1 } }, 
+    BvhNode { bounds: Aabb { min: Vec3(-1.0001, -1.0001, -1.0001), extra1: -1, max: Vec3(0.0001, 1.0001, 1.0001), extra2: 11 } }, 
+    BvhNode { bounds: Aabb { min: Vec3(-1.0001, -1.0001, -1.0001), extra1: -1, max: Vec3(1.0001, 1.0001, 1.0001), extra2: 3 } }, 
+    BvhNode { bounds: Aabb { min: Vec3(-1.0001, -1.0001, -1.0001), extra1: -1, max: Vec3(1.0001, -0.9999, 1.0001), extra2: 5 } }, 
+    BvhNode { bounds: Aabb { min: Vec3(-0.0001, -1.0001, -1.0001), extra1: -1, max: Vec3(1.0001, 1.0001, 1.0001), extra2: 7 } }, 
+    BvhNode { bounds: Aabb { min: Vec3(-1.0, -1.0, -1.0), extra1: 2, max: Vec3(1.0, -1.0, 1.0), extra2: 0 } }, 
+    BvhNode { bounds: Aabb { min: Vec3(-1.0, -1.0, -1.0), extra1: 2, max: Vec3(1.0, -1.0, 1.0), extra2: 2 } }, 
+    BvhNode { bounds: Aabb { min: Vec3(0.0, -1.0, -1.0), extra1: 1, max: Vec3(1.0, 1.0, 0.0), extra2: 6 } }, 
+    BvhNode { bounds: Aabb { min: Vec3(-0.0001, -1.0001, -1.0001), extra1: -1, max: Vec3(1.0001, 1.0001, 1.0001), extra2: 9 } }, 
+    BvhNode { bounds: Aabb { min: Vec3(0.0, 1.0, -1.0), extra1: 1, max: Vec3(1.0, 1.0, 1.0), extra2: 4 } }, 
+    BvhNode { bounds: Aabb { min: Vec3(0.0, -1.0, 0.0), extra1: 1, max: Vec3(1.0, 1.0, 1.0), extra2: 5 } }, 
+    BvhNode { bounds: Aabb { min: Vec3(-1.0, -1.0, -1.0), extra1: 2, max: Vec3(0.0, 1.0, 1.0), extra2: 10 } }, 
+    BvhNode { bounds: Aabb { min: Vec3(-1.0001, -1.0001, -1.0001), extra1: -1, max: Vec3(0.0001, 1.0001, 1.0001), extra2: 13 } }, 
+    BvhNode { bounds: Aabb { min: Vec3(-1.0, -1.0, 0.0), extra1: 1, max: Vec3(0.0, 1.0, 1.0), extra2: 9 } }, 
+    BvhNode { bounds: Aabb { min: Vec3(-1.0001, -1.0001, -1.0001), extra1: -1, max: Vec3(0.0001, 1.0001, 1.0001), extra2: 15 } }, 
+    BvhNode { bounds: Aabb { min: Vec3(-1.0, 1.0, -1.0), extra1: 1, max: Vec3(0.0, 1.0, 1.0), extra2: 7 } }, 
+    BvhNode { bounds: Aabb { min: Vec3(-1.0, -1.0, -1.0), extra1: 1, max: Vec3(0.0, 1.0, 0.0), extra2: 8 } }], 
+    m_nodes: [
+        MbvhNode { min_x: [-1.0, -1.0001, -1.0001, -0.0001], max_x: [0.0, 0.0001, 1.0001, 1.0001], min_y: [-1.0, -1.0001, -1.0001, -1.0001], max_y: [1.0, 1.0001, -0.9999, 1.0001], min_z: [-1.0, -1.0001, -1.0001, -1.0001], max_z: [1.0, 1.0001, 1.0001, 1.0001], children: [10, 1, 2, 3], counts: [2, -1, -1, -1] }, 
+        MbvhNode { min_x: [-1.0001, -1.0001, -1.0, -1.0], max_x: [0.0001, 0.0001, 0.0, 0.0], min_y: [-1.0001, -1.0001, 1.0, -1.0], max_y: [1.0001, 1.0001, 1.0, 1.0], min_z: [-1.0001, -1.0001, -1.0, -1.0], max_z: [1.0001, 1.0001, 1.0, 0.0], children: [9, -1, 7, 8], counts: [1, -1, 1, 1] }, 
+        MbvhNode { min_x: [-1.0001, -1.0001, -1.0001, -1.0001], max_x: [1.0001, 1.0001, 1.0001, 1.0001], min_y: [-1.0001, -1.0001, -1.0001, -1.0001], max_y: [-0.9999, -0.9999, -0.9999, -0.9999], min_z: [-1.0001, -1.0001, -1.0001, -1.0001], max_z: [1.0001, 1.0001, 1.0001, 1.0001], children: [0, -1, 2, -1], counts: [2, -1, 2, -1] }, 
+        MbvhNode { min_x: [-0.0001, -0.0001, 0.0, 0.0], max_x: [1.0001, 1.0001, 1.0, 1.0], min_y: [-1.0001, -1.0001, 1.0, -1.0], max_y: [1.0001, 1.0001, 1.0, 1.0], min_z: [-1.0001, -1.0001, -1.0, 0.0], max_z: [1.0001, 1.0001, 1.0, 1.0], children: [6, -1, 4, 5], counts: [1, -1, 1, 1] }], 
+        prim_indices: [5, 11, 5, 11, 2, 7, 0, 8, 10, 9, 4, 3, 0, 0, 0, 0, 0, 0, 0, 0, 0] }

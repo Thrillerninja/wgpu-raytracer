@@ -443,12 +443,19 @@ impl State {
         //-------------BVH---------------
         
         // Build BVH for triangles
-        let aabbs = triangles.iter().map(|t| t.aabb()).collect::<Vec<Aabb>>();
+        let mut aabbs = triangles.iter().map(|t| t.aabb()).collect::<Vec<Aabb>>();
+
+        //Add Sphere AABBs
+        // for sphere in userconfig.spheres.iter(){
+        //     aabbs.push(sphere.aabb());               # Doesnt work because the bvh can only take one type of Data
+        // }
 
         let prim_per_leaf = Some(std::num::NonZeroUsize::new(2).expect("NonZeroUsize creation failed"));
+        let primitives = triangles.as_slice();
+        println!("Triangles: {:?}", triangles);
         let builder = Builder {
             aabbs: Some(aabbs.as_slice()),
-            primitives: triangles.as_slice(),
+            primitives: primitives,
             primitives_per_leaf: prim_per_leaf,
         };
 
@@ -459,15 +466,24 @@ impl State {
 
         // Display the BVH tree
         // display_bvh_tree(&bvh, 0);
-        if bvh.validate(12) {
+        if bvh.validate(triangles.len()) {
             println!("BVH is valid");
         } else {
             println!("BVH is invalid");
         }
 
+        //get the nodes on the layer below the root and print them
+        let mut nodes = bvh.nodes();
+        for i in 0..nodes.len(){
+            println!("Node {} : {:?}", i, nodes[i]);
+        }
+
         // Display bvh tree
         println!("BVH Tree: {:?}", bvh);
         println!("BVH Tree as raw: {:?}", bvh.clone().into_raw());
+
+        let mbvh = Mbvh::from(bvh.clone());
+        println!("MBVH Tree: {:?}", mbvh);
 
 
 
@@ -974,18 +990,18 @@ impl State {
         );
 
         // Perform 1. denoising pass
-        {
-            let mut denoise_pass = encoder2.begin_compute_pass(&wgpu::ComputePassDescriptor {
-                label: Some("1. Denoising Pass"),
-            });
+        // {
+        //     let mut denoise_pass = encoder2.begin_compute_pass(&wgpu::ComputePassDescriptor {
+        //         label: Some("1. Denoising Pass"),
+        //     });
     
-            // Set denoising pipeline and bind group
-            denoise_pass.set_pipeline(&self.denoising_pipeline);
-            denoise_pass.set_bind_group(0, &self.denoising_bind_group, &[]);
+        //     // Set denoising pipeline and bind group
+        //     denoise_pass.set_pipeline(&self.denoising_pipeline);
+        //     denoise_pass.set_bind_group(0, &self.denoising_bind_group, &[]);
     
-            // Dispatch workgroups for denoising (adjust dimensions as needed)
-            denoise_pass.dispatch_workgroups(self.config.width, self.config.height, 1);
-        }
+        //     // Dispatch workgroups for denoising (adjust dimensions as needed)
+        //     denoise_pass.dispatch_workgroups(self.config.width, self.config.height, 1);
+        // }
 
         // Submit the command encoder for the 1st pass
         self.queue.submit(std::iter::once(encoder2.finish()));
