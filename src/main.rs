@@ -351,6 +351,7 @@ impl State {
         for i in 0..triangles.len(){
             println!("Triangle: {} {} {}", triangles[i].points[0][0], triangles[i].points[0][1], triangles[i].points[0][2]);
         }     
+        println!("Triangle count: {}", triangles.len());
 
         //Triangles and UV to Uniform buffer
         let mut triangles_uniform: Vec<TriangleUniform> = Vec::new();
@@ -480,10 +481,7 @@ impl State {
 
         // Display bvh tree
         println!("BVH Tree: {:?}", bvh);
-        println!("BVH Tree as raw: {:?}", bvh.clone().into_raw());
-
-        let mbvh = Mbvh::from(bvh.clone());
-        println!("MBVH Tree: {:?}", mbvh);
+        // println!("BVH Tree as raw: {:?}", bvh.clone().into_raw());
 
 
 
