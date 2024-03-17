@@ -12,7 +12,7 @@ struct Camera {
 
 @group(0) @binding(4) var<uniform> current_denoising_pass: u32;
 
-@compute @workgroup_size(1, 1, 1)
+@compute @workgroup_size(8, 8, 1)
 fn main(@builtin(global_invocation_id) GlobalInvocationID: vec3<u32>) {
     let screen_pos: vec2<u32> = vec2<u32>(GlobalInvocationID.xy);
     let screen_size: vec2<u32> = vec2<u32>(textureDimensions(color_buffer));

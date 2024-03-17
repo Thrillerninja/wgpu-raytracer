@@ -27,7 +27,8 @@ impl CameraUniform {
     // UPDATED!
     pub fn update_view_proj(&mut self, camera: &Camera, projection: &Projection) {
         self.view_position = camera.position.to_homogeneous().into();
-        self.view_proj = (cgmath::Matrix4::from_translation(camera.position.to_vec()) * cgmath::Matrix4::from(camera.rotation)).into();
+        self.view_proj = cgmath::Matrix4::from(camera.rotation).into();
+        self.frame[1] = projection.fovy.0.to_degrees() as f32;
     }
 
     pub fn update_frame(&mut self) {

@@ -451,9 +451,9 @@ impl State {
         //     aabbs.push(sphere.aabb());               # Doesnt work because the bvh can only take one type of Data
         // }
 
-        let prim_per_leaf = Some(std::num::NonZeroUsize::new(2).expect("NonZeroUsize creation failed"));
+        let prim_per_leaf = Some(std::num::NonZeroUsize::new(1).expect("NonZeroUsize creation failed"));
         let primitives = triangles.as_slice();
-        println!("Triangles: {:?}", triangles);
+        // println!("Triangles: {:?}", triangles);
         let builder = Builder {
             aabbs: Some(aabbs.as_slice()),
             primitives: primitives,
@@ -463,39 +463,39 @@ impl State {
         // Choose one of these algorithms:
         //let bvh = builder.construct_locally_ordered_clustered().unwrap();
         //let bvh = builder.construct_binned_sah().unwrap();
-        let bvh = builder.construct_spatial_sah().unwrap();
+        let bvh = builder.construct_binned_sah().unwrap();
 
         // Display the BVH tree
         // display_bvh_tree(&bvh, 0);
-        if bvh.validate(triangles.len()) {
-            println!("BVH is valid");
-        } else {
-            println!("BVH is invalid");
-        }
+        // if bvh.validate(triangles.len()) {
+        //     println!("BVH is valid");
+        // } else {
+        //     println!("BVH is invalid");
+        // }
 
         //get the nodes on the layer below the root and print them
-        let mut nodes = bvh.nodes();
-        for i in 0..nodes.len(){
-            println!("Node {} : {:?}", i, nodes[i]);
-        }
+        // let mut nodes = bvh.nodes();
+        // for i in 0..nodes.len(){
+        //     println!("Node {} : {:?}", i, nodes[i]);
+        // }
 
         // Display bvh tree
-        println!("BVH Tree: {:?}", bvh);
+        // println!("BVH Tree: {:?}", bvh);
         // println!("BVH Tree as raw: {:?}", bvh.clone().into_raw());
 
 
 
         let raw = bvh.into_raw();
         //print nodebound extra and number
-        for i in 0..raw.0.len(){
-            //replace raw.1[i] with 100 if error
-            if i >= raw.1.len(){
-                println!("Node {} : {} {} |{}", i, raw.0[i].bounds.extra1, raw.0[i].bounds.extra2, 100); 
-            }
-            else{
-                println!("Node {} : {} {}  |{}", i, raw.0[i].bounds.extra1, raw.0[i].bounds.extra2, raw.1[i]); 
-            }
-        }
+        // for i in 0..raw.0.len(){
+        //     //replace raw.1[i] with 100 if error
+        //     if i >= raw.1.len(){
+        //         println!("Node {} : {} {} |{}", i, raw.0[i].bounds.extra1, raw.0[i].bounds.extra2, 100); 
+        //     }
+        //     else{
+        //         println!("Node {} : {} {}  |{}", i, raw.0[i].bounds.extra1, raw.0[i].bounds.extra2, raw.1[i]); 
+        //     }
+        // }
 
 
 
@@ -898,7 +898,7 @@ impl State {
     }
 
     fn update(&mut self, dt: std::time::Duration) {
-        println!("FPS: {}", 1.0 / dt.as_secs_f32());
+        // println!("FPS: {}", 1.0 / dt.as_secs_f32());
         self.camera_controller.update_camera(&mut self.camera, dt);
         self.camera_uniform.update_view_proj(&self.camera, &self.projection);
         self.camera_uniform.update_frame();
@@ -947,7 +947,11 @@ impl State {
             compute_pass.set_bind_group(4, &self.bvh_bind_group, &[]);
     
             // Dispatch workgroups for ray tracing (adjust dimensions as needed)
-            compute_pass.dispatch_workgroups(self.config.width, self.config.height, 1);
+            compute_pass.dispatch_workgroups(
+                (self.config.width + 7) / 8,
+                (self.config.height + 7) / 8,
+                1
+            );
         }
 
 
@@ -968,7 +972,11 @@ impl State {
             denoise_pass.set_bind_group(0, &self.denoising_bind_group, &[]);
     
             // Dispatch workgroups for denoising (adjust dimensions as needed)
-            denoise_pass.dispatch_workgroups(self.config.width, self.config.height, 1);
+            denoise_pass.dispatch_workgroups(
+                (self.config.width + 7) / 8,
+                (self.config.height + 7) / 8,
+                1
+            );
         }
 
         // Submit the command encoder for the 1st pass
@@ -987,19 +995,23 @@ impl State {
             bytemuck::cast_slice(&[1u32]),
         );
 
-        // Perform 1. denoising pass
-        // {
-        //     let mut denoise_pass = encoder2.begin_compute_pass(&wgpu::ComputePassDescriptor {
-        //         label: Some("1. Denoising Pass"),
-        //     });
+        // Perform 2. denoising pass
+        {
+            let mut denoise_pass = encoder2.begin_compute_pass(&wgpu::ComputePassDescriptor {
+                label: Some("2. Denoising Pass"),
+            });
     
-        //     // Set denoising pipeline and bind group
-        //     denoise_pass.set_pipeline(&self.denoising_pipeline);
-        //     denoise_pass.set_bind_group(0, &self.denoising_bind_group, &[]);
+            // Set denoising pipeline and bind group
+            denoise_pass.set_pipeline(&self.denoising_pipeline);
+            denoise_pass.set_bind_group(0, &self.denoising_bind_group, &[]);
     
-        //     // Dispatch workgroups for denoising (adjust dimensions as needed)
-        //     denoise_pass.dispatch_workgroups(self.config.width, self.config.height, 1);
-        // }
+            // Dispatch workgroups for denoising (adjust dimensions as needed)
+            denoise_pass.dispatch_workgroups(
+                (self.config.width + 7) / 8,
+                (self.config.height + 7) / 8,
+                1
+            );
+        }
 
         // Submit the command encoder for the 1st pass
         self.queue.submit(std::iter::once(encoder2.finish()));
