@@ -414,7 +414,7 @@ fn color(primary_ray: Ray, MAX_BOUNCES: i32, t_max: f32) -> vec4<f32> {
         } else {
             normal = normalize(closest_tris.normals.xyz);
             material = materials[i32(closest_tris.material_texture_id[0])];
-            uv = trisUVMapping(hit_point, closest_tris);
+            // uv = trisUVMapping(hit_point, closest_tris);
             texture_id = i32(closest_tris.material_texture_id[1]);
         }
 

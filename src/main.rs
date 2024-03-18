@@ -348,26 +348,19 @@ impl State {
             }
             Ok(data) => data,
         };   
-        for i in 0..triangles.len(){
-            println!("Triangle: {} {} {}", triangles[i].points[0][0], triangles[i].points[0][1], triangles[i].points[0][2]);
-        }     
+        // for i in 0..triangles.len(){
+        //     println!("Triangle: {} {} {}", triangles[i].points[0][0], triangles[i].points[0][1], triangles[i].points[0][2]);
+        // }     
         println!("Triangle count: {}", triangles.len());
 
-        //Triangles and UV to Uniform buffer
+        // //Triangles and UV to Uniform buffer
         let mut triangles_uniform: Vec<TriangleUniform> = Vec::new();
         let triangles_count = triangles.len() as i32;
-        //if there are less uv than tris, restart uv from the front
-        let times = triangles.len() / tris_uv_mapping.len();
-        if times > 1{
-            for _i in 0..times{
-                for j in 0..tris_uv_mapping.len(){
-                    tris_uv_mapping.push(tris_uv_mapping[j].clone());
-                }
-            }
-        }
+        let times = triangles_count / tris_uv_mapping.len() as i32;
 
-        for i in 0..triangles.len(){
-            triangles_uniform.push(TriangleUniform::new(triangles[i], tris_uv_mapping[i].clone(), triangles_count));
+        println!("fill Triangle  buffer");
+        for i in 0..triangles_count as usize {
+            triangles_uniform.push(TriangleUniform::new(triangles[i], tris_uv_mapping[i % tris_uv_mapping.len()].clone(), times));
         }
         
         // Create a buffer to hold the vertex data
@@ -444,7 +437,9 @@ impl State {
         //-------------BVH---------------
         
         // Build BVH for triangles
-        let mut aabbs = triangles.iter().map(|t| t.aabb()).collect::<Vec<Aabb>>();
+        println!("AABB started");
+        let aabbs = triangles.iter().map(|t| t.aabb()).collect::<Vec<Aabb>>();
+        println!(" AABBs generated");
 
         //Add Sphere AABBs
         // for sphere in userconfig.spheres.iter(){
@@ -459,11 +454,13 @@ impl State {
             primitives: primitives,
             primitives_per_leaf: prim_per_leaf,
         };
+        println!("Builder created");
 
         // Choose one of these algorithms:
         //let bvh = builder.construct_locally_ordered_clustered().unwrap();
         //let bvh = builder.construct_binned_sah().unwrap();
         let bvh = builder.construct_binned_sah().unwrap();
+        println!("BVH created");
 
         // Display the BVH tree
         // display_bvh_tree(&bvh, 0);
@@ -486,6 +483,7 @@ impl State {
 
 
         let raw = bvh.into_raw();
+        println!("BVH raw created");
         //print nodebound extra and number
         // for i in 0..raw.0.len(){
         //     //replace raw.1[i] with 100 if error
@@ -898,7 +896,7 @@ impl State {
     }
 
     fn update(&mut self, dt: std::time::Duration) {
-        // println!("FPS: {}", 1.0 / dt.as_secs_f32());
+        println!("FPS: {}", 1.0 / dt.as_secs_f32());
         self.camera_controller.update_camera(&mut self.camera, dt);
         self.camera_uniform.update_view_proj(&self.camera, &self.projection);
         self.camera_uniform.update_frame();

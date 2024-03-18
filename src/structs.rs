@@ -4,9 +4,8 @@ use cgmath::*;
 use crate::camera::{Camera, Projection};
 use rtbvh::*;
 use glam::*;
+
 //-----------Camera-----------------
-
-
 #[repr(C)]
 #[derive(Copy, Clone, bytemuck::Pod, bytemuck::Zeroable)]
 pub struct CameraUniform {
