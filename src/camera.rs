@@ -40,9 +40,9 @@ impl Camera {
     }
 }
 
-    pub struct Projection {
+pub struct Projection {
     aspect: f32,
-    fovy: Rad<f32>,
+    pub fovy: Rad<f32>,
     znear: f32,
     zfar: f32,
 }

@@ -4,8 +4,8 @@ use cgmath::*;
 use crate::camera::{Camera, Projection};
 use rtbvh::*;
 use glam::*;
-//-----------Camera-----------------
 
+//-----------Camera-----------------
 #[repr(C)]
 #[derive(Copy, Clone, bytemuck::Pod, bytemuck::Zeroable)]
 pub struct CameraUniform {
@@ -26,7 +26,8 @@ impl CameraUniform {
     // UPDATED!
     pub fn update_view_proj(&mut self, camera: &Camera, projection: &Projection) {
         self.view_position = camera.position.to_homogeneous().into();
-        self.view_proj = (cgmath::Matrix4::from_translation(camera.position.to_vec()) * cgmath::Matrix4::from(camera.rotation)).into();
+        self.view_proj = cgmath::Matrix4::from(camera.rotation).into();
+        self.frame[1] = projection.fovy.0.to_degrees() as f32;
     }
 
     pub fn update_frame(&mut self) {
@@ -68,7 +69,7 @@ pub struct TextureSet{
 }
 
 //-----------Sphere-----------------
-#[derive(Clone, Copy)]
+#[derive(Clone, Copy, Debug)]
 pub struct Sphere {
     pub center: Point3<f32>,
     pub radius: f32,
@@ -101,6 +102,32 @@ impl SphereUniform {
     }
 }
 
+impl Primitive for Sphere {
+    fn center(&self) -> glam::Vec3 {
+        glam::Vec3::new(self.center[0], self.center[1], self.center[2])
+    }
+
+    fn aabb(&self) -> Aabb {
+        let mut aabb = Aabb::new();
+        aabb.grow(Vec3::new(self.center[0] - self.radius, self.center[1] - self.radius, self.center[2] - self.radius));
+        aabb.grow((self.center[0] + self.radius, self.center[1] + self.radius, self.center[2] + self.radius).into());
+        aabb
+    }
+}
+
+impl SpatialTriangle for Sphere {
+    fn vertex0(&self) -> Vec3 {
+        (self.center[0] - self.radius, self.center[1], self.center[2]).into()
+    }
+
+    fn vertex1(&self) -> Vec3 {
+        (self.center[0], self.center[1] + self.radius, self.center[2]).into()
+    }
+
+    fn vertex2(&self) -> Vec3 {
+        (self.center[0], self.center[1], self.center[2] + self.radius).into()
+    }
+}
 //-----------Triangle-----------------
 #[derive(Clone, Copy, Debug)]
 pub struct Triangle{
@@ -143,11 +170,10 @@ impl TriangleUniform {
 }
 
 impl Primitive for Triangle {
-    fn center(&self) -> Vec3 {
-        Vec3::new(self.points[0][0] + self.points[1][0] + self.points[2][0],
-                  self.points[0][1] + self.points[1][1] + self.points[2][1],
-                  self.points[0][2] + self.points[1][2] + self.points[2][2]) / 3.0
-        
+    fn center(&self) -> glam::Vec3 {
+        glam::Vec3::new(self.points[0][0] + self.points[1][0] + self.points[2][0],
+                        self.points[0][1] + self.points[1][1] + self.points[2][1],
+                        self.points[0][2] + self.points[1][2] + self.points[2][2]) / 3.0
     }
 
     fn aabb(&self) -> Aabb {

@@ -348,25 +348,19 @@ impl State {
             }
             Ok(data) => data,
         };   
-        for i in 0..triangles.len(){
-            println!("Triangle: {} {} {}", triangles[i].points[0][0], triangles[i].points[0][1], triangles[i].points[0][2]);
-        }     
+        // for i in 0..triangles.len(){
+        //     println!("Triangle: {} {} {}", triangles[i].points[0][0], triangles[i].points[0][1], triangles[i].points[0][2]);
+        // }     
+        println!("Triangle count: {}", triangles.len());
 
-        //Triangles and UV to Uniform buffer
+        // //Triangles and UV to Uniform buffer
         let mut triangles_uniform: Vec<TriangleUniform> = Vec::new();
         let triangles_count = triangles.len() as i32;
-        //if there are less uv than tris, restart uv from the front
-        let times = triangles.len() / tris_uv_mapping.len();
-        if times > 1{
-            for _i in 0..times{
-                for j in 0..tris_uv_mapping.len(){
-                    tris_uv_mapping.push(tris_uv_mapping[j].clone());
-                }
-            }
-        }
+        let times = triangles_count / tris_uv_mapping.len() as i32;
 
-        for i in 0..triangles.len(){
-            triangles_uniform.push(TriangleUniform::new(triangles[i], tris_uv_mapping[i].clone(), triangles_count));
+        println!("fill Triangle  buffer");
+        for i in 0..triangles_count as usize {
+            triangles_uniform.push(TriangleUniform::new(triangles[i], tris_uv_mapping[i % tris_uv_mapping.len()].clone(), times));
         }
         
         // Create a buffer to hold the vertex data
@@ -443,45 +437,63 @@ impl State {
         //-------------BVH---------------
         
         // Build BVH for triangles
+        println!("AABB started");
         let aabbs = triangles.iter().map(|t| t.aabb()).collect::<Vec<Aabb>>();
+        println!(" AABBs generated");
 
-        let prim_per_leaf = Some(std::num::NonZeroUsize::new(2).expect("NonZeroUsize creation failed"));
+        //Add Sphere AABBs
+        // for sphere in userconfig.spheres.iter(){
+        //     aabbs.push(sphere.aabb());               # Doesnt work because the bvh can only take one type of Data
+        // }
+
+        let prim_per_leaf = Some(std::num::NonZeroUsize::new(1).expect("NonZeroUsize creation failed"));
+        let primitives = triangles.as_slice();
+        // println!("Triangles: {:?}", triangles);
         let builder = Builder {
             aabbs: Some(aabbs.as_slice()),
-            primitives: triangles.as_slice(),
+            primitives: primitives,
             primitives_per_leaf: prim_per_leaf,
         };
+        println!("Builder created");
 
         // Choose one of these algorithms:
         //let bvh = builder.construct_locally_ordered_clustered().unwrap();
         //let bvh = builder.construct_binned_sah().unwrap();
-        let bvh = builder.construct_spatial_sah().unwrap();
+        let bvh = builder.construct_binned_sah().unwrap();
+        println!("BVH created");
 
         // Display the BVH tree
         // display_bvh_tree(&bvh, 0);
-        if bvh.validate(12) {
-            println!("BVH is valid");
-        } else {
-            println!("BVH is invalid");
-        }
+        // if bvh.validate(triangles.len()) {
+        //     println!("BVH is valid");
+        // } else {
+        //     println!("BVH is invalid");
+        // }
+
+        //get the nodes on the layer below the root and print them
+        // let mut nodes = bvh.nodes();
+        // for i in 0..nodes.len(){
+        //     println!("Node {} : {:?}", i, nodes[i]);
+        // }
 
         // Display bvh tree
-        println!("BVH Tree: {:?}", bvh);
-        println!("BVH Tree as raw: {:?}", bvh.clone().into_raw());
+        // println!("BVH Tree: {:?}", bvh);
+        // println!("BVH Tree as raw: {:?}", bvh.clone().into_raw());
 
 
 
         let raw = bvh.into_raw();
+        println!("BVH raw created");
         //print nodebound extra and number
-        for i in 0..raw.0.len(){
-            //replace raw.1[i] with 100 if error
-            if i >= raw.1.len(){
-                println!("Node {} : {} {} |{}", i, raw.0[i].bounds.extra1, raw.0[i].bounds.extra2, 100); 
-            }
-            else{
-                println!("Node {} : {} {}  |{}", i, raw.0[i].bounds.extra1, raw.0[i].bounds.extra2, raw.1[i]); 
-            }
-        }
+        // for i in 0..raw.0.len(){
+        //     //replace raw.1[i] with 100 if error
+        //     if i >= raw.1.len(){
+        //         println!("Node {} : {} {} |{}", i, raw.0[i].bounds.extra1, raw.0[i].bounds.extra2, 100); 
+        //     }
+        //     else{
+        //         println!("Node {} : {} {}  |{}", i, raw.0[i].bounds.extra1, raw.0[i].bounds.extra2, raw.1[i]); 
+        //     }
+        // }
 
 
 
@@ -933,7 +945,11 @@ impl State {
             compute_pass.set_bind_group(4, &self.bvh_bind_group, &[]);
     
             // Dispatch workgroups for ray tracing (adjust dimensions as needed)
-            compute_pass.dispatch_workgroups(self.config.width, self.config.height, 1);
+            compute_pass.dispatch_workgroups(
+                (self.config.width + 7) / 8,
+                (self.config.height + 7) / 8,
+                1
+            );
         }
 
 
@@ -954,7 +970,11 @@ impl State {
             denoise_pass.set_bind_group(0, &self.denoising_bind_group, &[]);
     
             // Dispatch workgroups for denoising (adjust dimensions as needed)
-            denoise_pass.dispatch_workgroups(self.config.width, self.config.height, 1);
+            denoise_pass.dispatch_workgroups(
+                (self.config.width + 7) / 8,
+                (self.config.height + 7) / 8,
+                1
+            );
         }
 
         // Submit the command encoder for the 1st pass
@@ -973,10 +993,10 @@ impl State {
             bytemuck::cast_slice(&[1u32]),
         );
 
-        // Perform 1. denoising pass
+        // Perform 2. denoising pass
         {
             let mut denoise_pass = encoder2.begin_compute_pass(&wgpu::ComputePassDescriptor {
-                label: Some("1. Denoising Pass"),
+                label: Some("2. Denoising Pass"),
             });
     
             // Set denoising pipeline and bind group
@@ -984,7 +1004,11 @@ impl State {
             denoise_pass.set_bind_group(0, &self.denoising_bind_group, &[]);
     
             // Dispatch workgroups for denoising (adjust dimensions as needed)
-            denoise_pass.dispatch_workgroups(self.config.width, self.config.height, 1);
+            denoise_pass.dispatch_workgroups(
+                (self.config.width + 7) / 8,
+                (self.config.height + 7) / 8,
+                1
+            );
         }
 
         // Submit the command encoder for the 1st pass

@@ -41,6 +41,10 @@ struct Ray {
     direction: vec3<f32>,
 }
 
+struct BVHTraversal {
+    nodeIdx: i32,
+}
+
 @group(3) @binding(0) var texture_sampler : sampler;
 @group(3) @binding(1) var diffuse: texture_2d_array<f32>;
 @group(3) @binding(2) var normal: texture_2d_array<f32>;
@@ -70,62 +74,47 @@ var<private> _SAMPLES: i32 = 1; // Adjust the number of samples as needed
 var<private> first_frame: bool = true;
 var<private> sample_count: i32 = 0;
 
+// Initialize pixel_color to zero
+var<private> pixel_color: vec3<f32> = vec3<f32>(0.0, 0.0, 0.0);
+
 // Main ray tracing function
-@compute @workgroup_size(1, 1, 1)
+@compute @workgroup_size(8, 8, 1)
 fn main(@builtin(global_invocation_id) GlobalInvocationID: vec3<u32>) {
     // Get the screen size
     let screen_size: vec2<u32> = vec2<u32>(textureDimensions(color_buffer));
     // Calculate screen position
     let screen_pos: vec2<u32> = vec2<u32>(GlobalInvocationID.xy);
 
-    // Initialize pixel_color to zero
-    var pixel_color = vec3<f32>(0.0, 0.0, 0.0);
-
     // Start rand seed
     seed = f32(initRng(screen_pos, screen_size, u32(camera.frame[0])));
 
-    // // Multiple Samples as Antialiasing
-    // for (var color_samples = 0; color_samples < _SAMPLES; color_samples += 1) {
-    //     // Calculate Ray
-    //     var ray = calc_ray(screen_pos, screen_size);
-
-    //     pixel_color += color(ray, 10, 10000.0).xyz;
-    // }
-
-    // Multiple Samples as Antialiasing
+    // Multiple Samples as Antialiasing (MSAA)
     for (var color_samples = 0; color_samples < _SAMPLES; color_samples += 1) {
         // Calculate Ray
         var ray = calc_ray(screen_pos, screen_size);
 
-        // Check if a BVH node is hit
-        var hit_bvh = -1.0;
-        
-        for (var i = 0; i < i32(arrayLength(&bvh)); i = i + 1) {
-            var temp = intersectBVHNode(bvh[i], ray, 0.0, 10000.0);
-            if (temp > -1.0) {
-                hit_bvh += 1.0;
-            }
-            
-        }
-        if (hit_bvh > -1.0) {
-            // BVH node hit, color the pixel red
-            pixel_color += vec3<f32>(0.2, 0.0, 0.0) * hit_bvh;
-        } else {
-            // No BVH node hit, color the pixel based on your ray tracing logic
-            pixel_color += mix(color(ray, 10, 10000.0).xyz, vec3<f32>(0.0, 0.0, 0.0), 0.8);
-        }
+        // debug_bvh_bounding_color(ray);
+
+        pixel_color += color(ray, 10, 10000.0).xyz;
     }
 
     // Weighted average of pixel colors
     pixel_color /= f32(_SAMPLES);
 
-    //pixel_color = rand_color();   
-
     // Store the pixel color in the color buffer
     textureStore(color_buffer, vec2<i32>(screen_pos), vec4<f32>(pixel_color, 1.0));
 }
 
-fn rand_color() -> vec3<f32> {
+fn intersectPrimitive(ray: Ray, prim_index: i32) -> f32 {
+    // Check if a Triangle is hit
+    var hit: f32 = hit_tri(ray, triangles[prim_index]);
+    if (hit > 0.0) {
+        return hit;
+    }
+    return -1.0;
+}
+
+fn debug_rand_color() -> vec3<f32> {
     let rand = rngNextFloat();
     if (rand<0.0){
         return vec3<f32>(1.0, 0.0, 0.0);
@@ -136,11 +125,46 @@ fn rand_color() -> vec3<f32> {
     }
 }
 
+fn debug_bvh_bounding(ray: Ray) -> f32 {
+    // loops threw every bvh node and draws the bounding box
+    // O(n) complexity not optimized with bvh traversal to O(logn)
+    var hit_bvh: f32 = 0.0;
+    for (var i = 0; i < i32(arrayLength(&bvh)); i = i + 1) {
+        var temp = intersectBox(ray, bvh[i].min.xyz, bvh[i].max.xyz, 0.0, 10000.0);
+        if (temp > -1.0) {
+            pixel_color += vec3<f32>(0.1, 0.0, 0.0);
+            hit_bvh += 1.0;
+        }
+    }
+    return hit_bvh;
+}
+
+fn debug_bvh_bounding_color(ray: Ray) {
+    var hit_bvh: f32 = debug_bvh_bounding(ray);
+    if (hit_bvh > 0.0) {
+        // BVH node hit, color the pixel red
+        let color_index = i32(hit_bvh) % 4; // Adjust 4 based on the number of layers
+        if color_index == 0 {
+            pixel_color += vec3<f32>(1.0, 0.0, 0.0);
+        } else if color_index == 1 {
+            pixel_color += vec3<f32>(0.0, 1.0, 0.0);
+        } else if color_index == 2 {
+            pixel_color += vec3<f32>(0.0, 0.0, 1.0);
+        } else {
+            pixel_color += vec3<f32>(1.0, 1.0, 0.0);
+        }
+        // pixel_color += mix(color(ray, 10, 10000.0).xyz, vec3<f32>(0.3, 0.0, 0.0) * hit_bvh, 0.9);
+    } else {
+        // No BVH node hit, color the pixel based on your ray tracing logic
+        pixel_color += mix(color(ray, 10, 10000.0).xyz, vec3<f32>(0.0, 0.0, 0.0), 0.4);
+    }
+}
+
 fn calc_ray(screen_pos: vec2<u32>, screen_size: vec2<u32>) -> Ray {
 
     //----------Camera----------------
     // Replace these with your camera properties
-    let vfov: f32 = 90.0; // Vertical field of view in degrees
+    let vfov: f32 = camera.frame[1]; // Vertical field of view in degrees
     let aspect_ratio: f32 = f32(screen_size.x) / f32(screen_size.y);
     let look_from: vec3<f32> = camera.view_pos.xyz; // Camera position
 
@@ -160,8 +184,8 @@ fn calc_ray(screen_pos: vec2<u32>, screen_size: vec2<u32>) -> Ray {
     let v: f32 = (f32(screen_pos.y) + -0.5+rngNextFloat()) / f32(screen_size.y);
 
     let w: vec3<f32> = normalize(look_from - look_at);
-    let u_axis: vec3<f32> = cross(vec3<f32>(0.0, 1.0, 0.0), w);
-    let v_axis: vec3<f32> = -cross(w, u_axis);
+    let u_axis: vec3<f32> = normalize(cross(vec3<f32>(0.0, 1.0, 0.0), w));
+    let v_axis: vec3<f32> = -normalize(cross(w, u_axis));
 
     let horizontal: vec3<f32> = viewport_width * u_axis;
     let vertical: vec3<f32> = viewport_height * v_axis;
@@ -182,6 +206,70 @@ fn calc_ray(screen_pos: vec2<u32>, screen_size: vec2<u32>) -> Ray {
     return Ray(ray_origin, ray_direction);
 }
 
+fn intersectBVH(ray: Ray, t_max: f32) -> vec2<f32> {
+    var hit_bvh: i32 = -1;
+    var t: f32 = t_max;
+
+    // Traverse the BVH
+    var todo: array<BVHTraversal, 32>;
+    var stacknr: i32 = 0;
+    todo[stacknr].nodeIdx = 0;
+
+    while (stacknr >= 0) {
+        let nodeIdx = todo[stacknr].nodeIdx;
+        stacknr = stacknr - 1;
+
+        let node = bvh[nodeIdx];
+            // If the ray intersects the BVH node's bounding box
+            if (node.extra1.x > -1.0) {
+                // If it's a leaf node
+                // Check if the triangel is hit
+                for (var i = 0; i < i32(node.extra1.x); i = i + 1) {
+                    let primID = i32(bvh_prim_indices[i32(node.extra2.x)+i]);
+                    var hit: f32 = hit_tri(ray, triangles[primID]);
+
+                    if (hit > 0.0) {
+                        if (hit < t){
+                            t = hit;
+                            hit_bvh = primID;
+                        }
+                    }
+                }
+
+            } else {
+                // If it's an internal node move to the next nodes
+                let leftChildIdx = i32(node.extra2.x);
+                let rightChildIdx = leftChildIdx + 1;
+
+                let left_hit = intersectBox(ray, bvh[i32(node.extra2.x)].min.xyz, bvh[i32(node.extra2.x)].max.xyz, 0.0, 10000.0);
+                let right_hit = intersectBox(ray, bvh[i32(node.extra2.x)+1].min.xyz, bvh[i32(node.extra2.x)+1].max.xyz, 0.0, 10000.0);
+
+                if (left_hit != -1.0 && right_hit != -1.0) {
+                    if (left_hit < right_hit) {
+                        stacknr = stacknr + 1;
+                        todo[stacknr].nodeIdx = leftChildIdx;
+                        stacknr = stacknr + 1;
+                        todo[stacknr].nodeIdx = rightChildIdx;
+                    } else {
+                        stacknr = stacknr + 1;
+                        todo[stacknr].nodeIdx = rightChildIdx;
+                        stacknr = stacknr + 1;
+                        todo[stacknr].nodeIdx = leftChildIdx;
+                    }
+                } else if (left_hit > -1.0) {
+                    stacknr = stacknr + 1;
+                    todo[stacknr].nodeIdx = i32(node.extra2.x);
+
+                } else if (right_hit > -1.0) {
+                    stacknr = stacknr + 1;
+                    todo[stacknr].nodeIdx = i32(node.extra2.x) + 1;
+                }
+            }
+    }
+    let out = vec2<f32>(f32(hit_bvh),t);
+    return out;
+}
+
 fn hit_tri(ray: Ray, triangle: Triangle) -> f32 {
     let v0 = triangle.vertex1.xyz;
     let v1 = triangle.vertex2.xyz;
@@ -193,7 +281,7 @@ fn hit_tri(ray: Ray, triangle: Triangle) -> f32 {
     let h = cross(ray.direction, edge2);
     let a = dot(edge1, h);
 
-    if abs(a) < 0.000001 {
+    if abs(a) < 0.0001 {
         return -1.0; // Ray is parallel to the triangle
     }
 
@@ -214,7 +302,7 @@ fn hit_tri(ray: Ray, triangle: Triangle) -> f32 {
 
     let t = f * dot(edge2, q);
 
-    if t > 0.00001 { // Adjust this epsilon value based on your scene scale. If Noise in Tris rendering is visible, increase this value.
+    if t > 0.001 { // Adjust this epsilon value based on your scene scale. If Noise in Tris rendering is visible, increase this value.
         return t; // Intersection found
     }
 
@@ -268,23 +356,24 @@ fn color(primary_ray: Ray, MAX_BOUNCES: i32, t_max: f32) -> vec4<f32> {
             }
         }
 
-        // Check if a Triangle is hit
-        for (var j = 0; j < i32(triangles[0].uv2.z); j = j + 1) {   // Amount of triangles -> i32(triangles[0].texture_coords2.z)
-            var hit: f32 = hit_tri(ray, triangles[j]);
-            if (hit > 0.0 && hit < t) {
-                t = hit;
-                closest_tris = triangles[j];
-                is_sphere = false;
-            }
-        }
+        // Check if a Triangle is hit legacy O(n) per pixel complexity 
+        // for (var j = 0; j < i32(triangles[0].uv2.z); j = j + 1) {   // Amount of triangles -> i32(triangles[0].texture_coords2.z)
+        //     var hit: f32 = hit_tri(ray, triangles[j]);
+        //     if (hit > 0.0 && hit < t) {
+        //         t = hit;
+        //         closest_tris = triangles[j];
+        //         is_sphere = false;
+        //     }
+        // }
 
         // Check if a BVH node is hit
-        // var hit_bvh = intersectBVHNode(ray, bvh);
-        // if (hit_bvh > -1 && hit_bvh < t) {
-        //     // Set 'bvh_hit' to the index of the hit BVH node
-        //     bvh_hit = hit_bvh;
-        //     t = hit_bvh;
-        // }
+        var hit_bvh: vec2<f32> = intersectBVH(ray, t_max);
+        if (i32(hit_bvh.x) > -1 && hit_bvh.y < t) {
+            // Set 'bvh_hit' to the index of the hit BVH node
+            t = hit_bvh.y;
+            closest_tris = triangles[i32(hit_bvh.x)];
+            is_sphere = false;
+        }
         
 
         // Return background color if no object is hit
@@ -298,10 +387,10 @@ fn color(primary_ray: Ray, MAX_BOUNCES: i32, t_max: f32) -> vec4<f32> {
         }
         
         let hit_point: vec3<f32> = ray.origin + ray.direction * t;
-        var uv: vec2<f32> = sphereUVMapping(hit_point, closest_sphere);
         var normal: vec3<f32>;
         var material: Material;
         var texture_id: i32;
+        var uv: vec2<f32>;
         if (is_sphere){
             normal = normalize(hit_point - closest_sphere.center.xyz);
             material = materials[i32(closest_sphere.material_texture_id[0])];
@@ -310,7 +399,7 @@ fn color(primary_ray: Ray, MAX_BOUNCES: i32, t_max: f32) -> vec4<f32> {
         } else {
             normal = normalize(closest_tris.normals.xyz);
             material = materials[i32(closest_tris.material_texture_id[0])];
-            uv = trisUVMapping(hit_point, closest_tris);
+            // uv = trisUVMapping(hit_point, closest_tris);
             texture_id = i32(closest_tris.material_texture_id[1]);
         }
 
@@ -455,32 +544,39 @@ fn trisUVMapping(hit_point: vec3<f32>, closest_tris: Triangle) -> vec2<f32> {
 }
 
 
-//BVH
+// Ray-box intersection function
+fn intersectBox(ray: Ray, min: vec3<f32>, max: vec3<f32>, t_min: f32, t_max: f32) -> f32 {
+    var invDirection = 1.0 / ray.direction;
+    var tx0 = (min.x - ray.origin.x) * invDirection.x;
+    var tx1 = (max.x - ray.origin.x) * invDirection.x;
 
-// Intersection function for BVH nodes
-// Intersection function for BVH nodes
-fn intersectBVHNode(node: BVHNodes, ray: Ray, t_min: f32, t_max: f32) -> f32 {
-   if rayIntersectsBox(ray, node.min.xyz, node.max.xyz, t_min, t_max) {
-         return 1.0;
+    var ty0 = (min.y - ray.origin.y) * invDirection.y;
+    var ty1 = (max.y - ray.origin.y) * invDirection.y;
+
+    var tz0 = (min.z - ray.origin.z) * invDirection.z;
+    var tz1 = (max.z - ray.origin.z) * invDirection.z;
+
+    var tmin = max(max(min(tx0, tx1), min(ty0, ty1)), min(tz0, tz1));
+    var tmax = min(min(max(tx0, tx1), max(ty0, ty1)), max(tz0, tz1));
+
+    if (tmax >= tmin - 0.01) && (tmax > 0.0) && (tmin < 10000.0) {
+        return tmin;
     } else {
         return -1.0;
-    }   
-}
+    }
 
-// Ray-box intersection function
-fn rayIntersectsBox(ray: Ray, min: vec3<f32>, max: vec3<f32>, t_min: f32, t_max: f32) -> bool {
-    // Ray-box intersection
-    var invDirection = 1.0 / ray.direction;
-    var t0 = (min - ray.origin) * invDirection;
-    var t1 = (max - ray.origin) * invDirection;
 
-    var tMinVec = min(t0, t1);
-    var tMaxVec = max(t0, t1);
+    // var tMinVec = min(t0, t1);
+    // var tMaxVec = max(t0, t1);
 
-    var tEnter = max(max(tMinVec.x, tMinVec.y), tMinVec.z);
-    var tExit = min(min(tMaxVec.x, tMaxVec.y), tMaxVec.z);
+    // var tEnter = max(max(tMinVec.x, tMinVec.y), tMinVec.z);
+    // var tExit = min(min(tMaxVec.x, tMaxVec.y), tMaxVec.z);
 
-    return (tEnter < tExit) && (tExit > 0.0) && (tEnter < 10000.0);
+    // if (tEnter <= tExit) && (tExit > 0.0) && (tEnter < 10000.0) {
+    //     return tEnter;
+    // } else {
+    //     return -1.0;
+    // }
 }
 
 
