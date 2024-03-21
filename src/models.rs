@@ -1,95 +1,98 @@
 use std::fs::File;
 use std::io::{BufRead, BufReader, Read};
 // use rand::Rng;
-use crate::structs::Triangle;
+use crate::structs::{Triangle, Material};
 
-pub fn load_obj(file_path: &str) -> Result<Vec<Triangle>, Box<dyn std::error::Error>> {
+pub fn load_obj(file_path: &str) -> Result<(Vec<Triangle>, Vec<Material>), Box<dyn std::error::Error>> {
     let file = File::open(file_path)?;
     let reader = BufReader::new(file);
 
-    let mut vertices = Vec::new();
-    let mut texture_coords = Vec::new();
-    let mut normals = Vec::new();
+    // let mut vertices = Vec::new();
+    // let mut texture_coords = Vec::new();
+    // let mut normals = Vec::new();
     let mut faces: Vec<Triangle> = Vec::new();
 
-    for line in reader.lines() {
-        let line = line?;
-        let line = line.trim();
+    let mut mat: Vec<Material> = Vec::new();
+    (faces,mat) = load_gltf_data(file_path).ok().unwrap();
 
-        if line.starts_with("v ") {
-            // Parse vertex coordinates
-            let values: Vec<f32> = line[2..]
-                .split_whitespace()
-                .map(|x| x.parse::<f32>())
-                .collect::<Result<_, _>>()?;
+    // for line in reader.lines() {
+    //     let line = line?;
+    //     let line = line.trim();
 
-            if values.len() >= 3 {
-                let vertex = [values[0], values[1], values[2]];
-                vertices.push(vertex);
-            }
-        } else if line.starts_with("vt ") {
-            // Parse texture coordinates
-            let values: Vec<f32> = line[3..]
-                .split_whitespace()
-                .map(|x| x.parse::<f32>())
-                .collect::<Result<_, _>>()?;
+    //     if line.starts_with("v ") {
+    //         // Parse vertex coordinates
+    //         let values: Vec<f32> = line[2..]
+    //             .split_whitespace()
+    //             .map(|x| x.parse::<f32>())
+    //             .collect::<Result<_, _>>()?;
 
-            if values.len() >= 2 {
-                let tex_coord = [values[0], values[1]];
-                texture_coords.push(tex_coord);
-            }
-        } else if line.starts_with("vn ") {
-            // Parse normals
-            let val: Vec<f32> = line[3..]
-                .split_whitespace()
-                .map(|x| x.parse::<f32>())
-                .collect::<Result<_, _>>()?;
+    //         if values.len() >= 3 {
+    //             let vertex = [values[0], values[1], values[2]];
+    //             vertices.push(vertex);
+    //         }
+    //     } else if line.starts_with("vt ") {
+    //         // Parse texture coordinates
+    //         let values: Vec<f32> = line[3..]
+    //             .split_whitespace()
+    //             .map(|x| x.parse::<f32>())
+    //             .collect::<Result<_, _>>()?;
 
-            if val.len() >= 3 {
-                let normal = [val[0], val[1], val[2]];
-                normals.push(normal);
-            }
-        } else if line.starts_with("f ") {
-            // Parse face indices
-            let indices: Vec<(usize, usize, usize)> = line[2..]
-                .split_whitespace()
-                .map(|x| {
-                    let indices: Vec<usize> = x
-                        .split('/')
-                        .map(|y| y.parse::<usize>())
-                        .collect::<Result<_, _>>()
-                        .unwrap();
-                    (indices[0], indices[1], indices[2])
-                })
-                .collect();
+    //         if values.len() >= 2 {
+    //             let tex_coord = [values[0], values[1]];
+    //             texture_coords.push(tex_coord);
+    //         }
+    //     } else if line.starts_with("vn ") {
+    //         // Parse normals
+    //         let val: Vec<f32> = line[3..]
+    //             .split_whitespace()
+    //             .map(|x| x.parse::<f32>())
+    //             .collect::<Result<_, _>>()?;
+
+    //         if val.len() >= 3 {
+    //             let normal = [val[0], val[1], val[2]];
+    //             normals.push(normal);
+    //         }
+    //     } else if line.starts_with("f ") {
+    //         // Parse face indices
+    //         let indices: Vec<(usize, usize, usize)> = line[2..]
+    //             .split_whitespace()
+    //             .map(|x| {
+    //                 let indices: Vec<usize> = x
+    //                     .split('/')
+    //                     .map(|y| y.parse::<usize>())
+    //                     .collect::<Result<_, _>>()
+    //                     .unwrap();
+    //                 (indices[0], indices[1], indices[2])
+    //             })
+    //             .collect();
         
-            if indices.len() >= 3 {
-                let v1_index = indices[0].0 - 1;
-                let v2_index = indices[1].0 - 1;
-                let v3_index = indices[2].0 - 1;
-                let normal_index = indices[0].2 - 1;
+    //         if indices.len() >= 3 {
+    //             let v1_index = indices[0].0 - 1;
+    //             let v2_index = indices[1].0 - 1;
+    //             let v3_index = indices[2].0 - 1;
+    //             let normal_index = indices[0].2 - 1;
 
-                // let mut rng = rand::thread_rng();
-                // let r: f32 = rng.gen_range(0.0..1.0);
-                // let g: f32 = rng.gen_range(0.0..1.0);
-                // let b: f32 = rng.gen_range(0.0..1.0);
+    //             // let mut rng = rand::thread_rng();
+    //             // let r: f32 = rng.gen_range(0.0..1.0);
+    //             // let g: f32 = rng.gen_range(0.0..1.0);
+    //             // let b: f32 = rng.gen_range(0.0..1.0);
         
-                let triangle = Triangle::new(
-                    [
-                        vertices[v1_index],
-                        vertices[v2_index],
-                        vertices[v3_index],
-                    ],
-                    normals[normal_index],
-                    0,
-                    -1,
-                );
-                faces.push(triangle);
-            }
-        }
-    }
+    //             let triangle = Triangle::new(
+    //                 [
+    //                     vertices[v1_index],
+    //                     vertices[v2_index],
+    //                     vertices[v3_index],
+    //                 ],
+    //                 normals[normal_index],
+    //                 0,
+    //                 0,
+    //             );
+    //             faces.push(triangle);
+    //         }
+    //     }
+    // }
 
-    Ok(faces)
+    Ok((faces,mat))
 }
 
 pub fn load_svg(file_path: &str) -> Result<Vec<Vec<[f32; 2]>>, Box<dyn std::error::Error>> {
@@ -136,4 +139,61 @@ pub fn load_svg(file_path: &str) -> Result<Vec<Vec<[f32; 2]>>, Box<dyn std::erro
     }
 
     return Ok(tris);
+}
+
+fn load_gltf_data(path: &str) -> Result<(Vec<Triangle>, Vec<Material>), Box<dyn std::error::Error>> {
+    let scenes = easy_gltf::load("res/untitled.gltf").expect("Failed to load glTF");
+    let mut converted_triangles = Vec::new();
+    let mut converted_materials = Vec::new();
+    let mut model_index = 6;
+
+    for scene in scenes {
+        println!(
+            "Cameras: #{}  Lights: #{}  Models: #{}",
+            scene.cameras.len(),
+            scene.lights.len(),
+            scene.models.len()
+        );
+
+        for model in scene.models {
+            let material = model.material();
+            // Convert material to own format
+            converted_materials.push(Material::new(
+                material.get_base_color([0.,1.].into()).into(),
+                [1.0,1.0,1.0],
+                (1.0 - material.get_roughness([0.,1.].into()) as f32)*0.8,
+                material.get_emissive([0.,1.].into())[0],
+                0.0
+            ));
+            println!("Color: {:?}", material.get_base_color([0.,1.].into()));
+
+            // Convert the mesh to a triangle list
+            match model.triangles() {
+                Ok(triangles) => {
+                    println!("Triangles: {}", triangles.len());
+                    for triangle in triangles {
+                        // Process each triangle
+                        let converted_triangle = Triangle::new(
+                            [
+                                [triangle[0].position.x, triangle[0].position.y, triangle[0].position.z],
+                                [triangle[1].position.x, triangle[1].position.y, triangle[1].position.z],
+                                [triangle[2].position.x, triangle[2].position.y, triangle[2].position.z],	
+                            ],
+                            [triangle[0].normal.x, triangle[0].normal.y, triangle[0].normal.z],
+                            model_index,
+                            -1,
+                        );
+                        converted_triangles.push(converted_triangle);
+                    };
+                }
+                Err(err) => {
+                    // Handle the error case
+                    println!("Failed to retrieve triangles: {}", err);
+                }
+            }
+            model_index += 1;
+        }
+    }
+
+    Ok((converted_triangles, converted_materials))
 }

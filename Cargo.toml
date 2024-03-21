@@ -19,6 +19,7 @@ rand = "0.8.5"
 glam = "0.24.2"
 rtbvh = {version = "0.6.2", features = ["serde"]}
 serde = "1.0.197"
+easy-gltf = "1.1.1"
 
 [dependencies.image]
 version = "0.24"

@@ -115,7 +115,7 @@ impl State {
         };
         surface.configure(&device, &config);     
         
-        let userconfig = Config::new();
+        let mut userconfig = Config::new();
         //----------Color Buffer-------------
         // Create a color texture with a suitable sRGB format
         let color_texture = device.create_texture(&wgpu::TextureDescriptor {
@@ -340,7 +340,7 @@ impl State {
         }
         
         // Load OBJ file
-        let triangles = match load_obj(userconfig.triangle_obj_path) {
+        let (triangles,material_file) = match load_obj(userconfig.triangle_obj_path) {
             Err(error) => {
                 // Handle the error
                 eprintln!("Error loading OBJ file: {:?}", error);
@@ -348,9 +348,13 @@ impl State {
             }
             Ok(data) => data,
         };   
-        // for i in 0..triangles.len(){
-        //     println!("Triangle: {} {} {}", triangles[i].points[0][0], triangles[i].points[0][1], triangles[i].points[0][2]);
-        // }     
+        
+        println!("Material count: {}", userconfig.materials.len());
+        for material in material_file{
+            userconfig.materials.push(material);
+        }     
+        println!("Material count: {}", userconfig.materials.len());
+
         println!("Triangle count: {}", triangles.len());
 
         // //Triangles and UV to Uniform buffer
@@ -464,11 +468,11 @@ impl State {
 
         // Display the BVH tree
         // display_bvh_tree(&bvh, 0);
-        // if bvh.validate(triangles.len()) {
-        //     println!("BVH is valid");
-        // } else {
-        //     println!("BVH is invalid");
-        // }
+        if bvh.validate(triangles.len()) {
+            println!("BVH is valid");
+        } else {
+            println!("BVH is invalid");
+        }
 
         //get the nodes on the layer below the root and print them
         // let mut nodes = bvh.nodes();
@@ -896,7 +900,7 @@ impl State {
     }
 
     fn update(&mut self, dt: std::time::Duration) {
-        println!("FPS: {}", 1.0 / dt.as_secs_f32());
+        // println!("FPS: {}", 1.0 / dt.as_secs_f32());
         self.camera_controller.update_camera(&mut self.camera, dt);
         self.camera_uniform.update_view_proj(&self.camera, &self.projection);
         self.camera_uniform.update_frame();

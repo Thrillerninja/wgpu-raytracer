@@ -32,10 +32,11 @@ impl Config {
         materials.push(Material::new([0.0, 0.0, 1.0], [1.0, 1.0, 1.0], 0.0, 0.0, 0.0));
         materials.push(Material::new([1.0, 0.3, 0.2], [0.2, 1.0, 1.0], 0.2, 0.0, 0.0));
         materials.push(Material::new([1.0, 1.0, 1.0], [0.5, 1.0, 1.0], 0.0, 0.0, 1.0));
+        materials.push(Material::new([1.0, 1.0, 1.0], [1.0, 1.0, 1.0], 0.0, 0.0, 0.0));
 
         // Load textures from files into a textures
         let mut textures = Vec::new();
-        //textures.push(["res/cobble-diffuse.png", "res/cobble-normal.png", "res/cobble-diffuse.png"]);
+        textures.push(["res/cobble-diffuse.png", "res/cobble-normal.png", "res/cobble-diffuse.png"]);
         //textures.push(["res/COlor.png", "res/Unbenannt2.png", "res/roughness.png"]);
         //textures.push([ "res/pavement_26_basecolor-1K.png", "res/pavement_26_normal-1K.png", "res/pavement_26_roughness-1K.png"]);
         
