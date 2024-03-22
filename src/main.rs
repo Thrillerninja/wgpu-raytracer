@@ -14,13 +14,14 @@ mod camera;
 use camera::Camera;
 
 mod models;
-use models::{load_obj, load_svg};
+use models::{load_obj, load_gltf, load_svg};
 
 mod texture;
 use texture::{create_textureset, load_texture_set};
 
 mod structs;
 use structs::{CameraUniform, TriangleUniform, SphereUniform, BvhUniform};
+use structs::{Material, Sphere, Triangle};
 
 mod config;
 use config::Config;
@@ -177,6 +178,7 @@ impl State {
             }],
             label: Some("camera_bind_group"),
         });
+        println!("Camera ready");
 
         //----------Anit-Aliasing-------------
         // Inside the State struct, add a denoising buffer and a bind group for it.
@@ -327,7 +329,7 @@ impl State {
 
         //----------Objects-------------
         // Load SVG UV mapping file
-        let mut tris_uv_mapping = match load_svg(userconfig.triangle_svg_uv_mapping_path){
+        let tris_uv_mapping = match load_svg(userconfig.triangle_svg_uv_mapping_path){
             Err(error) => {
                 // Handle the error
                 eprintln!("Error loading SVG file: {:?}", error);
@@ -338,26 +340,55 @@ impl State {
         for i in 0..tris_uv_mapping.len(){
             println!("UV: {},{} {},{} {},{} ", tris_uv_mapping[i][0][0], tris_uv_mapping[i][0][1], tris_uv_mapping[i][1][0], tris_uv_mapping[i][1][1], tris_uv_mapping[i][2][0], tris_uv_mapping[i][2][1]);
         }
+        let mut triangles: Vec<Triangle> = Vec::new();
+        let mut materials: Vec<Material> = Vec::new();
+        // Add materials from config to materials
+        materials.append(&mut userconfig.materials);
+        println!("Config Sphere count: {}", userconfig.spheres.len());
+        println!("Config Material count: {}", materials.len());
         
+
+        // --------Triangles-------------
         // Load OBJ file
-        let (triangles,material_file) = match load_obj(userconfig.triangle_obj_path) {
-            Err(error) => {
-                // Handle the error
-                eprintln!("Error loading OBJ file: {:?}", error);
-                std::process::exit(1);
-            }
-            Ok(data) => data,
-        };   
+        if userconfig.obj_path != "" {
+            let (mut obj_triangles,mut obj_materials) = match load_obj(userconfig.obj_path) {
+                Err(error) => {
+                    // Handle the error
+                    eprintln!("Error loading OBJ file: {:?}", error);
+                    std::process::exit(1);
+                }
+                Ok(data) => data,
+            };   
+            println!("OBJ Triangle count: {}", triangles.len());
+            triangles.append(&mut obj_triangles);
+            materials.append(&mut obj_materials);
+        }
+
+        // Load GLTF file and add to triangles and materials
+        if  userconfig.gltf_path != "" {
+            let (mut gltf_triangles, mut gltf_materials) = match load_gltf(userconfig.gltf_path, materials.len() as i32, userconfig.textures.len() as i32) {
+                Err(error) => {
+                    // Handle the error
+                    eprintln!("Error loading GLTF file: {:?}", error);
+                    std::process::exit(1);
+                }
+                Ok(data) => data,
+            };
+            println!("GLTF Triangle count: {}", gltf_triangles.len());
+            println!("GLTF Material count: {}", gltf_materials.len());
+            triangles.append(&mut gltf_triangles);
+            materials.append(&mut gltf_materials);
+        }
         
-        println!("Material count: {}", userconfig.materials.len());
-        for material in material_file{
-            userconfig.materials.push(material);
-        }     
-        println!("Material count: {}", userconfig.materials.len());
+        // println!("Material count: {}", userconfig.materials.len());
+        // for material in material_file{
+        //     userconfig.materials.push(material);
+        // }     
+        // println!("Material count: {}", userconfig.materials.len());
 
-        println!("Triangle count: {}", triangles.len());
+        // println!("Triangle count: {}", triangles.len());
 
-        // //Triangles and UV to Uniform buffer
+        // Triangles and UV to Uniform buffer
         let mut triangles_uniform: Vec<TriangleUniform> = Vec::new();
         let triangles_count = triangles.len() as i32;
         let times = triangles_count / tris_uv_mapping.len() as i32;
@@ -382,19 +413,21 @@ impl State {
         }
         println!("Texture array size: {}x{}x{}", textureset.diffuse.size().width, textureset.diffuse.size().height, textureset.diffuse.size().depth_or_array_layers);
 
-        //Triangles to Uniform buffer                                  
+        // ---------Spheres-------------
+        // Spheres to Uniform buffer compatible type                                 
         let mut spheres_uniform: Vec<SphereUniform> = Vec::new();
         for sphere in userconfig.spheres.iter(){
             spheres_uniform.push(SphereUniform::new(*sphere));
         }
         
-        // Create a buffer to hold the vertex data
+        // Create a buffer to hold the sphere data
         let sphere_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
             label: Some("Vertex Buffer"),
             contents: bytemuck::cast_slice(&spheres_uniform),
             usage: wgpu::BufferUsages::STORAGE | wgpu::BufferUsages::COPY_DST,
         });
 
+        // -------Combined Objects----------
         // Create a bind group layout for the shader
         let object_bind_group_layout = device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
             entries: &[
@@ -437,90 +470,69 @@ impl State {
             ],
             label: Some("object_bind_group"),
         });
+        println!("Objects ready");
+
 
         //-------------BVH---------------
         
         // Build BVH for triangles
-        println!("AABB started");
+        println!("AABB generation   0%");
         let aabbs = triangles.iter().map(|t| t.aabb()).collect::<Vec<Aabb>>();
-        println!(" AABBs generated");
+        println!("AABB generation 100%");
 
         //Add Sphere AABBs
         // for sphere in userconfig.spheres.iter(){
         //     aabbs.push(sphere.aabb());               # Doesnt work because the bvh can only take one type of Data
         // }
 
-        let prim_per_leaf = Some(std::num::NonZeroUsize::new(1).expect("NonZeroUsize creation failed"));
+        let prim_per_leaf = Some(std::num::NonZeroUsize::new(2).expect("NonZeroUsize creation failed"));
         let primitives = triangles.as_slice();
-        // println!("Triangles: {:?}", triangles);
+
         let builder = Builder {
             aabbs: Some(aabbs.as_slice()),
             primitives: primitives,
             primitives_per_leaf: prim_per_leaf,
         };
-        println!("Builder created");
+        println!("BVH Builder created");
 
         // Choose one of these algorithms:
         //let bvh = builder.construct_locally_ordered_clustered().unwrap();
         //let bvh = builder.construct_binned_sah().unwrap();
         let bvh = builder.construct_binned_sah().unwrap();
-        println!("BVH created");
+        println!("BVH generated");
 
-        // Display the BVH tree
-        // display_bvh_tree(&bvh, 0);
+        // Validate the BVH tree
         if bvh.validate(triangles.len()) {
             println!("BVH is valid");
         } else {
             println!("BVH is invalid");
         }
 
-        //get the nodes on the layer below the root and print them
-        // let mut nodes = bvh.nodes();
-        // for i in 0..nodes.len(){
-        //     println!("Node {} : {:?}", i, nodes[i]);
-        // }
-
-        // Display bvh tree
-        // println!("BVH Tree: {:?}", bvh);
-        // println!("BVH Tree as raw: {:?}", bvh.clone().into_raw());
-
-
-
         let raw = bvh.into_raw();
-        println!("BVH raw created");
-        //print nodebound extra and number
-        // for i in 0..raw.0.len(){
-        //     //replace raw.1[i] with 100 if error
-        //     if i >= raw.1.len(){
-        //         println!("Node {} : {} {} |{}", i, raw.0[i].bounds.extra1, raw.0[i].bounds.extra2, 100); 
-        //     }
-        //     else{
-        //         println!("Node {} : {} {}  |{}", i, raw.0[i].bounds.extra1, raw.0[i].bounds.extra2, raw.1[i]); 
-        //     }
-        // }
+        println!("BVH transformed to raw data");
 
-
-
-
+        //convert format of bvh nodes to uniform buffer compativble
         let mut bvh_uniform: Vec<BvhUniform> = vec![];
         for i in 0..raw.0.len(){
             bvh_uniform.push(BvhUniform::new(&raw.0[i]));
         }
         
+        // Store bvh nodes in a buffer as a array
         let bvh_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
             label: Some("BVH Buffer"),
             contents: bytemuck::cast_slice(&bvh_uniform),
             usage: wgpu::BufferUsages::STORAGE | wgpu::BufferUsages::COPY_DST,
         });
 
-        let mut bvh_prim_indices: Vec<f32> = raw.1.iter().map(|x| *x as f32).collect();
-
+        // Store prim indices of the bvh nodes in a buffer as a array
+        let bvh_prim_indices: Vec<f32> = raw.1.iter().map(|x| *x as f32).collect();
         let bvh_prim_indices_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
             label: Some("BVH Prim Indices Buffer"),
             contents: bytemuck::cast_slice(&bvh_prim_indices),
             usage: wgpu::BufferUsages::STORAGE | wgpu::BufferUsages::COPY_DST,
         });
 
+        // Send nodes and prim indices to the shader
         let bvh_bind_goup_layout = device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
             entries: &[
                 wgpu::BindGroupLayoutEntry {
@@ -561,12 +573,12 @@ impl State {
             ],
             label: Some("bvh_bind_group"),
         });
-
+        println!("BVH ready");
 
         //----------Textures-------------
         let material_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
             label: Some("Material Buffer"),
-            contents: bytemuck::cast_slice(&userconfig.materials),
+            contents: bytemuck::cast_slice(&materials),
             usage: wgpu::BufferUsages::STORAGE | wgpu::BufferUsages::COPY_DST,
         });
 
@@ -660,6 +672,7 @@ impl State {
             ],
             label: Some("texture_bind_group"),
         });
+        println!("Textures ready");
         
         //----------Raytracing-------------
 
@@ -713,16 +726,16 @@ impl State {
         });
 
         let ray_tracing_pipeline = device.create_compute_pipeline(&wgpu::ComputePipelineDescriptor {
-        label: Some("Ray Tracing Pipeline"),
-        layout: Some(&raytracing_pipeline_layout),
-        module: &ray_generation_shader,
-        entry_point: "main", // Change to your actual entry point name
-        });
-
+            label: Some("Ray Tracing Pipeline"),
+            layout: Some(&raytracing_pipeline_layout),
+            module: &ray_generation_shader,
+            entry_point: "main", // Change to your actual entry point name
+            }
+        );
+        println!("Raytracing shader ready");
 
 
         //----------Transfer to screen-------------
-
         //Create a Sampler for trasfering color data from render to screen texture
         let sampler = device.create_sampler(&wgpu::SamplerDescriptor {
             label: Some("Sampler"),

@@ -4,11 +4,14 @@ pub struct Config {
     pub camera_rotation: [f32; 2],
     pub camera_near_far: [f32; 2],
     pub camera_fov: f32,
-    pub triangle_obj_path: &'static str,
-    pub triangle_svg_uv_mapping_path: &'static str,
-    pub spheres: Vec<Sphere>,
+    
     pub materials: Vec<Material>,
     pub textures: Vec<[&'static str; 3]>,
+    pub triangle_svg_uv_mapping_path: &'static str,
+
+    pub spheres: Vec<Sphere>,
+    pub gltf_path: &'static str,
+    pub obj_path: &'static str,
 
 }
 
@@ -48,9 +51,10 @@ impl Config {
             camera_fov: 90.0,
 
             // Objects
-            //triangulated objects
-            triangle_obj_path: r"res\untitled.obj",
-            triangle_svg_uv_mapping_path: r"res\Cube.svg",
+            //obj
+            obj_path: r"",
+            //gltf
+            gltf_path: r"res\untitled.gltf",
 
             //spheres
             spheres: spheres,
@@ -58,6 +62,7 @@ impl Config {
             // Materials & Textures
             materials: materials,
             textures: textures,
+            triangle_svg_uv_mapping_path: r"res\Cube.svg",
 
         }
     }

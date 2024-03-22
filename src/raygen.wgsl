@@ -97,7 +97,6 @@ fn main(@builtin(global_invocation_id) GlobalInvocationID: vec3<u32>) {
 
         pixel_color += color(ray, 10, 10000.0).xyz;
     }
-
     // Weighted average of pixel colors
     pixel_color /= f32(_SAMPLES);
 
@@ -192,7 +191,7 @@ fn calc_ray(screen_pos: vec2<u32>, screen_size: vec2<u32>) -> Ray {
     let lower_left_corner: vec3<f32> = look_from - 0.5 * horizontal - 0.5 * vertical - w*focus_dist;
 
     // Depth of field settings
-    let lens_radius: f32 = 0.0; // Radius of the lens aperture
+    let lens_radius: f32 = 0.0; // Radius of the lens aperture (small numbers)
 
     // Randomly sample a point within the lens aperture
     let random_in_unit_disk: vec2<f32> = rngNextVec2InUnitDisk() * lens_radius;
@@ -355,16 +354,6 @@ fn color(primary_ray: Ray, MAX_BOUNCES: i32, t_max: f32) -> vec4<f32> {
                 is_sphere = true;
             }
         }
-
-        // Check if a Triangle is hit legacy O(n) per pixel complexity 
-        // for (var j = 0; j < i32(triangles[0].uv2.z); j = j + 1) {   // Amount of triangles -> i32(triangles[0].texture_coords2.z)
-        //     var hit: f32 = hit_tri(ray, triangles[j]);
-        //     if (hit > 0.0 && hit < t) {
-        //         t = hit;
-        //         closest_tris = triangles[j];
-        //         is_sphere = false;
-        //     }
-        // }
 
         // Check if a BVH node is hit
         var hit_bvh: vec2<f32> = intersectBVH(ray, t_max);
