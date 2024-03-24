@@ -93,9 +93,9 @@ fn main(@builtin(global_invocation_id) GlobalInvocationID: vec3<u32>) {
         // Calculate Ray
         var ray = calc_ray(screen_pos, screen_size);
 
-        // debug_bvh_bounding_color(ray);
+        debug_bvh_bounding_color(ray);
 
-        pixel_color += color(ray, 10, 10000.0).xyz;
+        // pixel_color += color(ray, 10, 10000.0).xyz;
     }
     // Weighted average of pixel colors
     pixel_color /= f32(_SAMPLES);
@@ -127,15 +127,18 @@ fn debug_rand_color() -> vec3<f32> {
 fn debug_bvh_bounding(ray: Ray) -> f32 {
     // loops threw every bvh node and draws the bounding box
     // O(n) complexity not optimized with bvh traversal to O(logn)
-    var hit_bvh: f32 = 0.0;
-    for (var i = 0; i < i32(arrayLength(&bvh)); i = i + 1) {
-        var temp = intersectBox(ray, bvh[i].min.xyz, bvh[i].max.xyz, 0.0, 10000.0);
-        if (temp > -1.0) {
-            pixel_color += vec3<f32>(0.1, 0.0, 0.0);
-            hit_bvh += 1.0;
-        }
-    }
-    return hit_bvh;
+    // var hit_bvh: f32 = 0.0;
+    // for (var i = 0; i < i32(arrayLength(&bvh)); i = i + 1) {
+    //     var temp = intersectBox(ray, bvh[i].min.xyz, bvh[i].max.xyz, 0.0, 10000.0);
+    //     if (temp > -1.0) {
+    //         pixel_color += vec3<f32>(0.1, 0.0, 0.0);
+    //         hit_bvh += 1.0;
+    //     }
+    // }
+
+    //Optimized O(logn) complexity
+    var hit_bvh: vec3<f32> = intersectBVH(ray, 10000.0);
+    return hit_bvh.z;
 }
 
 fn debug_bvh_bounding_color(ray: Ray) {
@@ -205,9 +208,10 @@ fn calc_ray(screen_pos: vec2<u32>, screen_size: vec2<u32>) -> Ray {
     return Ray(ray_origin, ray_direction);
 }
 
-fn intersectBVH(ray: Ray, t_max: f32) -> vec2<f32> {
-    var hit_bvh: i32 = -1;
-    var t: f32 = t_max;
+fn intersectBVH(ray: Ray, t_max: f32) -> vec3<f32> {
+    var hit_bvh: i32 = -1;  //has any hit happened?
+    var t: f32 = t_max;     //at what t did it happen?
+    var hit_count: f32 = 0.0; //how many hits happened? (Only for debug shader)
 
     // Traverse the BVH
     var todo: array<BVHTraversal, 32>;
@@ -263,9 +267,10 @@ fn intersectBVH(ray: Ray, t_max: f32) -> vec2<f32> {
                     stacknr = stacknr + 1;
                     todo[stacknr].nodeIdx = i32(node.extra2.x) + 1;
                 }
+                hit_count += 1.0;
             }
     }
-    let out = vec2<f32>(f32(hit_bvh),t);
+    let out = vec3<f32>(f32(hit_bvh), t, hit_count);
     return out;
 }
 
@@ -356,7 +361,7 @@ fn color(primary_ray: Ray, MAX_BOUNCES: i32, t_max: f32) -> vec4<f32> {
         }
 
         // Check if a BVH node is hit
-        var hit_bvh: vec2<f32> = intersectBVH(ray, t_max);
+        var hit_bvh: vec3<f32> = intersectBVH(ray, t_max);
         if (hit_bvh.x > -1.0 && hit_bvh.y < t) {
             // Set 'bvh_hit' to the index of the hit BVH node
             t = hit_bvh.y;
