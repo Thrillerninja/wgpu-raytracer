@@ -32,7 +32,6 @@ fn main(@builtin(global_invocation_id) GlobalInvocationID: vec3<u32>) {
     var final_color: vec4<f32> = vec4<f32>(0.0);
 
     if current_denoising_pass == 0u {
-
         //----------Temporal Denoising----------//
         final_color = adaptive_temporal_denoising(centralColor, screen_pos, previousColor, relative_movement, relative_direction);
         textureStore(temporal_buffer, vec2<i32>(screen_pos), final_color);
@@ -161,16 +160,14 @@ fn bilateral_denoising(centralColor: vec4<f32>, screen_pos: vec2<u32>) -> vec4<f
 }
 
 fn non_local_means_denoising(centralColor: vec4<f32>, screen_pos: vec2<u32>) -> vec4<f32> {
-
     /// Initialize an accumulator for the weighted sum of colors
     var weightedSum: vec4<f32> = vec4<f32>(0.0);
     var totalWeight: f32 = 0.0;
     
     // NLM denoising parameters
-    let searchWindowRadius: i32 = 13;   // Radius of the search window
-    let patchRadius: i32 = 3;          // Radius of the comparison patch
-    let h: f32 = 0.08;                  // Filtering parameter (adjust as needed)
-
+    let searchWindowRadius: i32 = 13;   // Radius of the search window              Higher is slower
+    let patchRadius: i32 = 12;          // Radius of the comparison patch           Higher is slower
+    let h: f32 = 0.14;                  // Filtering parameter (adjust as needed)   Higher reduces noise but blurs
 
      for (var dx: i32 = -patchRadius; dx <= patchRadius; dx = dx + 1) {
          for (var dy: i32 = -patchRadius; dy <= patchRadius; dy = dy + 1) {
@@ -226,7 +223,7 @@ fn adaptive_temporal_denoising(centralColor: vec4<f32>, screen_pos: vec2<u32>, p
     let colorDifference: f32 = length(centralColor.rgb - previousColor.rgb);
     
     // Define thresholds for motion detection (adjust as needed)
-    let motionThreshold: f32 = 0.02; // Example threshold for motion detection
+    let motionThreshold: f32 = 0.005; // Example threshold for motion detection
     let directionThreshold: f32 = 0.01; // Example threshold for direction detection
     let lowThreshold: f32 = 0.05;    // Example threshold for low color difference
     
