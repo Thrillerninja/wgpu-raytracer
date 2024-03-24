@@ -269,7 +269,7 @@ fn intersectBVH(ray: Ray, t_max: f32) -> vec2<f32> {
     return out;
 }
 
-fn hit_tri(ray: Ray, triangle: Triangle) -> f32 {
+fn hit_tri(ray: Ray, triangle: Triangle) -> f32 {   // https://en.wikipedia.org/wiki/M%C3%B6ller%E2%80%93Trumbore_intersection_algorithm
     let v0 = triangle.vertex1.xyz;
     let v1 = triangle.vertex2.xyz;
     let v2 = triangle.vertex3.xyz;
@@ -277,31 +277,31 @@ fn hit_tri(ray: Ray, triangle: Triangle) -> f32 {
     let edge1 = v1 - v0;
     let edge2 = v2 - v0;
 
-    let h = cross(ray.direction, edge2);
-    let a = dot(edge1, h);
+    let ray_cross_e2 = cross(ray.direction, edge2);
+    let det = dot(edge1, ray_cross_e2);
 
-    if abs(a) < 0.0001 {
+    if (det < 0.0001) && (det > -0.0001){
         return -1.0; // Ray is parallel to the triangle
     }
 
-    let f = 1.0 / a;
+    let inv_det  = 1.0 / det;
     let s = ray.origin - v0;
-    let u = f * dot(s, h);
+    let u = inv_det  * dot(s, ray_cross_e2);
 
     if u < 0.0 || u > 1.0 {
         return -1.0; // Intersection is outside the triangle's edges
     }
 
-    let q = cross(s, edge1);
-    let v = f * dot(ray.direction, q);
+    let s_cross_e1 = cross(s, edge1);
+    let v = inv_det * dot(ray.direction, s_cross_e1);
 
     if v < 0.0 || (u + v) > 1.0 {
         return -1.0; // Intersection is outside the triangle's edges
     }
 
-    let t = f * dot(edge2, q);
+    let t = inv_det * dot(edge2, s_cross_e1);
 
-    if t > 0.001 { // Adjust this epsilon value based on your scene scale. If Noise in Tris rendering is visible, increase this value.
+    if t > 0.0001 { // Adjust this epsilon value based on your scene scale. If Noise in Tris rendering is visible, increase this value.
         return t; // Intersection found
     }
 
@@ -357,7 +357,7 @@ fn color(primary_ray: Ray, MAX_BOUNCES: i32, t_max: f32) -> vec4<f32> {
 
         // Check if a BVH node is hit
         var hit_bvh: vec2<f32> = intersectBVH(ray, t_max);
-        if (i32(hit_bvh.x) > -1 && hit_bvh.y < t) {
+        if (hit_bvh.x > -1.0 && hit_bvh.y < t) {
             // Set 'bvh_hit' to the index of the hit BVH node
             t = hit_bvh.y;
             closest_tris = triangles[i32(hit_bvh.x)];
@@ -535,41 +535,23 @@ fn trisUVMapping(hit_point: vec3<f32>, closest_tris: Triangle) -> vec2<f32> {
 
 // Ray-box intersection function
 fn intersectBox(ray: Ray, min: vec3<f32>, max: vec3<f32>, t_min: f32, t_max: f32) -> f32 {
-    var invDirection = 1.0 / ray.direction;
-    var tx0 = (min.x - ray.origin.x) * invDirection.x;
-    var tx1 = (max.x - ray.origin.x) * invDirection.x;
+    var t0 = (min - ray.origin) / ray.direction;
+    var t1 = (max - ray.origin) / ray.direction;
+    var tMinVec = min(t0, t1);
+    var tMaxVec = max(t0, t1);
 
-    var ty0 = (min.y - ray.origin.y) * invDirection.y;
-    var ty1 = (max.y - ray.origin.y) * invDirection.y;
+    var tEnter = max(max(tMinVec.x, tMinVec.y), tMinVec.z);
+    var tExit = min(min(tMaxVec.x, tMaxVec.y), tMaxVec.z);
 
-    var tz0 = (min.z - ray.origin.z) * invDirection.z;
-    var tz1 = (max.z - ray.origin.z) * invDirection.z;
+    tEnter = max(tEnter, t_min);
+    tExit = min(tExit, t_max);
 
-    var tmin = max(max(min(tx0, tx1), min(ty0, ty1)), min(tz0, tz1));
-    var tmax = min(min(max(tx0, tx1), max(ty0, ty1)), max(tz0, tz1));
-
-    if (tmax >= tmin - 0.01) && (tmax > 0.0) && (tmin < 10000.0) {
-        return tmin;
+    if (tEnter <= tExit) && (tExit > 0.0) && (tEnter < 10000.0) {
+        return tEnter;
     } else {
         return -1.0;
     }
-
-
-    // var tMinVec = min(t0, t1);
-    // var tMaxVec = max(t0, t1);
-
-    // var tEnter = max(max(tMinVec.x, tMinVec.y), tMinVec.z);
-    // var tExit = min(min(tMaxVec.x, tMaxVec.y), tMaxVec.z);
-
-    // if (tEnter <= tExit) && (tExit > 0.0) && (tEnter < 10000.0) {
-    //     return tEnter;
-    // } else {
-    //     return -1.0;
-    // }
 }
-
-
-
 
 
 // RAND FUNCTIONS
