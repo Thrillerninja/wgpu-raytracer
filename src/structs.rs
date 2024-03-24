@@ -219,16 +219,3 @@ impl BvhUniform {
         }
     }
 }
-// ([
-//     BvhNode { bounds: Aabb { min: Vec3(-1.0002, -1.0002, -1.0002), extra1: -1, max: Vec3(1.0002, 1.0002, 1.0002), extra2: 1 } }, 
-//     BvhNode { bounds: Aabb { min: Vec3(-1.0, -1.0, -1.0), extra1: 2, max: Vec3(-1.0, 1.0, 1.0), extra2: 10 } }, 
-//     BvhNode { bounds: Aabb { min: Vec3(-1.0001, -1.0001, -1.0001), extra1: -1, max: Vec3(1.0001, 1.0001, 1.0001), extra2: 3 } }, 
-//     BvhNode { bounds: Aabb { min: Vec3(-1.0001, -1.0001, -1.0001), extra1: -1, max: Vec3(1.0001, 1.0001, 1.0001), extra2: 5 } }, 
-//     BvhNode { bounds: Aabb { min: Vec3(1.0, -1.0, -1.0), extra1: 2, max: Vec3(1.0, 1.0, 1.0), extra2: 8 } }, 
-//     BvhNode { bounds: Aabb { min: Vec3(-1.0, -1.0, -1.0), extra1: 2, max: Vec3(1.0, -1.0, 1.0), extra2: 6 } }, 
-//     BvhNode { bounds: Aabb { min: Vec3(-1.0001, -1.0001, -1.0001), extra1: -1, max: Vec3(1.0001, 1.0001, 1.0001), extra2: 7 } }, 
-//     BvhNode { bounds: Aabb { min: Vec3(-1.0001, -1.0001, -1.0001), extra1: -1, max: Vec3(1.0001, 1.0001, 1.0001), extra2: 9 } }, 
-//     BvhNode { bounds: Aabb { min: Vec3(-1.0, 1.0, -1.0), extra1: 2, max: Vec3(1.0, 1.0, 1.0), extra2: 4 } }, 
-//     BvhNode { bounds: Aabb { min: Vec3(-1.0, -1.0, -1.0), extra1: 2, max: Vec3(1.0, 1.0, -1.0), extra2: 0 } }, 
-//     BvhNode { bounds: Aabb { min: Vec3(-1.0, -1.0, 1.0), extra1: 2, max: Vec3(1.0, 1.0, 1.0), extra2: 2 } }], 
-//     [5, 11, 7, 1, 6, 0, 3, 9, 4, 10, 2, 8, 0, 0, 0, 0, 0, 0, 0, 0, 0])

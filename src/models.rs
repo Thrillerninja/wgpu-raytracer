@@ -140,7 +140,7 @@ pub fn load_svg(file_path: &str) -> Result<Vec<Vec<[f32; 2]>>, Box<dyn std::erro
     return Ok(tris);
 }
 
-pub fn load_gltf(path: &str, material_count: i32, texture_count: i32) -> Result<(Vec<Triangle>, Vec<Material>), Box<dyn std::error::Error>> {
+pub fn load_gltf(path: &str, material_count: i32, texture_count: i32) -> Result<(Vec<Triangle>, Vec<Material>, Vec<String>), Box<dyn std::error::Error>> {
     let scenes = easy_gltf::load(path).expect("Failed to load glTF");
     let mut converted_triangles = Vec::new();
     let mut converted_materials = Vec::new();
@@ -149,19 +149,31 @@ pub fn load_gltf(path: &str, material_count: i32, texture_count: i32) -> Result<
 
     for scene in scenes {
         println!(
-            "Cameras: #{}  Lights: #{}  Models: #{} in GLFT scene",
+            "Cameras: #{}  Lights: #{}  Models: #{}  Textures: #{} in GLFT scene",
             scene.cameras.len(),
             scene.lights.len(),
-            scene.models.len()
+            scene.models.len(),
+            texture_count
         );
 
         for model in scene.models {
             let material = model.material();
+
+            match &material.pbr.base_color_texture {
+                Some(texture) => {
+                    println!("Texture dimensions: {:?}", texture.dimensions());
+                }
+                None => {
+                    println!("No texture found");
+                }
+            }
+
+
             // Convert material to own format
             converted_materials.push(Material::new(
                 material.get_base_color([0.,1.].into()).into(),
                 [0.8, 0.8, 0.8],
-                (1.0 - material.get_roughness([0.,1.].into()) as f32)*0.8,
+                material.get_roughness([0.,1.].into()) as f32,
                 material.get_emissive([0.,1.].into())[0],
                 0.0
             ));
@@ -194,5 +206,5 @@ pub fn load_gltf(path: &str, material_count: i32, texture_count: i32) -> Result<
         }
     }
 
-    Ok((converted_triangles, converted_materials))
+    Ok((converted_triangles, converted_materials, Vec::new()))
 }

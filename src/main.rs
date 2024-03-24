@@ -1,3 +1,4 @@
+use image::DynamicImage;
 use wgpu::util::DeviceExt;
 use wgpu::Features;
 use winit::{
@@ -17,7 +18,7 @@ mod models;
 use models::{load_obj, load_gltf, load_svg};
 
 mod texture;
-use texture::{create_textureset, load_texture_set};
+use texture::{create_textureset, load_texture_set, load_texture_set_from_images};
 
 mod structs;
 use structs::{CameraUniform, TriangleUniform, SphereUniform, BvhUniform};
@@ -340,8 +341,10 @@ impl State {
         for i in 0..tris_uv_mapping.len(){
             println!("UV: {},{} {},{} {},{} ", tris_uv_mapping[i][0][0], tris_uv_mapping[i][0][1], tris_uv_mapping[i][1][0], tris_uv_mapping[i][1][1], tris_uv_mapping[i][2][0], tris_uv_mapping[i][2][1]);
         }
+
         let mut triangles: Vec<Triangle> = Vec::new();
         let mut materials: Vec<Material> = Vec::new();
+        let mut textures: Vec<[DynamicImage; 3]> = Vec::new();
         // Add materials from config to materials
         materials.append(&mut userconfig.materials);
         println!("Config Sphere count: {}", userconfig.spheres.len());
@@ -366,7 +369,7 @@ impl State {
 
         // Load GLTF file and add to triangles and materials
         if  userconfig.gltf_path != "" {
-            let (mut gltf_triangles, mut gltf_materials) = match load_gltf(userconfig.gltf_path, materials.len() as i32, userconfig.textures.len() as i32) {
+            let (mut gltf_triangles, mut gltf_materials, mut gltf_textures) = match load_gltf(userconfig.gltf_path, materials.len() as i32, userconfig.textures.len() as i32) {
                 Err(error) => {
                     // Handle the error
                     eprintln!("Error loading GLTF file: {:?}", error);
@@ -408,10 +411,38 @@ impl State {
         
         // Load textures from files into a textureset
         let mut textureset = create_textureset(&device, &config, 1024, 1024, 3);    //3 = max numer of textures
+        let mut texture_count = 0;
+
+        // Add textures from config to textureset
         for i in 0..userconfig.textures.len(){
-            textureset = load_texture_set(&queue, textureset, &userconfig.textures[i][0], &userconfig.textures[i][1], &userconfig.textures[i][2], i as i32);
+            match load_texture_set(&queue, textureset, &userconfig.textures[i][0], &userconfig.textures[i][1], &userconfig.textures[i][2], i as i32) {
+                Err(error) => {
+                    // Handle the error
+                    eprintln!("Error loading texture file: {:?}", error);
+                    std::process::exit(1);
+                }
+                Ok(data) => {
+                    textureset = data;
+                    texture_count += 1;
+                }	
+            }
         }
-        println!("Texture array size: {}x{}x{}", textureset.diffuse.size().width, textureset.diffuse.size().height, textureset.diffuse.size().depth_or_array_layers);
+
+        // Add textures from GLTF to textureset
+        for i in 0..textures.len(){
+            match load_texture_set_from_images(&queue, textureset, &textures[i][0], &textures[i][1], &textures[i][2], texture_count + i as i32) {
+                Err(error) => {
+                    // Handle the error
+                    eprintln!("Error loading texture file: {:?}", error);
+                    std::process::exit(1);
+                }
+                Ok(data) => {
+                    textureset = data;
+                    texture_count += 1;
+                }	
+            }
+        }
+        println!("Texture array size: {}x{}x{} with {} entries", textureset.diffuse.size().width, textureset.diffuse.size().height, textureset.diffuse.size().depth_or_array_layers, texture_count);
 
         // ---------Spheres-------------
         // Spheres to Uniform buffer compatible type                                 
@@ -485,7 +516,7 @@ impl State {
         //     aabbs.push(sphere.aabb());               # Doesnt work because the bvh can only take one type of Data
         // }
 
-        let prim_per_leaf = Some(std::num::NonZeroUsize::new(2).expect("NonZeroUsize creation failed"));
+        let prim_per_leaf = Some(std::num::NonZeroUsize::new(1).expect("NonZeroUsize creation failed"));
         let primitives = triangles.as_slice();
 
         let builder = Builder {
@@ -913,7 +944,7 @@ impl State {
     }
 
     fn update(&mut self, dt: std::time::Duration) {
-        // println!("FPS: {}", 1.0 / dt.as_secs_f32());
+        println!("FPS: {}", 1.0 / dt.as_secs_f32());
         self.camera_controller.update_camera(&mut self.camera, dt);
         self.camera_uniform.update_view_proj(&self.camera, &self.projection);
         self.camera_uniform.update_frame();

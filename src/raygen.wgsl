@@ -93,9 +93,9 @@ fn main(@builtin(global_invocation_id) GlobalInvocationID: vec3<u32>) {
         // Calculate Ray
         var ray = calc_ray(screen_pos, screen_size);
 
-        debug_bvh_bounding_color(ray);
+        // debug_bvh_bounding_color(ray);
 
-        // pixel_color += color(ray, 10, 10000.0).xyz;
+        pixel_color += color(ray, 10, 10000.0).xyz;
     }
     // Weighted average of pixel colors
     pixel_color /= f32(_SAMPLES);
@@ -125,18 +125,8 @@ fn debug_rand_color() -> vec3<f32> {
 }
 
 fn debug_bvh_bounding(ray: Ray) -> f32 {
-    // loops threw every bvh node and draws the bounding box
-    // O(n) complexity not optimized with bvh traversal to O(logn)
-    // var hit_bvh: f32 = 0.0;
-    // for (var i = 0; i < i32(arrayLength(&bvh)); i = i + 1) {
-    //     var temp = intersectBox(ray, bvh[i].min.xyz, bvh[i].max.xyz, 0.0, 10000.0);
-    //     if (temp > -1.0) {
-    //         pixel_color += vec3<f32>(0.1, 0.0, 0.0);
-    //         hit_bvh += 1.0;
-    //     }
-    // }
-
-    //Optimized O(logn) complexity
+    // draws all the bounding boxes
+    // Optimized O(logn) complexity
     var hit_bvh: vec3<f32> = intersectBVH(ray, 10000.0);
     return hit_bvh.z;
 }

@@ -41,7 +41,7 @@ impl Config {
         let mut textures = Vec::new();
         textures.push(["res/cobble-diffuse.png", "res/cobble-normal.png", "res/cobble-diffuse.png"]);
         //textures.push(["res/COlor.png", "res/Unbenannt2.png", "res/roughness.png"]);
-        //textures.push([ "res/pavement_26_basecolor-1K.png", "res/pavement_26_normal-1K.png", "res/pavement_26_roughness-1K.png"]);
+        textures.push([ "res/PavingStones134_1K-PNG_Color.png", "res/PavingStones134_1K-PNG_Color.png", "res/PavingStones134_1K-PNG_Color.png"]);
         
         Self {
             // Camera

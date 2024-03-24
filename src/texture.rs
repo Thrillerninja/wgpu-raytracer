@@ -1,13 +1,10 @@
 use image::{DynamicImage, GenericImageView};
 use wgpu::{Device, Queue, Texture, TextureDimension, TextureFormat, SurfaceConfiguration};
-use crate::structs::{TextureSet};
+use crate::structs::TextureSet;
 
 // Load an image from a file and return it as DynamicImage
-fn load_image(file_path: &str) -> DynamicImage {
-    match image::open(file_path) {
-        Ok(image) => image,
-        Err(err) => panic!("Failed to load image from {}: {}", file_path, err),
-    }
+fn load_image(file_path: &str) -> Result<DynamicImage, Box<dyn std::error::Error>> {
+    image::open(file_path).map_err(|err| format!("Failed to load texture from {}: {}", file_path, err).into())
 }
 
 fn create_texture(device: &Device, config: &SurfaceConfiguration, texture_width: u32, texture_height: u32, num_textures: u32) -> Texture {
@@ -40,86 +37,70 @@ pub fn create_textureset(device: &Device, config: &SurfaceConfiguration, texture
     }
 }
 
-pub fn load_texture_set(queue: &Queue, textureset: TextureSet, diffuse: &str, normal: &str, roughness: &str, index: i32) -> TextureSet {
-    //add textures to textureset
-    let diffuse_image   = load_image(diffuse);
-    let normal_image    = load_image(normal);
-    let roughness_image = load_image(roughness);
+fn write_texture(queue: &Queue, texture: &Texture, image: DynamicImage, offset: wgpu::Origin3d) {
+    let (width, height) = image.dimensions();
+    let bytes_per_pixel = 4; // Assuming RGBA8Unorm format
+    let bytes_per_row = width * bytes_per_pixel;
+    let data = image.to_rgba8().into_raw();
 
+    queue.write_texture(
+        wgpu::ImageCopyTexture {
+            texture,
+            mip_level: 0,
+            origin: offset,
+            aspect: wgpu::TextureAspect::All,
+        },
+        &data,
+        wgpu::ImageDataLayout {
+            offset: 0,
+            bytes_per_row: bytes_per_row.into(),
+            rows_per_image: height.into(),
+        },
+        wgpu::Extent3d {
+            width,
+            height,
+            depth_or_array_layers: 1,
+        },
+    );
+}
+
+pub fn load_texture_set(queue: &Queue, textureset: TextureSet, diffuse: &str, normal: &str, roughness: &str, index: i32) -> Result<TextureSet, Box<dyn std::error::Error>> {
     let offset = wgpu::Origin3d {
         x: 0,
         y: 0,
         z: index as u32,
     };
-    let (width, height) = diffuse_image.dimensions();
-    let bytes_per_pixel = 4; // Assuming RGBA8Unorm format
-    let bytes_per_row = width * bytes_per_pixel;
 
     // Diffuse
-    let basecolor_data = diffuse_image.to_rgba8().into_raw();
-    queue.write_texture(
-        wgpu::ImageCopyTexture {
-            texture: &textureset.diffuse,
-            mip_level: 0,
-            origin: offset,
-            aspect: wgpu::TextureAspect::All,
-        },
-        &basecolor_data,
-        wgpu::ImageDataLayout {
-            offset: 0,
-            bytes_per_row: bytes_per_row.into(),
-            rows_per_image: height.into(),
-        },
-        wgpu::Extent3d {
-            width,
-            height,
-            depth_or_array_layers: 1,
-        },
-    );
+    let diffuse_image = load_image(diffuse)?;
+    write_texture(queue, &textureset.diffuse, diffuse_image, offset);
 
     // Normal
-    let normal_data = normal_image.to_rgba8().into_raw();
-    queue.write_texture(
-        wgpu::ImageCopyTexture {
-            texture: &textureset.normal,
-            mip_level: 0,
-            origin: offset,
-            aspect: wgpu::TextureAspect::All,
-        },
-        &normal_data,
-        wgpu::ImageDataLayout {
-            offset: 0,
-            bytes_per_row: bytes_per_row.into(),
-            rows_per_image: height.into(),
-        },
-        wgpu::Extent3d {
-            width,
-            height,
-            depth_or_array_layers: 1,
-        },
-    );
+    let normal_image = load_image(normal)?;
+    write_texture(queue, &textureset.normal, normal_image, offset);
 
     // Roughness
-    let roughness_data = roughness_image.to_rgba8().into_raw();
-    queue.write_texture(
-        wgpu::ImageCopyTexture {
-            texture: &textureset.roughness,
-            mip_level: 0,
-            origin: offset,
-            aspect: wgpu::TextureAspect::All,
-        },
-        &roughness_data,
-        wgpu::ImageDataLayout {
-            offset: 0,
-            bytes_per_row: bytes_per_row.into(),
-            rows_per_image: height.into(),
-        },
-        wgpu::Extent3d {
-            width,
-            height,
-            depth_or_array_layers: 1,
-        },
-    );
+    let roughness_image = load_image(roughness)?;
+    write_texture(queue, &textureset.roughness, roughness_image, offset);
 
-    return textureset;
+    Ok(textureset)
+}
+
+pub fn load_texture_set_from_images(queue: &Queue, textureset: TextureSet, diffuse: &DynamicImage, normal: &DynamicImage, roughness: &DynamicImage, index: i32) -> Result<TextureSet, Box<dyn std::error::Error>> {
+    let offset = wgpu::Origin3d {
+        x: 0,
+        y: 0,
+        z: index as u32,
+    };
+
+    // Diffuse
+    write_texture(queue, &textureset.diffuse, diffuse.clone(), offset);
+
+    // Normal
+    write_texture(queue, &textureset.normal, normal.clone(), offset);
+
+    // Roughness
+    write_texture(queue, &textureset.roughness, roughness.clone(), offset);
+
+    Ok(textureset)
 }
