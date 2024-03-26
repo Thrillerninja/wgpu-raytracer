@@ -25,14 +25,14 @@ struct Triangle {
     normals: vec4<f32>,
     uv1: vec4<f32>,
     uv2: vec4<f32>, // Z of first tris is count of triangles
-    material_texture_id: vec4<f32>, //material_id, texture_id, 0.0, 0.0
+    material_texture_ids: vec4<f32>, //material_id, texture_id_diffuse, texture_id_roughness, texture_id_normal
 }
 @group(2) @binding(0) var<storage> triangles : array<Triangle>;
 
 struct Sphere {
     center: vec4<f32>,
     radius: vec4<f32>,
-    material_texture_id: vec4<f32>, //material_id, texture_id, 0.0, 0.0
+    material_texture_ids: vec4<f32>, //material_id, texture_id_diffuse, texture_id_roughness, texture_id_normal
 }
 @group(2) @binding(1) var<storage> spheres : array<Sphere>;
 
@@ -377,14 +377,14 @@ fn color(primary_ray: Ray, MAX_BOUNCES: i32, t_max: f32) -> vec4<f32> {
         var uv: vec2<f32>;
         if (is_sphere){
             normal = normalize(hit_point - closest_sphere.center.xyz);
-            material = materials[i32(closest_sphere.material_texture_id[0])];
+            material = materials[i32(closest_sphere.material_texture_ids[0])];
             uv = sphereUVMapping(hit_point, closest_sphere);
-            texture_id = i32(closest_sphere.material_texture_id[1]);
+            texture_id = i32(closest_sphere.material_texture_ids[1]);
         } else {
             normal = normalize(closest_tris.normals.xyz);
-            material = materials[i32(closest_tris.material_texture_id[0])];
+            material = materials[i32(closest_tris.material_texture_ids[0])];
             uv = trisUVMapping(hit_point, closest_tris);
-            texture_id = i32(closest_tris.material_texture_id[1]);
+            texture_id = i32(closest_tris.material_texture_ids[1]);
         }
 
         // Update color
@@ -392,7 +392,11 @@ fn color(primary_ray: Ray, MAX_BOUNCES: i32, t_max: f32) -> vec4<f32> {
             pixel_color *= get_texture_color(texture_id, uv, 0);
         } else if (material.emission > 0.0) {
             // Handle emissive material directly
-            pixel_color += material.albedo.xyz * material.emission * weight;
+            if (depth == 0) {
+                pixel_color =  material.albedo.xyz * material.emission;
+            } else{
+                pixel_color += material.albedo.xyz * material.emission * weight;
+            }
             return vec4<f32>(pixel_color, 1.0); // Terminate the loop when an emissive object is hit
         } else {
             pixel_color *= material.albedo.xyz;
@@ -400,7 +404,11 @@ fn color(primary_ray: Ray, MAX_BOUNCES: i32, t_max: f32) -> vec4<f32> {
 
         // Calculate new ray
         if (texture_id > -1){
-            ray = Ray(hit_point + normal*0.0001, reflect(ray.direction, normal * get_texture_color(texture_id, uv, 1) + rngNextVec3InUnitSphere() * (vec3<f32>(1.0)-get_texture_color(texture_id, uv, 2))));
+            if is_sphere {
+                ray = Ray(hit_point + normal*0.0001, reflect(ray.direction, normal * get_texture_color(texture_id, uv, 1) + rngNextVec3InUnitSphere() * (vec3<f32>(1.0)-get_texture_color(texture_id, uv, 2))));
+            } else {
+                ray = Ray(hit_point + normal*0.0001, reflect(ray.direction, normal * get_texture_color(texture_id, uv, 1) + rngNextVec3InUnitSphere() * -1.0 * get_texture_color(texture_id, uv, 2)));
+            }
         } else if (material.ior > 0.0) {
             ray = dielectric_scatter(ray, hit_point, normal, material);
         } else {

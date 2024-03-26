@@ -381,15 +381,8 @@ impl State {
             println!("GLTF Material count: {}", gltf_materials.len());
             triangles.append(&mut gltf_triangles);
             materials.append(&mut gltf_materials);
+            textures.append(&mut gltf_textures);
         }
-        
-        // println!("Material count: {}", userconfig.materials.len());
-        // for material in material_file{
-        //     userconfig.materials.push(material);
-        // }     
-        // println!("Material count: {}", userconfig.materials.len());
-
-        // println!("Triangle count: {}", triangles.len());
 
         // Triangles and UV to Uniform buffer
         let mut triangles_uniform: Vec<TriangleUniform> = Vec::new();

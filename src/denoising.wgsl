@@ -167,7 +167,7 @@ fn non_local_means_denoising(centralColor: vec4<f32>, screen_pos: vec2<u32>) -> 
     // NLM denoising parameters
     let searchWindowRadius: i32 = 13;   // Radius of the search window              Higher is slower
     let patchRadius: i32 = 5;          // Radius of the comparison patch           Higher is slower
-    let h: f32 = 0.14;                  // Filtering parameter (adjust as needed)   Higher reduces noise but blurs
+    let h: f32 = 0.001;                  // Filtering parameter (adjust as needed)   Higher reduces noise but blurs
 
      for (var dx: i32 = -patchRadius; dx <= patchRadius; dx = dx + 1) {
          for (var dy: i32 = -patchRadius; dy <= patchRadius; dy = dy + 1) {

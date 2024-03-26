@@ -1,7 +1,14 @@
 use std::fs::File;
 use std::io::{BufRead, BufReader, Read};
+use image::{DynamicImage, ImageBuffer, Rgba, GenericImageView};
+use std::sync::Arc;
 // use rand::Rng;
 use crate::structs::{Triangle, Material};
+use crate::texture;
+
+use cgmath::*;
+use core::ops::Deref;
+use image::Pixel;
 
 pub fn load_obj(file_path: &str) -> Result<(Vec<Triangle>, Vec<Material>), Box<dyn std::error::Error>> {
     let file = File::open(file_path)?;
@@ -140,12 +147,13 @@ pub fn load_svg(file_path: &str) -> Result<Vec<Vec<[f32; 2]>>, Box<dyn std::erro
     return Ok(tris);
 }
 
-pub fn load_gltf(path: &str, material_count: i32, texture_count: i32) -> Result<(Vec<Triangle>, Vec<Material>, Vec<String>), Box<dyn std::error::Error>> {
+pub fn load_gltf(path: &str, material_count: i32, texture_count: i32) -> Result<(Vec<Triangle>, Vec<Material>, Vec<[DynamicImage; 3]>), Box<dyn std::error::Error>> {
     let scenes = easy_gltf::load(path).expect("Failed to load glTF");
     let mut converted_triangles = Vec::new();
     let mut converted_materials = Vec::new();
     let mut material_index = material_count;
     let mut texture_index = texture_count;  // jet unused
+    let mut textures: Vec<[DynamicImage; 3]> = Vec::new();
 
     for scene in scenes {
         println!(
@@ -153,11 +161,12 @@ pub fn load_gltf(path: &str, material_count: i32, texture_count: i32) -> Result<
             scene.cameras.len(),
             scene.lights.len(),
             scene.models.len(),
-            texture_count
+            texture_index
         );
 
         for model in scene.models {
             let material = model.material();
+            let mut textures_included = false;
 
             match &material.pbr.base_color_texture {
                 Some(texture) => {
@@ -168,16 +177,32 @@ pub fn load_gltf(path: &str, material_count: i32, texture_count: i32) -> Result<
                 }
             }
 
-
             // Convert material to own format
+            let base_color_factor = material.pbr.base_color_factor;
+            let roughness_factor = material.pbr.roughness_factor;
+
             converted_materials.push(Material::new(
-                material.get_base_color([0.,1.].into()).into(),
-                [0.8, 0.8, 0.8],
-                material.get_roughness([0.,1.].into()) as f32,
-                material.get_emissive([0.,1.].into())[0],
+                [base_color_factor[0], base_color_factor[1], base_color_factor[2]],
+                [0.6,0.6,0.6], // if dielectric it should be [1.0]
+                roughness_factor,
+                material.emissive.factor[0],    // emissive_factor is returned as rgb but we only use the first value
                 0.0
             ));
-            // println!("Color: {:?}", material.get_base_color([0.,1.].into()));
+
+            if let (Some(base_color_texture), Some(roughness_texture), Some(normal)) = (&material.pbr.base_color_texture, &material.pbr.roughness_texture, &material.normal) {
+
+                let base_color_image = convert_to_dynamic_image(base_color_texture);
+                let roughness_image = convert_to_dynamic_image(roughness_texture);
+                let mut normal_image = convert_to_dynamic_image(base_color_texture);    // placeholder
+
+                // if normal texture is present, use it
+                normal_image = convert_to_dynamic_image(&normal.texture);
+
+                textures.push([base_color_image.clone(), normal_image.clone(), roughness_image]);
+            
+                textures_included = true;
+                texture_index += 1; 
+            }
 
             // Convert the mesh to a triangle list
             match model.triangles() {
@@ -192,7 +217,7 @@ pub fn load_gltf(path: &str, material_count: i32, texture_count: i32) -> Result<
                             ],
                             [triangle[0].normal.x, triangle[0].normal.y, triangle[0].normal.z],
                             material_index,
-                            -1,
+                            if textures_included { texture_index - 1} else { -1 },
                         );
                         converted_triangles.push(converted_triangle);
                     };
@@ -204,7 +229,46 @@ pub fn load_gltf(path: &str, material_count: i32, texture_count: i32) -> Result<
             }
             material_index += 1;
         }
+        println!(
+            "Cameras: #{}  Lights: #{}   Textures: #{} in GLFT scene",
+            scene.cameras.len(),
+            scene.lights.len(),
+            texture_index
+        );
     }
 
-    Ok((converted_triangles, converted_materials, Vec::new()))
+    Ok((converted_triangles, converted_materials, textures))
+}
+
+
+
+fn get_pixel<P, Container>(tex_coords: Vector2<f32>, texture: &ImageBuffer<P, Container>) -> P
+where
+    P: Pixel + 'static,
+    P::Subpixel: 'static,
+    Container: Deref<Target = [P::Subpixel]>,
+{
+    let coords = tex_coords.mul_element_wise(Vector2::new(
+        texture.width() as f32,
+        texture.height() as f32,
+    ));
+
+    texture[(
+        (coords.x as i64).rem_euclid(texture.width() as i64) as u32,
+        (coords.y as i64).rem_euclid(texture.height() as i64) as u32,
+    )]
+}
+
+fn convert_to_dynamic_image<P, Container>(texture: &ImageBuffer<P, Container>) -> DynamicImage
+where
+    P: Pixel<Subpixel = u8> + 'static,
+    Container: Deref<Target = [P::Subpixel]>,
+{
+    DynamicImage::ImageRgba8(
+        ImageBuffer::<Rgba<u8>, Vec<u8>>::from_fn(texture.width(), texture.height(), |x, y| {
+            let pixel = texture.get_pixel(x, y);
+            let (r, g, b, a) = pixel.channels4();
+            Rgba([r, g, b, a])
+        }),
+    )
 }

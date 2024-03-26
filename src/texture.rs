@@ -104,3 +104,15 @@ pub fn load_texture_set_from_images(queue: &Queue, textureset: TextureSet, diffu
 
     Ok(textureset)
 }
+
+pub fn load_texture_set_from_image(queue: &Queue, textureset: TextureSet, texture: &DynamicImage, index: i32) -> Result<TextureSet, Box<dyn std::error::Error>> {
+    let offset = wgpu::Origin3d {
+        x: 0,
+        y: 0,
+        z: index as u32,
+    };
+
+    write_texture(queue, &textureset.diffuse, texture.clone(), offset);
+
+    Ok(textureset)
+}

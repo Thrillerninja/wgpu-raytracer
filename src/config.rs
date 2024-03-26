@@ -19,8 +19,8 @@ impl Config {
     pub fn new() -> Self {
         let mut spheres: Vec<Sphere> = Vec::new();
         //                                            x    y     z   radius    mat_id texture_id
-        spheres.push(Sphere::new(cgmath::Point3::new(0.5, 0.0, -1.0), 0.5    , 0,        -1));
-        spheres.push(Sphere::new(cgmath::Point3::new(-0.5, 0.0, -1.0), 0.5   , 1,       -1));
+        spheres.push(Sphere::new(cgmath::Point3::new(0.5, 0.0, -1.0), 0.2    , 0,        -1));
+        spheres.push(Sphere::new(cgmath::Point3::new(-0.5, 0.0, -1.0), 0.2   , 1,       -1));
         spheres.push(Sphere::new(cgmath::Point3::new(0.5, 1.0, -1.0), 0.3    , 2,       -1));
         spheres.push(Sphere::new(cgmath::Point3::new(0.5, -50.5, -1.0), 50.0 , 3,       -1));
         spheres.push(Sphere::new(cgmath::Point3::new(-1.5, 0.0, -1.0), 0.4   , 4,       -1));
@@ -30,12 +30,12 @@ impl Config {
         
         let mut materials: Vec<Material> = Vec::new();
         //                            r     g    b      attenuation      rough emis  ior 
-        materials.push(Material::new([0.0, 1.0, 0.0], [0.5, 1.0, 1.0], 0.8, 0.0, 0.0));
-        materials.push(Material::new([0.5, 0.2, 0.5], [1.0, 1.0, 1.0], 1.0, 0.0, 0.0));
+        materials.push(Material::new([0.0, 1.0, 0.0], [0.5, 1.0, 1.0], 0.8, 10.0, 0.0));
+        materials.push(Material::new([0.5, 0.2, 0.5], [1.0, 1.0, 1.0], 1.0, 20.0, 0.0));
         materials.push(Material::new([0.0, 0.0, 1.0], [1.0, 1.0, 1.0], 0.0, 0.0, 0.0));
         materials.push(Material::new([1.0, 0.3, 0.2], [0.2, 1.0, 1.0], 0.2, 0.0, 0.0));
         materials.push(Material::new([1.0, 1.0, 1.0], [0.5, 1.0, 1.0], 0.0, 0.0, 1.0));
-        materials.push(Material::new([1.0, 1.0, 1.0], [1.0, 1.0, 1.0], 0.0, 0.0, 0.0));
+        materials.push(Material::new([1.0, 1.0, 1.0], [1.0, 1.0, 1.0], 0.0, 10.0, 0.0));
 
         // Load textures from files into a textures
         let mut textures = Vec::new();
