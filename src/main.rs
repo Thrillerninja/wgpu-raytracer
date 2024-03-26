@@ -27,6 +27,8 @@ use structs::{Material, Sphere, Triangle};
 mod config;
 use config::Config;
 
+use crate::texture::{create_texture, load_textures, load_textures_from_image};
+
 struct State {
     window: Window,
     surface: wgpu::Surface,
@@ -344,7 +346,7 @@ impl State {
 
         let mut triangles: Vec<Triangle> = Vec::new();
         let mut materials: Vec<Material> = Vec::new();
-        let mut textures: Vec<[DynamicImage; 3]> = Vec::new();
+        let mut textures: Vec<DynamicImage> = Vec::new();
         // Add materials from config to materials
         materials.append(&mut userconfig.materials);
         println!("Config Sphere count: {}", userconfig.spheres.len());
@@ -403,39 +405,42 @@ impl State {
 
         
         // Load textures from files into a textureset
-        let mut textureset = create_textureset(&device, &config, 1024, 1024, 3);    //3 = max numer of textures
+        let mut textures_buffer = create_texture(&device, &config, 1024, 1024, 30);    //30 = max numer of textures
         let mut texture_count = 0;
 
         // Add textures from config to textureset
         for i in 0..userconfig.textures.len(){
-            match load_texture_set(&queue, textureset, &userconfig.textures[i][0], &userconfig.textures[i][1], &userconfig.textures[i][2], i as i32) {
-                Err(error) => {
-                    // Handle the error
-                    eprintln!("Error loading texture file: {:?}", error);
-                    std::process::exit(1);
+            for j in 0..3{  //userconfig.textures[i].len(){
+                match load_textures(&queue, textures_buffer, &userconfig.textures[i][j], i as i32) {
+                    Err(error) => {
+                        // Handle the error
+                        eprintln!("Error loading texture file: {:?}", error);
+                        std::process::exit(1);
+                    }
+                    Ok(data) => {
+                        textures_buffer = data;
+                        texture_count += 1;
+                    }	
                 }
-                Ok(data) => {
-                    textureset = data;
-                    texture_count += 1;
-                }	
             }
         }
 
         // Add textures from GLTF to textureset
         for i in 0..textures.len(){
-            match load_texture_set_from_images(&queue, textureset, &textures[i][0], &textures[i][1], &textures[i][2], texture_count + i as i32) {
+            match load_textures_from_image(&queue, textures_buffer, &textures[i], texture_count + i as i32) {
                 Err(error) => {
                     // Handle the error
                     eprintln!("Error loading texture file: {:?}", error);
                     std::process::exit(1);
                 }
                 Ok(data) => {
-                    textureset = data;
+                    textures_buffer = data;
                     texture_count += 1;
                 }	
             }
         }
-        println!("Texture array size: {}x{}x{} with {} entries", textureset.diffuse.size().width, textureset.diffuse.size().height, textureset.diffuse.size().depth_or_array_layers, texture_count);
+        // println!("Texture array size: {}x{}x{} with {} entries", textureset.diffuse.size().width, textureset.diffuse.size().height, textureset.diffuse.size().depth_or_array_layers, texture_count);
+        println!("Textures ready ({})", texture_count);
 
         // ---------Spheres-------------
         // Spheres to Uniform buffer compatible type                                 
@@ -627,26 +632,6 @@ impl State {
                 wgpu::BindGroupLayoutEntry {
                     binding: 2,
                     visibility: wgpu::ShaderStages::COMPUTE,
-                    ty: wgpu::BindingType::Texture {
-                        multisampled: false,
-                        view_dimension: wgpu::TextureViewDimension::D2Array,
-                        sample_type: wgpu::TextureSampleType::Float { filterable: true },
-                    },
-                    count: None,
-                },
-                wgpu::BindGroupLayoutEntry {
-                    binding: 3,
-                    visibility: wgpu::ShaderStages::COMPUTE,
-                    ty: wgpu::BindingType::Texture {
-                        multisampled: false,
-                        view_dimension: wgpu::TextureViewDimension::D2Array,
-                        sample_type: wgpu::TextureSampleType::Float { filterable: true },
-                    },
-                    count: None,
-                },
-                wgpu::BindGroupLayoutEntry {
-                    binding: 4,
-                    visibility: wgpu::ShaderStages::COMPUTE,
                     ty: wgpu::BindingType::Buffer {
                         ty: wgpu::BufferBindingType::Storage { read_only: true },
                         has_dynamic_offset: false,
@@ -679,18 +664,10 @@ impl State {
                 },
                 wgpu::BindGroupEntry {
                     binding: 1,
-                    resource: wgpu::BindingResource::TextureView(&textureset.diffuse.create_view(&wgpu::TextureViewDescriptor::default())),
+                    resource: wgpu::BindingResource::TextureView(&textures_buffer.create_view(&wgpu::TextureViewDescriptor::default())),
                 },
                 wgpu::BindGroupEntry {
-                    binding: 2,
-                    resource: wgpu::BindingResource::TextureView(&textureset.normal.create_view(&wgpu::TextureViewDescriptor::default())),
-                },
-                wgpu::BindGroupEntry {
-                    binding: 3,
-                    resource: wgpu::BindingResource::TextureView(&textureset.roughness.create_view(&wgpu::TextureViewDescriptor::default())),
-                },
-                wgpu::BindGroupEntry {
-                    binding: 4, 
+                    binding: 2, 
                     resource: material_buffer.as_entire_binding(),
                 },
             ],

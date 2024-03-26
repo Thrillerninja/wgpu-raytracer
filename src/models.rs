@@ -91,7 +91,7 @@ pub fn load_obj(file_path: &str) -> Result<(Vec<Triangle>, Vec<Material>), Box<d
                     ],
                     normals[normal_index],
                     0,
-                    0,
+                    [-1.0, -1.0, -1.0]
                 );
                 faces.push(triangle);
             }
@@ -147,13 +147,13 @@ pub fn load_svg(file_path: &str) -> Result<Vec<Vec<[f32; 2]>>, Box<dyn std::erro
     return Ok(tris);
 }
 
-pub fn load_gltf(path: &str, material_count: i32, texture_count: i32) -> Result<(Vec<Triangle>, Vec<Material>, Vec<[DynamicImage; 3]>), Box<dyn std::error::Error>> {
+pub fn load_gltf(path: &str, material_count: i32, texture_count: i32) -> Result<(Vec<Triangle>, Vec<Material>, Vec<DynamicImage>), Box<dyn std::error::Error>> {
     let scenes = easy_gltf::load(path).expect("Failed to load glTF");
     let mut converted_triangles = Vec::new();
     let mut converted_materials = Vec::new();
     let mut material_index = material_count;
     let mut texture_index = texture_count;  // jet unused
-    let mut textures: Vec<[DynamicImage; 3]> = Vec::new();
+    let mut textures: Vec<DynamicImage> = Vec::new();
 
     for scene in scenes {
         println!(
@@ -166,7 +166,6 @@ pub fn load_gltf(path: &str, material_count: i32, texture_count: i32) -> Result<
 
         for model in scene.models {
             let material = model.material();
-            let mut textures_included = false;
 
             match &material.pbr.base_color_texture {
                 Some(texture) => {
@@ -183,25 +182,58 @@ pub fn load_gltf(path: &str, material_count: i32, texture_count: i32) -> Result<
 
             converted_materials.push(Material::new(
                 [base_color_factor[0], base_color_factor[1], base_color_factor[2]],
-                [0.6,0.6,0.6], // if dielectric it should be [1.0]
+                [0.6;3], // if dielectric it should be [1.0]
                 roughness_factor,
                 material.emissive.factor[0],    // emissive_factor is returned as rgb but we only use the first value
                 0.0
             ));
 
-            if let (Some(base_color_texture), Some(roughness_texture), Some(normal)) = (&material.pbr.base_color_texture, &material.pbr.roughness_texture, &material.normal) {
 
+            // Convert textures to own format
+            let mut has_base_color_texture = false;
+            let mut has_roughness_texture = false;
+            let mut has_normal_texture = false;
+
+            if let Some(base_color_texture) = &material.pbr.base_color_texture {
                 let base_color_image = convert_to_dynamic_image(base_color_texture);
+                textures.push(base_color_image);
+                texture_index += 1;
+                has_base_color_texture = true;
+            }
+            if let Some(roughness_texture) = &material.pbr.roughness_texture {
                 let roughness_image = convert_to_dynamic_image(roughness_texture);
-                let mut normal_image = convert_to_dynamic_image(base_color_texture);    // placeholder
+                textures.push(roughness_image);
+                texture_index += 1;
+                has_roughness_texture = true;
+            }
+            if let Some(normal) = &material.normal {
+                let normal_image = convert_to_dynamic_image(&normal.texture);
+                textures.push(normal_image);
+                texture_index += 1;
+                has_normal_texture = true;
+            }
 
-                // if normal texture is present, use it
-                normal_image = convert_to_dynamic_image(&normal.texture);
+            let mut texture_ids = [-1,-1,-1];
 
-                textures.push([base_color_image.clone(), normal_image.clone(), roughness_image]);
-            
-                textures_included = true;
-                texture_index += 1; 
+            if has_base_color_texture && has_roughness_texture && has_normal_texture {
+                texture_ids[0] = texture_index - 3;
+                texture_ids[1] = texture_index - 2;
+                texture_ids[2] = texture_index - 1;
+            } else if has_base_color_texture && has_roughness_texture {
+                texture_ids[0] = texture_index - 2;
+                texture_ids[1] = texture_index - 1;
+            } else if has_base_color_texture && has_normal_texture {
+                texture_ids[0] = texture_index - 2;
+                texture_ids[2] = texture_index - 1;
+            } else if has_roughness_texture && has_normal_texture {
+                texture_ids[1] = texture_index - 2;
+                texture_ids[2] = texture_index - 1;
+            } else if has_base_color_texture {
+                texture_ids[0] = texture_index - 1;
+            } else if has_roughness_texture {
+                texture_ids[1] = texture_index - 1;
+            } else if has_normal_texture {
+                texture_ids[2] = texture_index - 1;
             }
 
             // Convert the mesh to a triangle list
@@ -217,7 +249,7 @@ pub fn load_gltf(path: &str, material_count: i32, texture_count: i32) -> Result<
                             ],
                             [triangle[0].normal.x, triangle[0].normal.y, triangle[0].normal.z],
                             material_index,
-                            if textures_included { texture_index - 1} else { -1 },
+                            texture_ids.map(|x| x as f32)
                         );
                         converted_triangles.push(converted_triangle);
                     };

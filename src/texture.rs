@@ -7,7 +7,7 @@ fn load_image(file_path: &str) -> Result<DynamicImage, Box<dyn std::error::Error
     image::open(file_path).map_err(|err| format!("Failed to load texture from {}: {}", file_path, err).into())
 }
 
-fn create_texture(device: &Device, config: &SurfaceConfiguration, texture_width: u32, texture_height: u32, num_textures: u32) -> Texture {
+pub fn create_texture(device: &Device, config: &SurfaceConfiguration, texture_width: u32, texture_height: u32, num_textures: u32) -> Texture {
     return device.create_texture(&wgpu::TextureDescriptor {
         label: Some("Texture Array"),
         view_formats: &[config.format], // Use sRGB format for storage
@@ -105,14 +105,28 @@ pub fn load_texture_set_from_images(queue: &Queue, textureset: TextureSet, diffu
     Ok(textureset)
 }
 
-pub fn load_texture_set_from_image(queue: &Queue, textureset: TextureSet, texture: &DynamicImage, index: i32) -> Result<TextureSet, Box<dyn std::error::Error>> {
+pub fn load_textures(queue: &Queue, textureset: Texture, texture: &str, index: i32) -> Result<Texture, Box<dyn std::error::Error>> {
     let offset = wgpu::Origin3d {
         x: 0,
         y: 0,
         z: index as u32,
     };
 
-    write_texture(queue, &textureset.diffuse, texture.clone(), offset);
+    // Diffuse
+    let texture_image = load_image(texture)?;
+    write_texture(queue, &textureset, texture_image, offset);
+
+    Ok(textureset)
+}
+
+pub fn load_textures_from_image(queue: &Queue, textureset: Texture, texture: &DynamicImage, index: i32) -> Result<Texture, Box<dyn std::error::Error>> {
+    let offset = wgpu::Origin3d {
+        x: 0,
+        y: 0,
+        z: index as u32,
+    };
+
+    write_texture(queue, &textureset, texture.clone(), offset);
 
     Ok(textureset)
 }

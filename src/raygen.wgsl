@@ -46,10 +46,8 @@ struct BVHTraversal {
 }
 
 @group(3) @binding(0) var texture_sampler : sampler;
-@group(3) @binding(1) var diffuse: texture_2d_array<f32>;
-@group(3) @binding(2) var normal: texture_2d_array<f32>;
-@group(3) @binding(3) var roughness: texture_2d_array<f32>;
-@group(3) @binding(4) var<storage> materials: array<Material>;
+@group(3) @binding(1) var textures: texture_2d_array<f32>;
+@group(3) @binding(2) var<storage> materials: array<Material>;
 
 struct BVHNodes {
     min: vec4<f32>,
@@ -331,8 +329,8 @@ fn color(primary_ray: Ray, MAX_BOUNCES: i32, t_max: f32) -> vec4<f32> {
     var ray: Ray = primary_ray;
 
     // Initialize pixel_color to background color
-    var pixel_color = vec3<f32>(sky_color(ray));
-    var weight = 1.0;
+    var pixel_color = vec3<f32>(1.0,1.0,1.0);
+    var weight = vec3<f32>(1.0, 1.0, 1.0);   //rgb weight
 
     while (depth <= MAX_BOUNCES) {
         var t = t_max;
@@ -365,7 +363,7 @@ fn color(primary_ray: Ray, MAX_BOUNCES: i32, t_max: f32) -> vec4<f32> {
             if (depth == 0){
                 return vec4<f32>(sky_color(ray), 1.0);
             } else {
-                pixel_color = mix(pixel_color, sky_color(ray), weight);
+                pixel_color = mix(pixel_color, sky_color(ray), weight); //like this or with weight.x better?
                 return vec4<f32>(pixel_color, 1.0);
             }
         }
@@ -373,23 +371,34 @@ fn color(primary_ray: Ray, MAX_BOUNCES: i32, t_max: f32) -> vec4<f32> {
         let hit_point: vec3<f32> = ray.origin + ray.direction * t;
         var normal: vec3<f32>;
         var material: Material;
-        var texture_id: i32;
+        // Texture ids
+        var texture_id_diffuse: i32 = 0;
+        var texture_id_roughness: i32 = 1;
+        var texture_id_normal: i32 = 2;
+    
         var uv: vec2<f32>;
         if (is_sphere){
             normal = normalize(hit_point - closest_sphere.center.xyz);
             material = materials[i32(closest_sphere.material_texture_ids[0])];
             uv = sphereUVMapping(hit_point, closest_sphere);
-            texture_id = i32(closest_sphere.material_texture_ids[1]);
+            // Texture ids
+            texture_id_diffuse = i32(closest_sphere.material_texture_ids[1]);
+            texture_id_roughness = i32(closest_sphere.material_texture_ids[2]);
+            texture_id_normal = i32(closest_sphere.material_texture_ids[3]);
         } else {
             normal = normalize(closest_tris.normals.xyz);
             material = materials[i32(closest_tris.material_texture_ids[0])];
             uv = trisUVMapping(hit_point, closest_tris);
-            texture_id = i32(closest_tris.material_texture_ids[1]);
+            // Texture ids
+            texture_id_diffuse = i32(closest_tris.material_texture_ids[1]);
+            texture_id_roughness = i32(closest_tris.material_texture_ids[2]);
+            texture_id_normal = i32(closest_tris.material_texture_ids[3]);
         }
 
         // Update color
-        if texture_id > -1 {
-            pixel_color *= get_texture_color(texture_id, uv, 0);
+        if texture_id_diffuse > -1 {
+            pixel_color *= get_texture_color(texture_id_diffuse, uv);
+            weight *= get_texture_color(texture_id_diffuse, uv); // Update weight based on material attenuation
         } else if (material.emission > 0.0) {
             // Handle emissive material directly
             if (depth == 0) {
@@ -400,22 +409,21 @@ fn color(primary_ray: Ray, MAX_BOUNCES: i32, t_max: f32) -> vec4<f32> {
             return vec4<f32>(pixel_color, 1.0); // Terminate the loop when an emissive object is hit
         } else {
             pixel_color *= material.albedo.xyz;
+            weight *= material.attenuation.xyz; // Update weight based on material attenuation
         }
 
         // Calculate new ray
-        if (texture_id > -1){
+        if (texture_id_roughness > -1 && texture_id_normal > -1){
             if is_sphere {
-                ray = Ray(hit_point + normal*0.0001, reflect(ray.direction, normal * get_texture_color(texture_id, uv, 1) + rngNextVec3InUnitSphere() * (vec3<f32>(1.0)-get_texture_color(texture_id, uv, 2))));
+                ray = Ray(hit_point + normal*0.001, reflect(ray.direction, normal * get_texture_color(texture_id_normal, uv) + rngNextVec3InUnitSphere() * (get_texture_color(texture_id_roughness, uv))));
             } else {
-                ray = Ray(hit_point + normal*0.0001, reflect(ray.direction, normal * get_texture_color(texture_id, uv, 1) + rngNextVec3InUnitSphere() * -1.0 * get_texture_color(texture_id, uv, 2)));
+                ray = Ray(hit_point + normal*0.001, reflect(ray.direction, normal * get_texture_color(2, uv) + rngNextVec3InUnitSphere() * get_texture_color(1, uv)));
             }
         } else if (material.ior > 0.0) {
             ray = dielectric_scatter(ray, hit_point, normal, material);
         } else {
-            ray = Ray(hit_point + normal*0.0001, reflect(ray.direction, normal + rngNextVec3InUnitSphere() * material.roughness)); //normal*0.01 is a offset to fix z-fighting
+            ray = Ray(hit_point + normal*0.001, reflect(ray.direction, normal + rngNextVec3InUnitSphere() * material.roughness)); //normal*0.01 is a offset to fix z-fighting
         }
-
-        weight *= material.attenuation.x; // Update weight based on material attenuation
         depth += 1;
     }
 
@@ -476,17 +484,8 @@ fn length_squared(v: vec3<f32>) -> f32 {
 
 
 // Textures
-fn get_texture_color(texture_id: i32, uv: vec2<f32>, tex_flavour: i32) -> vec3<f32> {
-    var texture_color : vec3<f32>;
-    if tex_flavour == 0{
-        texture_color = textureSampleLevel(diffuse, texture_sampler, uv, texture_id, 0.0).xyz;   
-    } else if tex_flavour == 1{
-        texture_color = textureSampleLevel(normal, texture_sampler, uv, texture_id, 0.0).xyz;   
-    } else {
-        texture_color = textureSampleLevel(roughness, texture_sampler, uv, texture_id, 0.0).xyz; 
-    }
-
-    return texture_color;
+fn get_texture_color(texture_id: i32, uv: vec2<f32>) -> vec3<f32> {
+    return textureSampleLevel(textures, texture_sampler, uv, texture_id, 0.0).xyz;   
 }
 
 fn sphereUVMapping(hit_point: vec3<f32>, sphere: Sphere) -> vec2<f32> {
