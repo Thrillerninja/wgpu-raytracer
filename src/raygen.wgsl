@@ -25,6 +25,8 @@ struct Triangle {
     normals: vec4<f32>,
     uv1: vec4<f32>,
     uv2: vec4<f32>, // Z of first tris is count of triangles
+    tex_coords1: vec4<f32>,
+    tex_coords2: vec4<f32>,
     material_texture_ids: vec4<f32>, //material_id, texture_id_diffuse, texture_id_roughness, texture_id_normal
 }
 @group(2) @binding(0) var<storage> triangles : array<Triangle>;
@@ -329,8 +331,8 @@ fn color(primary_ray: Ray, MAX_BOUNCES: i32, t_max: f32) -> vec4<f32> {
     var ray: Ray = primary_ray;
 
     // Initialize pixel_color to background color
-    var pixel_color = vec3<f32>(1.0,1.0,1.0);
-    var weight = vec3<f32>(1.0, 1.0, 1.0);   //rgb weight
+    var pixel_color = vec3<f32>(sky_color(ray));
+    var weight = vec3<f32>(1.0,1.0,1.0);
 
     while (depth <= MAX_BOUNCES) {
         var t = t_max;
@@ -388,7 +390,12 @@ fn color(primary_ray: Ray, MAX_BOUNCES: i32, t_max: f32) -> vec4<f32> {
         } else {
             normal = normalize(closest_tris.normals.xyz);
             material = materials[i32(closest_tris.material_texture_ids[0])];
-            uv = trisUVMapping(hit_point, closest_tris);
+
+            //new uv coords
+            let tex1 = closest_tris.tex_coords1.xy;
+            let tex2 = closest_tris.tex_coords1.zw;
+            let tex3 = closest_tris.tex_coords2.xy;
+            uv = tex_coord(closest_tris.vertex1.xyz, closest_tris.vertex2.xyz, closest_tris.vertex3.xyz, tex1, tex2, tex3, hit_point);
             // Texture ids
             texture_id_diffuse = i32(closest_tris.material_texture_ids[1]);
             texture_id_roughness = i32(closest_tris.material_texture_ids[2]);
@@ -398,7 +405,7 @@ fn color(primary_ray: Ray, MAX_BOUNCES: i32, t_max: f32) -> vec4<f32> {
         // Update color
         if texture_id_diffuse > -1 {
             pixel_color *= get_texture_color(texture_id_diffuse, uv);
-            weight *= get_texture_color(texture_id_diffuse, uv); // Update weight based on material attenuation
+            // weight *= get_texture_color(texture_id_roughness, uv); // Update weight based on material attenuation
         } else if (material.emission > 0.0) {
             // Handle emissive material directly
             if (depth == 0) {
@@ -409,26 +416,54 @@ fn color(primary_ray: Ray, MAX_BOUNCES: i32, t_max: f32) -> vec4<f32> {
             return vec4<f32>(pixel_color, 1.0); // Terminate the loop when an emissive object is hit
         } else {
             pixel_color *= material.albedo.xyz;
-            weight *= material.attenuation.xyz; // Update weight based on material attenuation
+            // weight *= material.attenuation.xyz; // Update weight based on material attenuation
         }
 
         // Calculate new ray
         if (texture_id_roughness > -1 && texture_id_normal > -1){
-            if is_sphere {
-                ray = Ray(hit_point + normal*0.001, reflect(ray.direction, normal * get_texture_color(texture_id_normal, uv) + rngNextVec3InUnitSphere() * (get_texture_color(texture_id_roughness, uv))));
-            } else {
-                ray = Ray(hit_point + normal*0.001, reflect(ray.direction, normal * get_texture_color(2, uv) + rngNextVec3InUnitSphere() * get_texture_color(1, uv)));
-            }
+            ray = Ray(hit_point + normal*0.001, reflect(ray.direction, normal * get_texture_color(texture_id_normal, uv) + rngNextVec3InUnitSphere() * material.roughness * get_texture_color(texture_id_roughness, uv)));
+        } else if (texture_id_roughness > -1) {
+            ray = Ray(hit_point + normal*0.001, reflect(ray.direction, normal + rngNextVec3InUnitSphere() * material.roughness * get_texture_color(texture_id_roughness, uv))); //normal*0.01 is a offset to fix z-fighting
+        } else if (texture_id_normal > -1) {
+            ray = Ray(hit_point + normal*0.001, reflect(ray.direction, normal * get_texture_color(texture_id_normal, uv)+ rngNextVec3InUnitSphere() * material.roughness)); //normal*0.01 is a offset to fix z-fighting
         } else if (material.ior > 0.0) {
             ray = dielectric_scatter(ray, hit_point, normal, material);
         } else {
             ray = Ray(hit_point + normal*0.001, reflect(ray.direction, normal + rngNextVec3InUnitSphere() * material.roughness)); //normal*0.01 is a offset to fix z-fighting
         }
+
+        weight *= material.attenuation.x; // Update weight based on material attenuation
         depth += 1;
     }
 
     // Return the accumulated color as the pixel color
     return vec4<f32>(pixel_color, 1.0);
+}
+
+fn tex_coord(tris1_pos: vec3<f32>, tris2_pos: vec3<f32>, tris3_pos: vec3<f32>, tex1: vec2<f32>, tex2: vec2<f32>, tex3: vec2<f32>, hit_point: vec3<f32>) -> vec2<f32> {
+    // Barycentric coordinates calculation
+    let v0 = tris2_pos - tris1_pos;
+    let v1 = tris3_pos - tris1_pos;
+    let v2 = hit_point - tris1_pos;
+
+    let dot00 = dot(v0, v0);
+    let dot01 = dot(v0, v1);
+    let dot02 = dot(v0, v2);
+    let dot11 = dot(v1, v1);
+    let dot12 = dot(v1, v2);
+
+    let invDenom = 1.0 / (dot00 * dot11 - dot01 * dot01);
+    let u = (dot11 * dot02 - dot01 * dot12) * invDenom;
+    let v = (dot00 * dot12 - dot01 * dot02) * invDenom;
+
+    let texcoord = tex1 * (1.0 - u - v) +
+                   tex2 * u +
+                   tex3 * v;
+
+    // Perform texture sampling using texcoord
+    // Example: let color = textureSample(texture, texcoord);
+
+    return vec2<f32>(texcoord);
 }
 
 // Dielectric material function

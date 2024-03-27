@@ -18,7 +18,8 @@ mod models;
 use models::{load_obj, load_gltf, load_svg};
 
 mod texture;
-use texture::{create_textureset, load_texture_set, load_texture_set_from_images};
+// use texture::{create_textureset, load_texture_set, load_texture_set_from_images};
+use texture::{create_texture, load_textures, load_textures_from_image};
 
 mod structs;
 use structs::{CameraUniform, TriangleUniform, SphereUniform, BvhUniform};
@@ -27,7 +28,6 @@ use structs::{Material, Sphere, Triangle};
 mod config;
 use config::Config;
 
-use crate::texture::{create_texture, load_textures, load_textures_from_image};
 
 struct State {
     window: Window,
@@ -427,7 +427,7 @@ impl State {
 
         // Add textures from GLTF to textureset
         for i in 0..textures.len(){
-            match load_textures_from_image(&queue, textures_buffer, &textures[i], texture_count + i as i32) {
+            match load_textures_from_image(&queue, textures_buffer, &textures[i], texture_count as i32) {
                 Err(error) => {
                     // Handle the error
                     eprintln!("Error loading texture file: {:?}", error);
@@ -914,7 +914,7 @@ impl State {
     }
 
     fn update(&mut self, dt: std::time::Duration) {
-        println!("FPS: {}", 1.0 / dt.as_secs_f32());
+        // println!("FPS: {}", 1.0 / dt.as_secs_f32());
         self.camera_controller.update_camera(&mut self.camera, dt);
         self.camera_uniform.update_view_proj(&self.camera, &self.projection);
         self.camera_uniform.update_frame();

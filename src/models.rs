@@ -91,7 +91,12 @@ pub fn load_obj(file_path: &str) -> Result<(Vec<Triangle>, Vec<Material>), Box<d
                     ],
                     normals[normal_index],
                     0,
-                    [-1.0, -1.0, -1.0]
+                    [-1.0, -1.0, -1.0],
+                    [
+                        texture_coords[indices[0].1 - 1],
+                        texture_coords[indices[1].1 - 1],
+                        texture_coords[indices[2].1 - 1],
+                    ],
                 );
                 faces.push(triangle);
             }
@@ -249,7 +254,12 @@ pub fn load_gltf(path: &str, material_count: i32, texture_count: i32) -> Result<
                             ],
                             [triangle[0].normal.x, triangle[0].normal.y, triangle[0].normal.z],
                             material_index,
-                            texture_ids.map(|x| x as f32)
+                            texture_ids.map(|x| x as f32),
+                            [
+                                [triangle[0].tex_coords.x, triangle[0].tex_coords.y],
+                                [triangle[1].tex_coords.x, triangle[1].tex_coords.y],
+                                [triangle[2].tex_coords.x, triangle[2].tex_coords.y],
+                            ],
                         );
                         converted_triangles.push(converted_triangle);
                     };

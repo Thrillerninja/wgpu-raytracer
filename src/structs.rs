@@ -62,13 +62,6 @@ impl Material {
     }
 }
 
-//-----------Textureset-----------------
-pub struct TextureSet{
-    pub diffuse: wgpu::Texture,
-    pub normal: wgpu::Texture,
-    pub roughness: wgpu::Texture,
-}
-
 //-----------Sphere-----------------
 #[derive(Clone, Copy, Debug)]
 pub struct Sphere {
@@ -136,16 +129,17 @@ pub struct Triangle{
     pub normal: [f32; 3],
     pub material_id: i32,
     pub texture_ids: [f32; 3],
+    pub tex_coords: [[f32; 2]; 3],
 }
 
 impl Triangle{
-    pub fn new(points: [[f32; 3]; 3], normal: [f32; 3], material_id: i32, texture_ids: [f32; 3]) -> Triangle{
-        Self{points, normal, material_id, texture_ids}
+    pub fn new(points: [[f32; 3]; 3], normal: [f32; 3], material_id: i32, texture_ids: [f32; 3], tex_coords: [[f32;2];3]) -> Triangle{
+        Self{points, normal, material_id, texture_ids, tex_coords}
     }
 }
 
 #[repr(C)]
-#[derive(Clone, Copy, bytemuck::Pod, bytemuck::Zeroable)]
+#[derive(Clone, Copy, bytemuck::Pod, bytemuck::Zeroable, Debug)]
 pub struct TriangleUniform {
     vertex1: [f32; 4],
     vertex2: [f32; 4],
@@ -153,6 +147,8 @@ pub struct TriangleUniform {
     normal: [f32; 4],
     uv1: [f32; 4],
     uv2: [f32; 4],
+    texcords1: [f32; 4],
+    texcords2: [f32; 4],
     material_texture_id: [f32; 4], //[material_id, texture_id_diffuse, texture_id_roughness, texture_id_normal]
 }
 
@@ -166,6 +162,8 @@ impl TriangleUniform {
             uv1: [uv[0][0], uv[0][1], uv[1][0], uv[1][1]],
             uv2: [uv[2][0], uv[2][1], count as f32, 0.0],
             material_texture_id: [triangle.material_id as f32, triangle.texture_ids[0] as f32, triangle.texture_ids[1] as f32, triangle.texture_ids[2] as f32],
+            texcords1: [triangle.tex_coords[0][0], triangle.tex_coords[0][1], triangle.tex_coords[1][0], triangle.tex_coords[1][1]],
+            texcords2: [triangle.tex_coords[2][0], triangle.tex_coords[2][1], 0.0, 0.0],
         }
     }
 }
