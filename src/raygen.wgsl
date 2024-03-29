@@ -421,7 +421,8 @@ fn color(primary_ray: Ray, MAX_BOUNCES: i32, t_max: f32) -> vec4<f32> {
 
         // Calculate new ray
         if (texture_id_roughness > -1 && texture_id_normal > -1){
-            ray = Ray(hit_point + normal*0.001, reflect(ray.direction, normal * get_texture_color(texture_id_normal, uv) + rngNextVec3InUnitSphere() * material.roughness * get_texture_color(texture_id_roughness, uv)));
+            ray = Ray(hit_point + normal*0.001, reflect(ray.direction,  get_texture_color(texture_id_normal, uv) + rngNextVec3InUnitSphere() * get_texture_color(texture_id_roughness, uv)));
+            // return vec4<f32>(ray.direction, 1.0);
         } else if (texture_id_roughness > -1) {
             ray = Ray(hit_point + normal*0.001, reflect(ray.direction, normal + rngNextVec3InUnitSphere() * material.roughness * get_texture_color(texture_id_roughness, uv))); //normal*0.01 is a offset to fix z-fighting
         } else if (texture_id_normal > -1) {

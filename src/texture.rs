@@ -130,3 +130,18 @@ pub fn load_textures_from_image(queue: &Queue, textureset: Texture, texture: &Dy
 
     Ok(textureset)
 }
+
+pub fn scale_texture(texture: &DynamicImage, width: u32, height: u32) -> DynamicImage {
+    
+    // Save the original texture
+    let original_path = "texture_{}_original.png";
+    // texture.save(original_path);
+
+    // Resize the texture
+    let resized_texture = texture.resize(width, height, image::imageops::FilterType::Nearest);
+
+    // Save the resized texture
+    let resized_path = "texture_{}_resized.png";
+    // resized_texture.save(resized_path);
+    return resized_texture;
+}

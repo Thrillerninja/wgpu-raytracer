@@ -262,6 +262,7 @@ pub fn load_gltf(path: &str, material_count: i32, texture_count: i32) -> Result<
                             ],
                         );
                         converted_triangles.push(converted_triangle);
+                        // println!(" TEx_coords: {:?}", converted_triangle.tex_coords);
                     };
                 }
                 Err(err) => {

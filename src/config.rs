@@ -45,7 +45,7 @@ impl Config {
         
         Self {
             // Camera
-            camera_position: (0.0,0.0,0.0),//(-0.8, 1.59, -2.14),
+            camera_position: (0.0,2.0,0.0),//(-0.8, 1.59, -2.14),
             camera_rotation: [0.0,-90.0],//[195.0, -20.0],
             camera_near_far: [0.1, 100.0],
             camera_fov: 90.0,

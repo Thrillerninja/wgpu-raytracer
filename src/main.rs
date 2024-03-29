@@ -4,7 +4,7 @@ use wgpu::Features;
 use winit::{
     event::*,
     event_loop::{ControlFlow, EventLoop},
-    window::Window,
+    window::{ResizeDirection, Window},
 };
 use rtbvh::*;
 
@@ -19,7 +19,7 @@ use models::{load_obj, load_gltf, load_svg};
 
 mod texture;
 // use texture::{create_textureset, load_texture_set, load_texture_set_from_images};
-use texture::{create_texture, load_textures, load_textures_from_image};
+use texture::{create_texture, load_textures, load_textures_from_image, scale_texture};
 
 mod structs;
 use structs::{CameraUniform, TriangleUniform, SphereUniform, BvhUniform};
@@ -427,7 +427,9 @@ impl State {
 
         // Add textures from GLTF to textureset
         for i in 0..textures.len(){
-            match load_textures_from_image(&queue, textures_buffer, &textures[i], texture_count as i32) {
+            let resized_texture = scale_texture(&textures[i], 1024, 1024);
+
+            match load_textures_from_image(&queue, textures_buffer, &resized_texture, texture_count as i32) {
                 Err(error) => {
                     // Handle the error
                     eprintln!("Error loading texture file: {:?}", error);
