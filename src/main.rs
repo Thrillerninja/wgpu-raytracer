@@ -1,3 +1,4 @@
+use std::collections::VecDeque;
 use image::DynamicImage;
 use wgpu::util::DeviceExt;
 use wgpu::Features;
@@ -5,9 +6,16 @@ use winit::{
     event::*, event_loop::{ControlFlow, EventLoop}, keyboard::{Key, KeyCode, NamedKey}, window::{ResizeDirection, Window}
 };
 use rtbvh::*;
+use egui_wgpu::ScreenDescriptor;
 
 #[cfg(target_arch = "wasm32")]
 use wasm_bindgen::prelude::*;
+
+mod gui;
+use gui::EguiRenderer;
+
+mod gui_example;
+use gui_example::GUI;
 
 mod camera;
 use camera::Camera;
@@ -57,6 +65,9 @@ struct State<'a>{
     bvh_bind_group: wgpu::BindGroup,
     //Textures
     texture_bind_group: wgpu::BindGroup,
+    //GUI
+    egui: gui::EguiRenderer,
+    fps: VecDeque<u32>,
 }
 
 impl<'a> State<'a>{  
@@ -124,7 +135,7 @@ impl<'a> State<'a>{
         surface.configure(&device, &config);     
         
         let mut userconfig = Config::new();
-        
+
         //----------Color Buffer-------------
         // Create a color texture with a suitable sRGB format
         let color_texture = device.create_texture(&wgpu::TextureDescriptor {
@@ -850,6 +861,16 @@ impl<'a> State<'a>{
             multiview: None,
         });
 
+        //----------- GUI -------------        
+        let egui = EguiRenderer::new(
+            &device,       // wgpu Device
+            config.format, // TextureFormat
+            None,          // this can be None
+            1,             // samples
+            &window,       // winit Window
+        );
+
+        let fps = VecDeque::with_capacity(100);
         
         Self {
             surface,
@@ -876,6 +897,8 @@ impl<'a> State<'a>{
             object_bind_group,
             bvh_bind_group,
             texture_bind_group,
+            egui,
+            fps
         }
     }
 
@@ -921,7 +944,6 @@ impl<'a> State<'a>{
     }
 
     fn update(&mut self, dt: std::time::Duration) {
-        // println!("FPS: {}", 1.0 / dt.as_secs_f32());
         self.camera_controller.update_camera(&mut self.camera, dt);
         self.camera_uniform.update_view_proj(&self.camera, &self.projection);
         self.camera_uniform.update_frame();
@@ -930,6 +952,11 @@ impl<'a> State<'a>{
             0,
             bytemuck::cast_slice(&[self.camera_uniform]),
         );
+
+        // ---------FPS---------
+        // println!("FPS: {}", 1.0 / dt.as_secs_f32());
+        self.fps.push_front((1.0 / dt.as_secs_f32()) as u32);
+        self.fps.truncate(100);
     }
 
     fn render(&mut self) -> Result<(), wgpu::SurfaceError> {
@@ -1083,10 +1110,23 @@ impl<'a> State<'a>{
             bytemuck::cast_slice(&[self.camera_uniform]),
         );
     
-        // Submit the command encoder
+        // Draw the GUI
+        let screen_descriptor = ScreenDescriptor {
+            size_in_pixels: [self.config.width, self.config.height],
+            pixels_per_point: self.window().scale_factor() as f32,
+        };
+
+        self.egui.draw(
+            &self.device,
+            &self.queue,
+            &mut encoder3,
+            &self.window,
+            &view,
+            screen_descriptor,
+            |ui| GUI(ui, &self.fps),
+        );
+
         self.queue.submit(std::iter::once(encoder3.finish()));
-    
-        // Present the frame
         output.present();
     
         Ok(())
@@ -1190,7 +1230,9 @@ pub async fn run() {
                         println!("Window={window_id:?} changed scale to {scale_factor}");
                     }
                     _ => {}
-                }
+                };
+                
+                state.egui.handle_input(&mut state.window, &event);
             }
             Event::DeviceEvent {
                 event: DeviceEvent::MouseMotion{ delta, },
