@@ -2,9 +2,7 @@ use image::DynamicImage;
 use wgpu::util::DeviceExt;
 use wgpu::Features;
 use winit::{
-    event::*,
-    event_loop::{ControlFlow, EventLoop},
-    window::{ResizeDirection, Window},
+    event::*, event_loop::{ControlFlow, EventLoop}, keyboard::{Key, KeyCode, NamedKey}, window::{ResizeDirection, Window}
 };
 use rtbvh::*;
 
@@ -29,9 +27,9 @@ mod config;
 use config::Config;
 
 
-struct State {
+struct State<'a>{
     window: Window,
-    surface: wgpu::Surface,
+    surface: wgpu::Surface<'a>,
     device: wgpu::Device,
     queue: wgpu::Queue,
     config: wgpu::SurfaceConfiguration,
@@ -61,48 +59,53 @@ struct State {
     texture_bind_group: wgpu::BindGroup,
 }
 
-async fn hardware_launch(window: &Window) -> (wgpu::Surface, wgpu::Device, wgpu::Queue, wgpu::Adapter) {
-    // The instance is a handle to our GPU
-    let instance = wgpu::Instance::new(wgpu::InstanceDescriptor {
-        backends: wgpu::Backends::DX12,
-        dx12_shader_compiler: Default::default(),
-    });
-
-    let surface = unsafe { instance.create_surface(window) }.unwrap();
-
-
-    let adapter = instance
-        .request_adapter(&wgpu::RequestAdapterOptions {
-            power_preference: wgpu::PowerPreference::HighPerformance,
-            compatible_surface: Some(&surface),
-            force_fallback_adapter: false,
-        })
-        .await
-        .unwrap();
-    
-    println!("{}", adapter.get_info().name);
-
-    let (device, queue) = adapter
-        .request_device(
-            &wgpu::DeviceDescriptor {
-                features: Features::TEXTURE_ADAPTER_SPECIFIC_FORMAT_FEATURES,
-                label: None,
-                limits: wgpu::Limits {
-                    max_bind_groups: 5,
-                    ..Default::default()
-                }
-            },
-            None,
-        )
-        .await
-        .unwrap();
-
-    (surface, device, queue, adapter)
-}
-
-impl State {  
+impl<'a> State<'a>{  
     async fn new(window: Window) -> Self {
-        let (surface, device, queue, adapter) = hardware_launch(&window).await;
+        // The instance is a handle to our GPU
+        let instance = wgpu::Instance::new(wgpu::InstanceDescriptor {
+            backends: wgpu::Backends::DX12,
+            dx12_shader_compiler: Default::default(),
+            gles_minor_version: wgpu::Gles3MinorVersion::Automatic,
+            flags: wgpu::InstanceFlags::empty(),
+        });
+    
+        let surface_result = unsafe {
+            instance.create_surface_unsafe(wgpu::SurfaceTargetUnsafe::from_window(&window).unwrap())
+        };
+    
+        let surface = match surface_result {
+            Ok(surface) => surface,
+            Err(error) => {
+                // Handle the error here
+                panic!("Failed to create surface: {:?}", error);
+            }
+        };
+    
+        let adapter = instance
+            .request_adapter(&wgpu::RequestAdapterOptions {
+                power_preference: wgpu::PowerPreference::HighPerformance,
+                compatible_surface: Some(&surface),
+                force_fallback_adapter: false,
+            })
+            .await
+            .unwrap();
+        
+        println!("{}", adapter.get_info().name);
+    
+        let (device, queue) = adapter
+            .request_device(
+                &wgpu::DeviceDescriptor {
+                    required_features: Features::TEXTURE_ADAPTER_SPECIFIC_FORMAT_FEATURES,
+                    label: None,
+                    required_limits: wgpu::Limits {
+                        max_bind_groups: 5,
+                        ..Default::default()
+                    }
+                },
+                None,
+            )
+            .await
+            .unwrap();
 
         let surface_caps = surface.get_capabilities(&adapter);
         
@@ -116,10 +119,12 @@ impl State {
             present_mode: surface_caps.present_modes[0],
             alpha_mode: surface_caps.alpha_modes[0],
             view_formats: vec![],
+            desired_maximum_frame_latency: 10,
         };
         surface.configure(&device, &config);     
         
         let mut userconfig = Config::new();
+        
         //----------Color Buffer-------------
         // Create a color texture with a suitable sRGB format
         let color_texture = device.create_texture(&wgpu::TextureDescriptor {
@@ -891,14 +896,14 @@ impl State {
     fn input(&mut self, event: &WindowEvent) -> bool {
         match event {
             WindowEvent::KeyboardInput {
-                input:
-                    KeyboardInput {
-                        virtual_keycode: Some(key),
+                event:
+                    KeyEvent {
+                        logical_key: key,
                         state,
                         ..
                     },
                 ..
-            } => self.camera_controller.process_keyboard(*key, *state),
+            } => self.camera_controller.process_keyboard(key, state),
             WindowEvent::MouseWheel { delta, .. } => {
                 self.camera_controller.process_scroll(delta);
                 true
@@ -954,6 +959,7 @@ impl State {
             // Start a compute pass for ray tracing
             let mut compute_pass = encoder.begin_compute_pass(&wgpu::ComputePassDescriptor {
                 label: Some("Ray Tracing Pass"),
+                timestamp_writes: None,
             });
     
             // Set ray tracing pipeline and bind group
@@ -983,6 +989,7 @@ impl State {
 
             let mut denoise_pass = encoder.begin_compute_pass(&wgpu::ComputePassDescriptor {
                 label: Some("1. Denoising Pass"),
+                timestamp_writes: None,
             });
     
             // Set denoising pipeline and bind group
@@ -1017,6 +1024,7 @@ impl State {
         {
             let mut denoise_pass = encoder2.begin_compute_pass(&wgpu::ComputePassDescriptor {
                 label: Some("2. Denoising Pass"),
+                timestamp_writes: None,
             });
     
             // Set denoising pipeline and bind group
@@ -1054,10 +1062,12 @@ impl State {
                             b: 0.3,
                             a: 1.0,
                         }),
-                        store: true,
+                        store: wgpu::StoreOp::Store,
                     },
                 })],
                 depth_stencil_attachment: None,
+                occlusion_query_set: None,
+                timestamp_writes: None,
             });
     
             // Set the screen rendering pipeline and bind group
@@ -1098,11 +1108,13 @@ pub async fn run() {
         }
     }
 
-    let event_loop = EventLoop::new();
+    let event_loop = EventLoop::new().unwrap();
     let title = env!("CARGO_PKG_NAME");
-    let window = winit::window::WindowBuilder::new()
+    let builder = winit::window::WindowBuilder::new();
+    let window = builder
         .with_title(title)
         .build(&event_loop)
+        //Probably change the size here;
         .unwrap();
 
     #[cfg(target_arch = "wasm32")]
@@ -1123,60 +1135,80 @@ pub async fn run() {
             })
             .expect("Couldn't append canvas to document body.");
     }
+        
+    // ControlFlow::Poll continuously runs the event loop, even if the OS hasn't
+    // dispatched any events.
+    event_loop.set_control_flow(ControlFlow::Poll);
 
-    let mut state = State::new(window).await; // NEW!
+    let mut state = State::new(window).await;
     let mut last_render_time = instant::Instant::now();
-    event_loop.run(move |event, _, control_flow| {
-        *control_flow = ControlFlow::Poll;
+
+    let _ = event_loop.run(move |event, elwt| {
         match event {
-            Event::MainEventsCleared => state.window().request_redraw(),
-            Event::DeviceEvent {
-                event: DeviceEvent::MouseMotion{ delta, },
-                ..
-            } => if state.mouse_pressed {
-                state.camera_controller.process_mouse(delta.0, delta.1)
-            }
             Event::WindowEvent {
                 ref event,
                 window_id,
             } if window_id == state.window().id() && !state.input(event) => {
                 match event {
                     #[cfg(not(target_arch="wasm32"))]
-                    WindowEvent::CloseRequested
-                    | WindowEvent::KeyboardInput {
-                        input:
-                            KeyboardInput {
+                    WindowEvent::CloseRequested => {
+                        elwt.exit();
+                    }
+                    WindowEvent::RedrawRequested => {
+                        let now = instant::Instant::now();
+                        let dt = now - last_render_time;
+                        last_render_time = now;
+                        state.update(dt);
+                        match state.render() {
+                            Ok(_) => {}
+                            // Reconfigure the surface if it's lost or outdated
+                            Err(wgpu::SurfaceError::Lost | wgpu::SurfaceError::Outdated) => state.resize(state.size),
+                            // The system is out of memory, we should probably quit
+                            Err(wgpu::SurfaceError::OutOfMemory) => elwt.exit(),
+                            // We're ignoring timeouts
+                            Err(wgpu::SurfaceError::Timeout) => log::warn!("Surface timeout"),
+                        }
+                    }
+                    WindowEvent::KeyboardInput {
+                        event:
+                            KeyEvent {
                                 state: ElementState::Pressed,
-                                virtual_keycode: Some(VirtualKeyCode::Escape),
+                                logical_key: key,
                                 ..
                             },
                         ..
-                    } => *control_flow = ControlFlow::Exit,
+                    } => {
+                        match key {
+                            Key::Named(NamedKey::Escape) => elwt.exit(),
+                            _ => {}
+                        }
+                    }
                     WindowEvent::Resized(physical_size) => {
                         state.resize(*physical_size);
                     }
-                    WindowEvent::ScaleFactorChanged { new_inner_size, .. } => {
-                        state.resize(**new_inner_size);
+                    WindowEvent::ScaleFactorChanged  {scale_factor, .. } => {
+                        println!("Window={window_id:?} changed scale to {scale_factor}");
                     }
                     _ => {}
                 }
             }
-            Event::RedrawRequested(window_id) if window_id == state.window().id() => {
-                let now = instant::Instant::now();
-                let dt = now - last_render_time;
-                last_render_time = now;
-                state.update(dt);
-                match state.render() {
-                    Ok(_) => {}
-                    // Reconfigure the surface if it's lost or outdated
-                    Err(wgpu::SurfaceError::Lost | wgpu::SurfaceError::Outdated) => state.resize(state.size),
-                    // The system is out of memory, we should probably quit
-                    Err(wgpu::SurfaceError::OutOfMemory) => *control_flow = ControlFlow::Exit,
-                    // We're ignoring timeouts
-                    Err(wgpu::SurfaceError::Timeout) => log::warn!("Surface timeout"),
-                }
+            Event::DeviceEvent {
+                event: DeviceEvent::MouseMotion{ delta, },
+                ..
+            } => if state.mouse_pressed {
+                state.camera_controller.process_mouse(delta.0, delta.1)
             }
-            _ => {}
+            Event::AboutToWait => {
+                // Application update code.
+    
+                // Queue a RedrawRequested event.
+                //
+                // You only need to call this if you've determined that you need to redraw in
+                // applications which do not always need to. Applications that redraw continuously
+                // can render here instead.
+                state.window().request_redraw();
+            },
+            _ => ()
         }
     });
 }
