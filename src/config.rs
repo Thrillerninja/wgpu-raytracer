@@ -1,4 +1,5 @@
 use crate::structs::{Material, Sphere};   
+
 pub struct Config {
     pub camera_position: (f32, f32, f32),
     pub camera_rotation: [f32; 2],
@@ -19,7 +20,7 @@ impl Config {
     pub fn new() -> Self {
         let mut spheres: Vec<Sphere> = Vec::new();
         //                                            x    y     z   radius    mat_id texture_id
-        spheres.push(Sphere::new(cgmath::Point3::new(0.5, 0.0, -1.0), 0.2    , 0,        [-1, -1, -1]));
+        spheres.push(Sphere::new(cgmath::Point3::new(0.5, 0.0, -1.0), 0.2    , 0,       [-1, -1, -1]));
         spheres.push(Sphere::new(cgmath::Point3::new(-0.5, 0.0, -1.0), 0.2   , 1,       [-1, -1, -1]));
         spheres.push(Sphere::new(cgmath::Point3::new(0.5, 1.0, -1.0), 0.3    , 2,       [-1, -1, -1]));
         spheres.push(Sphere::new(cgmath::Point3::new(0.5, -50.5, -1.0), 50.0 , 3,       [-1, -1, -1]));

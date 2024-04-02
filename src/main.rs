@@ -15,7 +15,7 @@ mod gui;
 use gui::EguiRenderer;
 
 mod gui_example;
-use gui_example::GUI;
+use gui_example::gui;
 
 mod camera;
 use camera::Camera;
@@ -28,7 +28,7 @@ mod texture;
 use texture::{create_texture, load_textures, load_textures_from_image, scale_texture};
 
 mod structs;
-use structs::{CameraUniform, TriangleUniform, SphereUniform, BvhUniform};
+use structs::{CameraUniform, TriangleUniform, SphereUniform, BvhUniform, ShaderConfig};
 use structs::{Material, Sphere, Triangle};
 
 mod config;
@@ -48,6 +48,8 @@ struct State<'a>{
     denoising_bind_group: wgpu::BindGroup,
     denoising_pipeline: wgpu::ComputePipeline,
     //Raytracing
+    shader_config_bind_group: wgpu::BindGroup,
+    shader_config_buffer: wgpu::Buffer,
     ray_tracing_pipeline: wgpu::ComputePipeline,
     raytracing_bind_group: wgpu::BindGroup,
     screen_render_pipeline: wgpu::RenderPipeline,
@@ -67,7 +69,7 @@ struct State<'a>{
     texture_bind_group: wgpu::BindGroup,
     //GUI
     egui: gui::EguiRenderer,
-    fps: VecDeque<u32>,
+    fps: VecDeque<f32>,
 }
 
 impl<'a> State<'a>{  
@@ -109,7 +111,7 @@ impl<'a> State<'a>{
                     required_features: Features::TEXTURE_ADAPTER_SPECIFIC_FORMAT_FEATURES,
                     label: None,
                     required_limits: wgpu::Limits {
-                        max_bind_groups: 5,
+                        max_bind_groups: 6,
                         ..Default::default()
                     }
                 },
@@ -327,7 +329,8 @@ impl<'a> State<'a>{
         // Create a pipeline layout for denoising denoising
         let denoising_pipeline_layout = device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
             label: Some("Denoising Pipeline Layout"),
-            bind_group_layouts: &[&denoising_bind_group_layout],
+            bind_group_layouts: &[
+                &denoising_bind_group_layout],
             push_constant_ranges: &[],
         });
 
@@ -694,6 +697,39 @@ impl<'a> State<'a>{
         println!("Textures ready");
         
         //----------Raytracing-------------
+        let shader_config = structs::ShaderConfig::default();
+        // Raytracing config via uniform buffer
+        let shader_config_bind_group_layout = device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
+            entries: &[
+                wgpu::BindGroupLayoutEntry {
+                    binding: 0,
+                    visibility: wgpu::ShaderStages::COMPUTE,
+                    ty: wgpu::BindingType::Buffer {
+                        ty: wgpu::BufferBindingType::Uniform,
+                        has_dynamic_offset: false,
+                        min_binding_size: None,
+                    },
+                    count: None,
+                },
+            ],
+            label: Some("shader_config"),
+        });
+
+        let shader_config_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
+            label: Some("Shader config Buffer"),
+            contents: bytemuck::cast_slice(&[shader_config]),
+            usage: wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST,
+        });
+
+        let shader_config_bind_group = device.create_bind_group(&wgpu::BindGroupDescriptor {
+            layout: &shader_config_bind_group_layout,
+            entries: &[wgpu::BindGroupEntry {
+                binding: 0,
+                resource: shader_config_buffer.as_entire_binding(),
+            }],
+            label: Some("shader_config_bind_group"),
+        });
+
 
         // Create a bind group layout for the shader
         let raytracing_bind_group_layout = device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
@@ -735,6 +771,7 @@ impl<'a> State<'a>{
         device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
             label: Some("Ray Tracing Pipeline Layout"),
             bind_group_layouts: &[
+                &shader_config_bind_group_layout,
                 &raytracing_bind_group_layout,
                 &camera_bind_group_layout,
                 &object_bind_group_layout,
@@ -870,7 +907,7 @@ impl<'a> State<'a>{
             &window,       // winit Window
         );
 
-        let fps = VecDeque::with_capacity(100);
+        let fps: VecDeque<f32> = VecDeque::with_capacity(100);
         
         Self {
             surface,
@@ -883,6 +920,8 @@ impl<'a> State<'a>{
             denoising_pass_buffer,
             denoising_bind_group,
             denoising_pipeline,
+            shader_config_bind_group,
+            shader_config_buffer,
             ray_tracing_pipeline,
             raytracing_bind_group,
             screen_render_pipeline,
@@ -955,7 +994,14 @@ impl<'a> State<'a>{
 
         // ---------FPS---------
         // println!("FPS: {}", 1.0 / dt.as_secs_f32());
-        self.fps.push_front((1.0 / dt.as_secs_f32()) as u32);
+
+        // If fps is empty fill with the first value
+        if self.fps.is_empty() {
+            for i in 0..100 {
+                self.fps.push_back(1.0 / dt.as_secs_f32());
+            }
+        }
+        self.fps.push_front(1.0 / dt.as_secs_f32());
         self.fps.truncate(100);
     }
 
@@ -991,11 +1037,12 @@ impl<'a> State<'a>{
     
             // Set ray tracing pipeline and bind group
             compute_pass.set_pipeline(&self.ray_tracing_pipeline);
-            compute_pass.set_bind_group(0, &self.raytracing_bind_group, &[]);
-            compute_pass.set_bind_group(1, &self.camera_bind_group, &[]);
-            compute_pass.set_bind_group(2, &self.object_bind_group, &[]);
-            compute_pass.set_bind_group(3, &self.texture_bind_group, &[]);
-            compute_pass.set_bind_group(4, &self.bvh_bind_group, &[]);
+            compute_pass.set_bind_group(0, &self.shader_config_bind_group, &[]);
+            compute_pass.set_bind_group(1, &self.raytracing_bind_group, &[]);
+            compute_pass.set_bind_group(2, &self.camera_bind_group, &[]);
+            compute_pass.set_bind_group(3, &self.object_bind_group, &[]);
+            compute_pass.set_bind_group(4, &self.texture_bind_group, &[]);
+            compute_pass.set_bind_group(5, &self.bvh_bind_group, &[]);
     
             // Dispatch workgroups for ray tracing (adjust dimensions as needed)
             compute_pass.dispatch_workgroups(
@@ -1123,7 +1170,7 @@ impl<'a> State<'a>{
             &self.window,
             &view,
             screen_descriptor,
-            |ui| GUI(ui, &self.fps),
+            |ui| gui(ui, &self.fps),
         );
 
         self.queue.submit(std::iter::once(encoder3.finish()));
@@ -1189,6 +1236,10 @@ pub async fn run() {
                 ref event,
                 window_id,
             } if window_id == state.window().id() && !state.input(event) => {
+                // UI upadtes
+                state.egui.handle_input(&mut state.window, &event);
+
+                // Handle window events
                 match event {
                     #[cfg(not(target_arch="wasm32"))]
                     WindowEvent::CloseRequested => {
@@ -1231,8 +1282,6 @@ pub async fn run() {
                     }
                     _ => {}
                 };
-                
-                state.egui.handle_input(&mut state.window, &event);
             }
             Event::DeviceEvent {
                 event: DeviceEvent::MouseMotion{ delta, },

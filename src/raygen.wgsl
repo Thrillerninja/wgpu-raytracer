@@ -1,12 +1,12 @@
-@group(0) @binding(0) var color_buffer: texture_storage_2d<rgba8unorm, write>;
-@group(3) @binding(0) var temporal_color_buffer: sampler;
+@group(1) @binding(0) var color_buffer: texture_storage_2d<rgba8unorm, write>;
+@group(4) @binding(0) var temporal_color_buffer: sampler;
 // Camera
 struct Camera {
     frame: vec4<f32>,
     view_pos: vec4<f32>, // 4. is a frame counter
     view_proj: mat4x4<f32>,
 }
-@group(1) @binding(0) var<uniform> camera: Camera;
+@group(2) @binding(0) var<uniform> camera: Camera;
 
 struct Material {
     albedo: vec4<f32>,
@@ -29,14 +29,14 @@ struct Triangle {
     tex_coords2: vec4<f32>,
     material_texture_ids: vec4<f32>, //material_id, texture_id_diffuse, texture_id_roughness, texture_id_normal
 }
-@group(2) @binding(0) var<storage> triangles : array<Triangle>;
+@group(3) @binding(0) var<storage> triangles : array<Triangle>;
 
 struct Sphere {
     center: vec4<f32>,
     radius: vec4<f32>,
     material_texture_ids: vec4<f32>, //material_id, texture_id_diffuse, texture_id_roughness, texture_id_normal
 }
-@group(2) @binding(1) var<storage> spheres : array<Sphere>;
+@group(3) @binding(1) var<storage> spheres : array<Sphere>;
 
 struct Ray {
     origin: vec3<f32>,
@@ -47,9 +47,9 @@ struct BVHTraversal {
     nodeIdx: i32,
 }
 
-@group(3) @binding(0) var texture_sampler : sampler;
-@group(3) @binding(1) var textures: texture_2d_array<f32>;
-@group(3) @binding(2) var<storage> materials: array<Material>;
+@group(4) @binding(0) var texture_sampler : sampler;
+@group(4) @binding(1) var textures: texture_2d_array<f32>;
+@group(4) @binding(2) var<storage> materials: array<Material>;
 
 struct BVHNodes {
     min: vec4<f32>,
@@ -58,8 +58,24 @@ struct BVHNodes {
     extra2: vec4<f32>, 
 }
 
-@group(4) @binding(0) var<storage> bvh: array<BVHNodes>;
-@group(4) @binding(1) var<storage> bvh_prim_indices: array<f32>;
+@group(5) @binding(0) var<storage> bvh: array<BVHNodes>;
+@group(5) @binding(1) var<storage> bvh_prim_indices: array<f32>;
+
+struct shader_config {
+    max_bounces: i32,
+    samples: i32,
+    may_ray_distance: f32,
+    
+    focus_distance: f32,
+    aperture: f32,
+    lens_radius: f32,
+
+    focus_viewer_visible: i32,
+    debug_random_color_visible: i32,
+    debug_bvh_bounding_visible: i32,
+    debug_bvh_bounding_color_visible: i32,
+}
+@group(0) @binding(0) var<uniform> config: shader_config;
 
 var<private> seed: f32;
 var<private> screen_size: vec2<u32>;
@@ -374,9 +390,9 @@ fn color(primary_ray: Ray, MAX_BOUNCES: i32, t_max: f32) -> vec4<f32> {
         var normal: vec3<f32>;
         var material: Material;
         // Texture ids
-        var texture_id_diffuse: i32 = 0;
-        var texture_id_roughness: i32 = 1;
-        var texture_id_normal: i32 = 2;
+        var texture_id_diffuse: i32;
+        var texture_id_roughness: i32;
+        var texture_id_normal: i32;
     
         var uv: vec2<f32>;
         if (is_sphere){

@@ -218,3 +218,67 @@ impl BvhUniform {
         }
     }
 }
+
+//-----------Shader Config-----------------
+#[repr(C)]
+#[derive(Clone, Copy, bytemuck::Pod, bytemuck::Zeroable)]
+pub struct ShaderConfig {
+    //raytracing shader
+    pub ray_max_bounces: i32,
+    pub ray_samples_per_pixel: i32,
+    pub ray_max_ray_distance: f32,
+
+    //camera
+    pub ray_focus_distance: f32,
+    pub ray_aperture: f32,
+    pub ray_lens_radius: f32,
+
+    pub ray_focus_viewer_visible: i32, //used as bool
+    pub ray_debug_rand_color: i32, //used as bool
+    pub ray_debug_bvh_bounding_box: i32, //used as bool
+    pub ray_debug_bvh_bounding_color: i32, //used as bool
+
+
+
+    //denoising shader
+    //temporal
+    pub temporal_den_motion_threshold: f32,
+    pub temporal_den_direction_threshold: f32,
+    pub temporal_den_low_threshold: f32,
+    pub temporal_den_low_blend_factor: f32,
+    pub temporal_den_high_blend_factor: f32,
+
+    //spatial
+    pub spatial_den_cormpare_radius: i32,
+    pub spatial_den_patch_radius: i32,
+    pub spatial_den_significant_weight: f32,
+
+    //padding
+    _padding: [i32; 3],
+}
+
+impl Default for ShaderConfig {
+    fn default() -> Self {
+        Self {
+            ray_max_bounces: 10,
+            ray_samples_per_pixel: 1,
+            ray_max_ray_distance: 10_000.0,
+            ray_focus_distance: 2.5,
+            ray_aperture: 0.005,
+            ray_lens_radius: 0.0,
+            ray_focus_viewer_visible: 0,
+            ray_debug_rand_color: 0,
+            ray_debug_bvh_bounding_box: 0,
+            ray_debug_bvh_bounding_color: 0,
+            temporal_den_motion_threshold: 0.005,
+            temporal_den_direction_threshold: 0.01,
+            temporal_den_low_threshold: 0.05,
+            temporal_den_low_blend_factor: 0.03,
+            temporal_den_high_blend_factor: 0.2,
+            spatial_den_cormpare_radius: 13,
+            spatial_den_patch_radius: 5,
+            spatial_den_significant_weight: 0.001,
+            _padding: [0; 3],
+        }
+    }
+}

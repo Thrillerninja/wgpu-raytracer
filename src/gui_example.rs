@@ -1,29 +1,79 @@
 use std::collections::VecDeque;
 use egui::{Align2, Context};
+use egui_plot::{AxisHints, GridMark, Legend, PlotPoints};
+use wgpu::hal::empty;
+use std::ops::RangeInclusive;
 
-pub fn GUI(ui: &Context, fps: &VecDeque<u32>) {
-    egui::Window::new("Streamline CFD")
-        // .vscroll(true)
+pub fn gui(ui: &Context, fps: &VecDeque<f32>) {
+    egui::Window::new("Debug Info")
         .default_open(true)
         .max_width(1000.0)
         .max_height(800.0)
         .default_width(800.0)
         .resizable(true)
-        .anchor(Align2::LEFT_TOP, [0.0, 0.0])
-        .show(&ui, |mut ui| {
-            //show fps counter
-            //average fps over the last 100 frames
-            let avg_fps: f32 = fps.iter().sum::<u32>() as f32 / fps.len() as f32;
-            ui.label(format!("FPS: {:.1}", avg_fps));
+        .anchor(Align2::RIGHT_TOP, [0.0, 0.0])
+        .frame(egui::Frame::default().fill(egui::Color32::from_black_alpha(150)))
+        .title_bar(false)
+        .show(&ui, |ui| {
+            // show fps counter
+            // average fps over the last 100 frames
+            let avg_fps: f32 = fps.iter().sum::<f32>() / fps.len() as f32;
+            let color = if avg_fps > 60.0 {
+                egui::Color32::from_rgb(0, 255, 0) // green
+            } else if avg_fps > 30.0 {
+                egui::Color32::from_rgb(255, 165, 0) // orange
+            } else {
+                egui::Color32::from_rgb(255, 0, 0) // red
+            };
+            ui.colored_label(color, format!("FPS: {:.1}", avg_fps));
+            // next line
+            
+            let mut frame_times: Vec<f32> = fps.iter().map(|x| *x).collect();
+            frame_times.reverse();
 
-            if ui.add(egui::Button::new("Click me")).clicked() {
-                println!("PRESSED")
-            }
+            let ms_formatter = |mark: GridMark, _digits, _range : &'_ RangeInclusive<f64>| {
+                format!("{:}ms", mark.value)
+            };
 
-            ui.label("Slider");
-            // ui.add(egui::Slider::new(_, 0..=120).text("age"));
-            ui.end_row();
+            let empty_formatter = |mark: GridMark, _digits, _range : &'_ RangeInclusive<f64>| {
+                format!("{:}", "")
+            };
 
-            // proto_scene.egui(ui);
+            let y_axis = vec![
+                AxisHints::new_y()
+                // .label("Frametime")
+                .formatter(ms_formatter)
+                .max_digits(2),
+                AxisHints::new_y()
+                .formatter(empty_formatter)
+                .placement(egui_plot::HPlacement::Right)
+                .max_digits(1)
+                ];
+            let x_axis = vec![
+                AxisHints::new_x()
+                .label("Last 100 Frames")
+                .formatter(|mark, _digits, _range| format!("{:}", mark.value))
+                .max_digits(3)];
+            
+            ui.vertical(|ui| {
+                ui.colored_label(egui::Color32::WHITE, "Frametimes (ms):");
+                egui_plot::Plot::new("plot")
+                    .allow_zoom(false)
+                    .allow_drag(false)
+                    .allow_scroll(false)
+                    .show_x(false)
+                    .show_y(false)
+                    .width(200.0)
+                    .height(100.0)
+                    .custom_y_axes(y_axis)
+                    .custom_x_axes(x_axis)
+                    .show(ui, |plot_ui| {
+                        // get plotpoints from fps
+                        let plot_points: PlotPoints = (0..100).map(|i| {
+                            [i as f64, ((1.0/frame_times[i])*1000.0) as f64]
+                        }).collect();
+                        plot_ui.line(egui_plot::Line::new(plot_points).name("Frametimes"));
+                    })
+            });
         });
 }
