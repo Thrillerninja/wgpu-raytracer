@@ -31,11 +31,11 @@ pub fn gui(ui: &Context, fps: &VecDeque<f32>) {
             let mut frame_times: Vec<f32> = fps.iter().map(|x| *x).collect();
             frame_times.reverse();
 
-            let ms_formatter = |mark: GridMark, _digits, _range : &'_ RangeInclusive<f64>| {
+            let ms_formatter = |mark: GridMark, _digits: usize, _range : &'_ RangeInclusive<f64>| {
                 format!("{:}ms", mark.value)
             };
 
-            let empty_formatter = |mark: GridMark, _digits, _range : &'_ RangeInclusive<f64>| {
+            let empty_formatter = |mark: GridMark, _digits: usize, _range : &'_ RangeInclusive<f64>| {
                 format!("{:}", "")
             };
 
@@ -43,11 +43,11 @@ pub fn gui(ui: &Context, fps: &VecDeque<f32>) {
                 AxisHints::new_y()
                 // .label("Frametime")
                 .formatter(ms_formatter)
-                .max_digits(2),
-                AxisHints::new_y()
-                .formatter(empty_formatter)
-                .placement(egui_plot::HPlacement::Right)
-                .max_digits(1)
+                .max_digits(4),
+                // AxisHints::new_y()
+                // .formatter(empty_formatter)
+                // .placement(egui_plot::HPlacement::Right)
+                // .max_digits(1)
                 ];
             let x_axis = vec![
                 AxisHints::new_x()
