@@ -1,4 +1,4 @@
-use crate::structs::{Material, Sphere};   
+use crate::structs::{Background, Material, Sphere};
 
 pub struct Config {
     pub camera_position: (f32, f32, f32),
@@ -9,6 +9,8 @@ pub struct Config {
     pub materials: Vec<Material>,
     pub textures: Vec<[&'static str; 3]>,
     pub triangle_svg_uv_mapping_path: &'static str,
+    pub background: Background,
+    pub background_path: &'static str,
 
     pub spheres: Vec<Sphere>,
     pub gltf_path: &'static str,
@@ -44,6 +46,8 @@ impl Config {
         //textures.push(["res/COlor.png", "res/Unbenannt2.png", "res/roughness.png"]);
         // textures.push([ "res/PavingStones134_1K-PNG_Color.png", "res/PavingStones134_1K-PNG_Color.png", "res/PavingStones134_1K-PNG_Color.png"]);
         
+        let background = Background::new(0, 0, 1.0);
+
         Self {
             // Camera
             camera_position: (0.0,2.0,0.0),//(-0.8, 1.59, -2.14),
@@ -64,6 +68,8 @@ impl Config {
             materials: materials,
             textures: textures,
             triangle_svg_uv_mapping_path: r"res\Cube.svg",
+            background: background,
+            background_path: r"res\cobblestone_street_night_4k.hdr",
 
         }
     }

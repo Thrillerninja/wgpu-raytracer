@@ -17,6 +17,18 @@ struct Material {
     _padding: f32,
 }
 
+struct Background {
+    material_ids: vec4<f32>, //material_id, texture_id_diffuse
+    intensity: vec4<f32>,
+}
+
+@group(4) @binding(0) var texture_sampler : sampler;
+@group(4) @binding(1) var textures: texture_2d_array<f32>;
+@group(4) @binding(2) var<storage> materials: array<Material>;
+@group(4) @binding(3) var<storage> background: Background;
+@group(4) @binding(4) var background_texture: texture_2d<f32>;
+
+
 // Triangles
 struct Triangle {
     vertex1: vec4<f32>,
@@ -46,10 +58,6 @@ struct Ray {
 struct BVHTraversal {
     nodeIdx: i32,
 }
-
-@group(4) @binding(0) var texture_sampler : sampler;
-@group(4) @binding(1) var textures: texture_2d_array<f32>;
-@group(4) @binding(2) var<storage> materials: array<Material>;
 
 struct BVHNodes {
     min: vec4<f32>,
@@ -165,6 +173,19 @@ fn debug_bvh_bounding_color(ray: Ray) {
     } else {
         // No BVH node hit, color the pixel based on your ray tracing logic
         pixel_color += mix(color(ray, 10, 10000.0).xyz, vec3<f32>(0.0, 0.0, 0.0), 0.4);
+    }
+}
+
+fn background_color(ray: Ray) -> vec3<f32> {
+    if (background.material_ids.y != -1.0) && (background.material_ids.y != -1.0) {
+
+        let null_sphere = Sphere(vec4<f32>(vec3<f32>(0.0, 0.0, 0.0), 1.0), vec4<f32>(0.0, 0.0, 0.0, 0.0), vec4<f32>(0.0, 0.0, 0.0, 0.0));
+        let uv = sphereUVMapping(ray.direction, null_sphere);
+        return get_texture_color(i32(background.material_ids.y),uv)*background.intensity.xyz*materials[i32(background.material_ids.x)].albedo.xyz;
+    } else if (background.material_ids.y != -1.0) {
+        return background.intensity.xyz*materials[i32(background.material_ids.x)].albedo.xyz;
+    } else {
+        return sky_color(ray)*background.intensity.xyz;
     }
 }
 
@@ -379,9 +400,9 @@ fn color(primary_ray: Ray, MAX_BOUNCES: i32, t_max: f32) -> vec4<f32> {
         // Return background color if no object is hit
         if (t == t_max) {
             if (depth == 0){
-                return vec4<f32>(sky_color(ray), 1.0);
+                return vec4<f32>(background_color(ray), 1.0);
             } else {
-                pixel_color = mix(pixel_color, sky_color(ray), weight); //like this or with weight.x better?
+                pixel_color = mix(pixel_color, background_color(ray), weight); //like this or with weight.x better?
                 return vec4<f32>(pixel_color, 1.0);
             }
         }

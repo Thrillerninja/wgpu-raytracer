@@ -1,5 +1,5 @@
 use std::collections::VecDeque;
-use image::DynamicImage;
+use image::{DynamicImage, GenericImageView};
 use wgpu::util::DeviceExt;
 use wgpu::Features;
 use winit::{
@@ -33,6 +33,8 @@ use structs::{Material, Sphere, Triangle};
 
 mod config;
 use config::Config;
+
+use crate::models::load_hdri;
 
 
 struct State<'a>{
@@ -632,6 +634,32 @@ impl<'a> State<'a>{
             usage: wgpu::BufferUsages::STORAGE | wgpu::BufferUsages::COPY_DST,
         });
 
+        // Background
+        let background_img = match load_hdri(userconfig.background_path){
+            Err(error) => {
+                // Handle the error
+                eprintln!("Error loading HDRI file: {:?}", error);
+                std::process::exit(1);
+            }
+            Ok(data) => data,
+        };
+
+        let mut background_texture = create_texture(&device, &config, background_img.dimensions().0, background_img.dimensions().1, 1);
+        background_texture = match load_textures_from_image(&queue, background_texture, &background_img, 0) {
+            Err(error) => {
+                // Handle the error
+                eprintln!("Error loading texture file: {:?}", error);
+                std::process::exit(1);
+            }
+            Ok(data) => data,
+        };
+
+        let background_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
+            label: Some("Background Buffer"),
+            contents: bytemuck::cast_slice(&[userconfig.background]),
+            usage: wgpu::BufferUsages::STORAGE | wgpu::BufferUsages::COPY_DST,
+        });
+
         let texture_bind_group_layout = device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
             entries: &[
                 wgpu::BindGroupLayoutEntry {
@@ -660,6 +688,26 @@ impl<'a> State<'a>{
                     },
                     count: None,         
                 },
+                wgpu::BindGroupLayoutEntry {
+                    binding: 3,
+                    visibility: wgpu::ShaderStages::COMPUTE,
+                    ty: wgpu::BindingType::Buffer {
+                        ty: wgpu::BufferBindingType::Storage { read_only: true },
+                        has_dynamic_offset: false,
+                        min_binding_size: None,
+                    },
+                    count: None,         
+                },
+                wgpu::BindGroupLayoutEntry {
+                    binding: 4,
+                    visibility: wgpu::ShaderStages::COMPUTE,
+                    ty: wgpu::BindingType::Texture {
+                        multisampled: false,
+                        view_dimension: wgpu::TextureViewDimension::D2,
+                        sample_type: wgpu::TextureSampleType::Float { filterable: true },
+                    },
+                    count: None,
+                }
             ],
             label: Some("texture_bind_group_layout"),
         });
@@ -691,6 +739,14 @@ impl<'a> State<'a>{
                     binding: 2, 
                     resource: material_buffer.as_entire_binding(),
                 },
+                wgpu::BindGroupEntry {
+                    binding: 3, 
+                    resource: background_buffer.as_entire_binding(),
+                },
+                wgpu::BindGroupEntry {
+                    binding: 4,
+                    resource: wgpu::BindingResource::TextureView(&background_texture.create_view(&wgpu::TextureViewDescriptor::default())),
+                }
             ],
             label: Some("texture_bind_group"),
         });

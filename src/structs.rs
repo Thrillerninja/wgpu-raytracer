@@ -62,6 +62,32 @@ impl Material {
     }
 }
 
+
+#[repr(C)]
+#[derive(Clone, Copy, bytemuck::Pod, bytemuck::Zeroable)]
+pub struct Background {
+    pub material_texture_id: [f32; 4], //[material_id, texture_id_diffuse, ,]
+    pub intensity: f32,
+    _padding: [f32; 3],
+}
+
+impl Background {
+    pub fn new(material_id: i32, texture_id: i32, intensity: f32) -> Self {
+        Self {
+            material_texture_id: [material_id as f32, texture_id as f32, 0.0, 0.0],
+            intensity: intensity,
+            _padding: [0.0; 3],
+        }
+    }
+    pub fn default() -> Self {
+        Self {
+            material_texture_id: [-1.0, -1.0, 0.0, 0.0],
+            intensity: 1.0,
+            _padding: [0.0; 3],
+        }
+    }
+}
+
 //-----------Sphere-----------------
 #[derive(Clone, Copy, Debug)]
 pub struct Sphere {

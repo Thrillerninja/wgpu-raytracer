@@ -283,7 +283,25 @@ pub fn load_gltf(path: &str, material_count: i32, texture_count: i32) -> Result<
     Ok((converted_triangles, converted_materials, textures))
 }
 
+pub fn load_hdri(path: &str) -> Result<DynamicImage, Box<dyn std::error::Error>> {
+    let contents = std::fs::read(path)?;
+    let mut data = zune_hdr::HdrDecoder::new(contents);
+    let pix: Vec<f32> = data.decode()?;
+    let dimensions = data.get_dimensions().unwrap();
+    println!("first pix:{:?}", (pix[0], pix[1], pix[2]));
 
+    let image = ImageBuffer::<Rgba<u8>, Vec<u8>>::from_fn(dimensions.0 as u32, dimensions.1 as u32, |x, y| {
+        let index = (y * dimensions.0 as u32 + x) as usize * 3;
+        let r = (pix[index] * 255.0) as u8;
+        let g = (pix[index + 1] * 255.0) as u8;
+        let b = (pix[index + 2] * 255.0) as u8;
+        Rgba([r, g, b, 255])
+    });
+    let texture: DynamicImage = DynamicImage::ImageRgba8(image);
+    //stome img
+    texture.save("res/cobblestone_street_night_4k.png")?;
+    Ok(texture)
+}
 
 fn get_pixel<P, Container>(tex_coords: Vector2<f32>, texture: &ImageBuffer<P, Container>) -> P
 where
