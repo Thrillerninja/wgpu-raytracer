@@ -79,6 +79,7 @@ impl Background {
             _padding: [0.0; 3],
         }
     }
+    #[allow(dead_code)]
     pub fn default() -> Self {
         Self {
             material_texture_id: [-1.0, -1.0, 0.0, 0.0],

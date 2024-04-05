@@ -69,7 +69,7 @@ struct BVHNodes {
 @group(5) @binding(0) var<storage> bvh: array<BVHNodes>;
 @group(5) @binding(1) var<storage> bvh_prim_indices: array<f32>;
 
-struct shader_config {
+struct Shaderconfig  {
     max_bounces: i32,
     samples: i32,
     may_ray_distance: f32,
@@ -83,7 +83,7 @@ struct shader_config {
     debug_bvh_bounding_visible: i32,
     debug_bvh_bounding_color_visible: i32,
 }
-@group(0) @binding(0) var<uniform> config: shader_config;
+@group(0) @binding(0) var<uniform> config: Shaderconfig;
 
 var<private> seed: f32;
 var<private> screen_size: vec2<u32>;
@@ -92,7 +92,7 @@ var<private> rand_val: vec2<f32>;
 var<private> pi: f32 = 3.1415926535897932384626433832795;
 
 // Constants
-var<private> _SAMPLES: i32 = 1; // Adjust the number of samples as needed
+var<private> _SAMPLES: i32 = 5; // Adjust the number of samples as needed
 
 // Flag to indicate if it's the first frame (for buffer initialization)
 var<private> first_frame: bool = true;
@@ -177,15 +177,16 @@ fn debug_bvh_bounding_color(ray: Ray) {
 }
 
 fn background_color(ray: Ray) -> vec3<f32> {
-    if (background.material_ids.y != -1.0) && (background.material_ids.y != -1.0) {
-
-        let null_sphere = Sphere(vec4<f32>(vec3<f32>(0.0, 0.0, 0.0), 1.0), vec4<f32>(0.0, 0.0, 0.0, 0.0), vec4<f32>(0.0, 0.0, 0.0, 0.0));
-        let uv = sphereUVMapping(ray.direction, null_sphere);
-        return get_texture_color(i32(background.material_ids.y),uv)*background.intensity.xyz*materials[i32(background.material_ids.x)].albedo.xyz;
-    } else if (background.material_ids.y != -1.0) {
+    let null_sphere = Sphere(vec4<f32>(vec3<f32>(0.0, 0.0, 0.0), 1.0), vec4<f32>(0.0, 0.0, 0.0, 0.0), vec4<f32>(0.0, 0.0, 0.0, 0.0));
+    let uv = sphereUVMapping(-1.0*ray.direction, null_sphere); // *-1 fixes upside down environment
+    if (background.material_ids.x != -1.0) && (background.material_ids.y != -1.0) {
+        return textureSampleLevel(background_texture, texture_sampler, uv, 0.0).xyz*background.intensity.xyz*materials[i32(background.material_ids.x)].albedo.xyz;
+    } else if (background.material_ids.x != -1.0) {
         return background.intensity.xyz*materials[i32(background.material_ids.x)].albedo.xyz;
+    } else if (background.material_ids.y != -1.0) {
+        return textureSampleLevel(background_texture, texture_sampler, uv, 0.0).xyz;
     } else {
-        return sky_color(ray)*background.intensity.xyz;
+        return sky_color(ray);
     }
 }
 
@@ -368,7 +369,7 @@ fn color(primary_ray: Ray, MAX_BOUNCES: i32, t_max: f32) -> vec4<f32> {
     var ray: Ray = primary_ray;
 
     // Initialize pixel_color to background color
-    var pixel_color = vec3<f32>(sky_color(ray));
+    var pixel_color = vec3<f32>(0.5,0.5,0.5);
     var weight = vec3<f32>(1.0,1.0,1.0);
 
     while (depth <= MAX_BOUNCES) {
@@ -564,14 +565,11 @@ fn get_texture_color(texture_id: i32, uv: vec2<f32>) -> vec3<f32> {
 fn sphereUVMapping(hit_point: vec3<f32>, sphere: Sphere) -> vec2<f32> {
     let p: vec3<f32> = normalize(hit_point - sphere.center.xyz);
     let phi: f32 = atan2(p.z, p.x);
-    let theta: f32 = asin(p.y);
+    let theta: f32 = acos(p.y);
     
-    // Normalize phi to the [0, 1] range
-    let u: f32 = (phi + pi) / (1.0 * pi);
-    
-    // Normalize theta to the [0, 1] range, and correct for aspect ratio
-    let aspect_ratio: f32 = 1.0; // Adjust this based on your texture
-    let v: f32 = (theta + pi / 2.0) / pi * aspect_ratio;
+    // Normalize phi and theta to the [0, 1] range
+    let u: f32 = phi / (2.0 * pi);
+    let v: f32 = (pi - theta) / pi;
     
     return vec2<f32>(u, v);
 }
