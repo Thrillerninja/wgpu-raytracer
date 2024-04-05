@@ -11,6 +11,9 @@ use egui_wgpu::ScreenDescriptor;
 #[cfg(target_arch = "wasm32")]
 use wasm_bindgen::prelude::*;
 
+mod gpu;
+use gpu::setup_gpu;
+
 mod gui;
 use gui::EguiRenderer;
 
@@ -34,7 +37,10 @@ use structs::{Material, Sphere, Triangle};
 mod config;
 use config::Config;
 
-use crate::models::load_hdri;
+mod renderer;
+use renderer::setup_camera;
+
+use crate::{models::load_hdri, renderer::{setup_bvh, setup_spheres, setup_textures, setup_tris_objects, setup_hdri}};
 
 
 struct State<'a>{
@@ -77,100 +83,17 @@ struct State<'a>{
 impl<'a> State<'a>{  
     async fn new(window: Window) -> Self {
         // The instance is a handle to our GPU
-        let instance = wgpu::Instance::new(wgpu::InstanceDescriptor {
-            backends: wgpu::Backends::DX12,
-            dx12_shader_compiler: Default::default(),
-            gles_minor_version: wgpu::Gles3MinorVersion::Automatic,
-            flags: wgpu::InstanceFlags::empty(),
-        });
-    
-        let surface_result = unsafe {
-            instance.create_surface_unsafe(wgpu::SurfaceTargetUnsafe::from_window(&window).unwrap())
-        };
-    
-        let surface = match surface_result {
-            Ok(surface) => surface,
-            Err(error) => {
-                // Handle the error here
-                panic!("Failed to create surface: {:?}", error);
-            }
-        };
-    
-        let adapter = instance
-            .request_adapter(&wgpu::RequestAdapterOptions {
-                power_preference: wgpu::PowerPreference::HighPerformance,
-                compatible_surface: Some(&surface),
-                force_fallback_adapter: false,
-            })
-            .await
-            .unwrap();
-        
-        println!("{}", adapter.get_info().name);
-    
-        let (device, queue) = adapter
-            .request_device(
-                &wgpu::DeviceDescriptor {
-                    required_features: Features::TEXTURE_ADAPTER_SPECIFIC_FORMAT_FEATURES,
-                    label: None,
-                    required_limits: wgpu::Limits {
-                        max_bind_groups: 6,
-                        ..Default::default()
-                    }
-                },
-                None,
-            )
-            .await
-            .unwrap();
-
-        let surface_caps = surface.get_capabilities(&adapter);
-        
-        let size = window.inner_size();
-
-        let config = wgpu::SurfaceConfiguration {
-            usage: wgpu::TextureUsages::RENDER_ATTACHMENT,
-            format: wgpu::TextureFormat::Rgba8Unorm,
-            width: size.width,
-            height: size.height,
-            present_mode: surface_caps.present_modes[0],
-            alpha_mode: surface_caps.alpha_modes[0],
-            view_formats: vec![],
-            desired_maximum_frame_latency: 10,
-        };
-        surface.configure(&device, &config);     
-        
-        let mut userconfig = Config::new();
-
-        //----------Color Buffer-------------
-        // Create a color texture with a suitable sRGB format
-        let color_texture = device.create_texture(&wgpu::TextureDescriptor {
-            label: Some("Storage Texture"),
-            view_formats: &[config.format], // Use sRGB format for storage
-            size: wgpu::Extent3d {
-                width: config.width,
-                height: config.height,
-                depth_or_array_layers: 1,
-            },
-            mip_level_count: 1,
-            sample_count: 1,
-            dimension: wgpu::TextureDimension::D2,
-            format: config.format, // Use sRGB format
-            usage: wgpu::TextureUsages::TEXTURE_BINDING
-                | wgpu::TextureUsages::COPY_DST
-                | wgpu::TextureUsages::STORAGE_BINDING
-                | wgpu::TextureUsages::COPY_SRC,
-        });
-        
-        
-        let color_buffer_view = color_texture.create_view(&wgpu::TextureViewDescriptor::default());
+        let (window,
+            device, 
+            queue, 
+            surface, 
+            config, 
+            color_buffer_view, 
+            mut userconfig, 
+            size) = setup_gpu(window).await;
 
         //----------Camera-------------
-        let camera = camera::Camera::new(userconfig.camera_position, cgmath::Deg(userconfig.camera_rotation[0]), cgmath::Deg(userconfig.camera_rotation[1]));
-        let projection =
-            camera::Projection::new(config.width, config.height, cgmath::Deg(userconfig.camera_fov), userconfig.camera_near_far[0], userconfig.camera_near_far[1]);
-        let camera_controller = camera::CameraController::new(4.0, 1.6);
-
-        let mut camera_uniform = CameraUniform::new();
-        camera_uniform.update_view_proj(&camera, &projection);
+        let (camera, projection, camera_controller, camera_uniform) = setup_camera(&config, &userconfig);
 
         let camera_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
             label: Some("Camera Buffer"),
@@ -352,70 +275,11 @@ impl<'a> State<'a>{
 
 
         //----------Objects-------------
-        // Load SVG UV mapping file
-        let tris_uv_mapping = match load_svg(userconfig.triangle_svg_uv_mapping_path){
-            Err(error) => {
-                // Handle the error
-                eprintln!("Error loading SVG file: {:?}", error);
-                std::process::exit(1);
-            }
-            Ok(data) => data,
-        };   
-        for i in 0..tris_uv_mapping.len(){
-            println!("UV: {},{} {},{} {},{} ", tris_uv_mapping[i][0][0], tris_uv_mapping[i][0][1], tris_uv_mapping[i][1][0], tris_uv_mapping[i][1][1], tris_uv_mapping[i][2][0], tris_uv_mapping[i][2][1]);
-        }
+        let (triangles, 
+            triangles_uniform, 
+            materials, 
+            textures) = setup_tris_objects(&userconfig);
 
-        let mut triangles: Vec<Triangle> = Vec::new();
-        let mut materials: Vec<Material> = Vec::new();
-        let mut textures: Vec<DynamicImage> = Vec::new();
-        // Add materials from config to materials
-        materials.append(&mut userconfig.materials);
-        println!("Config Sphere count: {}", userconfig.spheres.len());
-        println!("Config Material count: {}", materials.len());
-        
-
-        // --------Triangles-------------
-        // Load OBJ file
-        if userconfig.obj_path != "" {
-            let (mut obj_triangles,mut obj_materials) = match load_obj(userconfig.obj_path) {
-                Err(error) => {
-                    // Handle the error
-                    eprintln!("Error loading OBJ file: {:?}", error);
-                    std::process::exit(1);
-                }
-                Ok(data) => data,
-            };   
-            println!("OBJ Triangle count: {}", triangles.len());
-            triangles.append(&mut obj_triangles);
-            materials.append(&mut obj_materials);
-        }
-
-        // Load GLTF file and add to triangles and materials
-        if  userconfig.gltf_path != "" {
-            let (mut gltf_triangles, mut gltf_materials, mut gltf_textures) = match load_gltf(userconfig.gltf_path, materials.len() as i32, userconfig.textures.len() as i32) {
-                Err(error) => {
-                    // Handle the error
-                    eprintln!("Error loading GLTF file: {:?}", error);
-                    std::process::exit(1);
-                }
-                Ok(data) => data,
-            };
-            println!("GLTF Triangle count: {}", gltf_triangles.len());
-            println!("GLTF Material count: {}", gltf_materials.len());
-            triangles.append(&mut gltf_triangles);
-            materials.append(&mut gltf_materials);
-            textures.append(&mut gltf_textures);
-        }
-
-        // Triangles and UV to Uniform buffer
-        let mut triangles_uniform: Vec<TriangleUniform> = Vec::new();
-        let triangles_count = triangles.len() as i32;
-        let times = triangles_count / tris_uv_mapping.len() as i32;
-
-        println!("fill Triangle  buffer");
-        for i in 0..triangles_count as usize {
-            triangles_uniform.push(TriangleUniform::new(triangles[i], tris_uv_mapping[i % tris_uv_mapping.len()].clone(), times));
-        }
         
         // Create a buffer to hold the vertex data
         let vertex_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
@@ -424,53 +288,12 @@ impl<'a> State<'a>{
             usage: wgpu::BufferUsages::STORAGE | wgpu::BufferUsages::COPY_DST,
         });
 
-        
-        // Load textures from files into a textureset
-        let mut textures_buffer = create_texture(&device, &config, 1024, 1024, 30);    //30 = max numer of textures
-        let mut texture_count = 0;
-
-        // Add textures from config to textureset
-        for i in 0..userconfig.textures.len(){
-            for j in 0..3{  //userconfig.textures[i].len(){
-                match load_textures(&queue, textures_buffer, &userconfig.textures[i][j], i as i32) {
-                    Err(error) => {
-                        // Handle the error
-                        eprintln!("Error loading texture file: {:?}", error);
-                        std::process::exit(1);
-                    }
-                    Ok(data) => {
-                        textures_buffer = data;
-                        texture_count += 1;
-                    }	
-                }
-            }
-        }
-
-        // Add textures from GLTF to textureset
-        for i in 0..textures.len(){
-            let resized_texture = scale_texture(&textures[i], 1024, 1024);
-
-            match load_textures_from_image(&queue, textures_buffer, &resized_texture, texture_count as i32) {
-                Err(error) => {
-                    // Handle the error
-                    eprintln!("Error loading texture file: {:?}", error);
-                    std::process::exit(1);
-                }
-                Ok(data) => {
-                    textures_buffer = data;
-                    texture_count += 1;
-                }	
-            }
-        }
-        // println!("Texture array size: {}x{}x{} with {} entries", textureset.diffuse.size().width, textureset.diffuse.size().height, textureset.diffuse.size().depth_or_array_layers, texture_count);
-        println!("Textures ready ({})", texture_count);
+        // Create Textureset
+        let textures_buffer = setup_textures(&userconfig, textures, &device, &queue, &config);
 
         // ---------Spheres-------------
-        // Spheres to Uniform buffer compatible type                                 
-        let mut spheres_uniform: Vec<SphereUniform> = Vec::new();
-        for sphere in userconfig.spheres.iter(){
-            spheres_uniform.push(SphereUniform::new(*sphere));
-        }
+        let spheres_uniform = setup_spheres(&userconfig);
+        // Spheres to Uniform buffer compatible type                   
         
         // Create a buffer to hold the sphere data
         let sphere_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
@@ -527,47 +350,7 @@ impl<'a> State<'a>{
 
         //-------------BVH---------------
         
-        // Build BVH for triangles
-        println!("AABB generation   0%");
-        let aabbs = triangles.iter().map(|t| t.aabb()).collect::<Vec<Aabb>>();
-        println!("AABB generation 100%");
-
-        //Add Sphere AABBs
-        // for sphere in userconfig.spheres.iter(){
-        //     aabbs.push(sphere.aabb());               # Doesnt work because the bvh can only take one type of Data
-        // }
-
-        let prim_per_leaf = Some(std::num::NonZeroUsize::new(1).expect("NonZeroUsize creation failed"));
-        let primitives = triangles.as_slice();
-
-        let builder = Builder {
-            aabbs: Some(aabbs.as_slice()),
-            primitives: primitives,
-            primitives_per_leaf: prim_per_leaf,
-        };
-        println!("BVH Builder created");
-
-        // Choose one of these algorithms:
-        //let bvh = builder.construct_locally_ordered_clustered().unwrap();
-        //let bvh = builder.construct_binned_sah().unwrap();
-        let bvh = builder.construct_binned_sah().unwrap();
-        println!("BVH generated");
-
-        // Validate the BVH tree
-        if bvh.validate(triangles.len()) {
-            println!("BVH is valid");
-        } else {
-            println!("BVH is invalid");
-        }
-
-        let raw = bvh.into_raw();
-        println!("BVH transformed to raw data");
-
-        //convert format of bvh nodes to uniform buffer compativble
-        let mut bvh_uniform: Vec<BvhUniform> = vec![];
-        for i in 0..raw.0.len(){
-            bvh_uniform.push(BvhUniform::new(&raw.0[i]));
-        }
+        let (bvh_uniform, bvh_prim_indices) = setup_bvh(&triangles);
         
         // Store bvh nodes in a buffer as a array
         let bvh_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
@@ -577,7 +360,6 @@ impl<'a> State<'a>{
         });
 
         // Store prim indices of the bvh nodes in a buffer as a array
-        let bvh_prim_indices: Vec<f32> = raw.1.iter().map(|x| *x as f32).collect();
         let bvh_prim_indices_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
             label: Some("BVH Prim Indices Buffer"),
             contents: bytemuck::cast_slice(&bvh_prim_indices),
@@ -628,31 +410,13 @@ impl<'a> State<'a>{
         println!("BVH ready");
 
         //----------Textures-------------
+        let background_texture = setup_hdri(&userconfig, &device, &queue, &config);
+
         let material_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
             label: Some("Material Buffer"),
             contents: bytemuck::cast_slice(&materials),
             usage: wgpu::BufferUsages::STORAGE | wgpu::BufferUsages::COPY_DST,
         });
-
-        // Background
-        let background_img = match load_hdri(userconfig.background_path){
-            Err(error) => {
-                // Handle the error
-                eprintln!("Error loading HDRI file: {:?}", error);
-                std::process::exit(1);
-            }
-            Ok(data) => data,
-        };
-
-        let mut background_texture = create_texture(&device, &config, background_img.dimensions().0, background_img.dimensions().1, 1);
-        background_texture = match load_textures_from_image(&queue, background_texture, &background_img, 0) {
-            Err(error) => {
-                // Handle the error
-                eprintln!("Error loading texture file: {:?}", error);
-                std::process::exit(1);
-            }
-            Ok(data) => data,
-        };
 
         let background_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
             label: Some("Background Buffer"),

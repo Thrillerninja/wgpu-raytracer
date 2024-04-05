@@ -27,7 +27,7 @@ impl Config {
         spheres.push(Sphere::new(cgmath::Point3::new(0.5, 1.0, -1.0), 0.3    , 2,       [-1, -1, -1]));
         spheres.push(Sphere::new(cgmath::Point3::new(0.5, -50.5, -1.0), 50.0 , 3,       [-1, -1, -1]));
         spheres.push(Sphere::new(cgmath::Point3::new(-1.5, 0.0, -1.0), 0.4   , 4,       [-1, -1, -1]));
-        spheres.push(Sphere::new(cgmath::Point3::new(-1.5, 0.0, -1.0), 0.3   , 4,       [-1, -1, -1]));
+        spheres.push(Sphere::new(cgmath::Point3::new(-1.5, 0.0, -1.0), 0.2   , 6,       [-1, -1, -1]));
         // for i in 0..100 {
         //     spheres.push(Sphere::new(cgmath::Point3::new(rand::random::<f32>() * 10.0 - 5.0, rand::random::<f32>() * 10.0 - 5.0, rand::random::<f32>() * 10.0 - 5.0), rand::random::<f32>() * 0.5, 1, -1));
         // }
@@ -40,6 +40,7 @@ impl Config {
         materials.push(Material::new([1.0, 0.3, 0.2], [0.2, 1.0, 1.0], 0.2, 0.0, 0.0));
         materials.push(Material::new([1.0, 1.0, 1.0], [1.0, 1.0, 1.0], 0.0, 0.0, 1.0));
         materials.push(Material::new([1.0, 1.0, 1.0], [1.0, 1.0, 1.0], 0.0, 30.0, 0.0));
+        materials.push(Material::new([1.0, 1.0, 1.0], [1.0, 1.0, 1.0], 0.0, 0.0, -1.0));
 
         // Load textures from files into a textures
         let mut textures = Vec::new();
