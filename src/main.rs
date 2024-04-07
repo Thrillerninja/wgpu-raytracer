@@ -70,8 +70,38 @@ struct State<'a>{
 }
 
 impl<'a> State<'a>{  
+    /// Constructs a new `State` instance.
+    /// 
+    /// This function initializes the gpu, sets up the camera and objects, sets up the render pipelines for raytracing, denoising and screen rendering, and initializes the GUI.
+    /// # Arguments
+    /// * `window` - A `Window` instance representing the window in which the state will be rendered.
+    /// # Returns
+    /// * `Self` - A new `State` instance.
+    /// # Asynchronous
+    /// This function is asynchronous and must be awaited.
+    /// 
+    /// # Gpu Setup
+    /// The gpu setup involves creating an instance that serves as a handle to our GPU. It also sets up the surface, config, color buffer view, userconfig, and size.
+    /// # Camera Setup
+    /// The camera setup involves creating a camera, projection, camera controller, and camera uniform. It also creates a buffer to hold the camera data and a bind group for the camera.
+    /// # Object Setup
+    /// The object setup involves creating triangles, triangles uniform, materials, and textures. It also creates a buffer to hold the vertex data and a bind group for the objects.
+    /// * # Sphere Setup
+    /// * The sphere setup involves creating spheres uniform and a buffer to hold the sphere data. It also creates a bind group for the spheres.
+    /// * # Triangle Setup
+    /// * The triangle setup involves creating a buffer to hold the triangle data and a bind group for the triangles.
+    /// * # Texture Setup
+    /// * The texture setup involves creating a texture set and a buffer to hold the texture data. It also creates a bind group for the textures.
+    /// # BVH Setup
+    /// The BVH setup involves creating a buffer to hold the BVH nodes and a buffer to hold the primitive indices of the BVH nodes. It also creates a bind group for the BVH nodes.
+    /// # Raytracing Setup
+    /// The raytracing setup involves creating a buffer to hold the shader config data and a bind group for the shader config. It also creates a raytracing pipeline and a bind group for the raytracing pipeline. It loads the raytracing shader and creates a pipeline layout for raytracing.
+    /// # Denoising Setup
+    /// The denoising setup involves creating a denoising buffer and a bind group for it. It also passes camera info to the denoising shader and creates a buffer to hold the camera data for denoising. It also creates a buffer to hold the denoising pass number, a view for the denoising texture, a bind group descriptor for the denoising step, and a pipeline layout for denoising. Finally, it loads the denoising shader and creates a denoising pipeline.
+    /// # Screen rendering Setup
+    /// The screen rendering setup involves creating a sampler for transferring color data from render to screen texture. It also creates a bind group layout for the shader and a bind group for the screen rendering pipeline. It loads the screen shader and creates a screen pipeline layout.
     async fn new(window: Window) -> Self {
-        // The instance is a handle to our GPU
+        //---------Setup Hardware---------
         let (window,
             device, 
             queue, 
@@ -80,8 +110,10 @@ impl<'a> State<'a>{
             color_buffer_view, 
             userconfig, 
             size) = setup_gpu(window).await;
+        println!("Hardware initialized");
 
-        //----------Camera-------------
+        //-------------Camera-------------
+        // Create a camera with configured settings
         let (camera, 
             projection, 
             camera_controller, 
@@ -91,9 +123,9 @@ impl<'a> State<'a>{
         let camera_descriptor = BufferInitDescriptor::new(Some("Camera Buffer"), wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST | wgpu::BufferUsages::COPY_SRC);
         let camera_buffer = create_new_buffer(&device, &[camera_uniform], camera_descriptor);
 
-        // Create a bind group for the camera
+        // Create a bind group for pasing the camera data to the shader
         let mut camera_bind_group_descriptor = BindGroupDescriptor::new(
-            Some("camera_bind_group"),
+            Some("camera"),
             wgpu::ShaderStages::COMPUTE,
             vec![BufferType {
                 ty: BindingResourceTemplate::BufferUniform(
@@ -106,11 +138,246 @@ impl<'a> State<'a>{
         let camera_bind_group_layout = camera_bind_group_descriptor.layout.unwrap();
         println!("Camera ready");
 
-        //----------Anit-Aliasing-------------
-        // Inside the State struct, add a denoising buffer and a bind group for it.
-        // denoising buffer and bind group
+        //============== Load Render Objects ==============
+        //---------- Load Triangles(Vertecies) ----------
+        let (triangles, 
+            triangles_uniform, 
+            materials, 
+            textures) = setup_tris_objects(&userconfig);
+
+        // Create a buffer to hold the vertex data of the triangles
+        let vertex_buffer_descriptor = BufferInitDescriptor::new(Some("Vertex Buffer"), wgpu::BufferUsages::STORAGE | wgpu::BufferUsages::COPY_DST);
+        let vertex_buffer = create_new_buffer(&device, &triangles_uniform, vertex_buffer_descriptor);
+
+        // --------- Load Spheres ---------
+        // Load spheres amd store them as gpu compatible vector
+        let spheres_uniform = setup_spheres(&userconfig);
+        
+        // Create a buffer to hold the sphere data
+        let sphere_buffer_descriptor = BufferInitDescriptor::new(Some("Sphere Buffer"), wgpu::BufferUsages::STORAGE | wgpu::BufferUsages::COPY_DST);
+        let sphere_buffer = create_new_buffer(&device, &spheres_uniform, sphere_buffer_descriptor);
+
+        // ------ Combined Bind Group ---------
+        // Create a bind group for the objects
+        let mut object_bind_group_descriptor = BindGroupDescriptor::new(
+            Some("object_bind_group"),
+            wgpu::ShaderStages::COMPUTE,
+            vec![
+                BufferType {
+                    ty: BindingResourceTemplate::BufferStorage(
+                        vertex_buffer.as_entire_binding()
+                    ),
+                    view_dimension: None,
+                },
+                BufferType {
+                    ty: BindingResourceTemplate::BufferStorage(
+                        sphere_buffer.as_entire_binding()
+                    ),
+                    view_dimension: None,
+                }
+            ]
+        );
+
+        // Generate the object bind group & layout
+        let object_bind_group = object_bind_group_descriptor.generate_bind_group(&device);
+        let object_bind_group_layout = object_bind_group_descriptor.layout.unwrap();
+        println!("Meshes ready");
+
+        //-------------BVH---------------
+        //-This only works for triangles-
+
+        // Create a bvh for the triangles
+        let (bvh_uniform, bvh_prim_indices) = setup_bvh(&triangles);
+        
+        // Store bvh nodes in a buffer as a array
+        let bvh_descriptor = BufferInitDescriptor::new(Some("BVH Buffer"), wgpu::BufferUsages::STORAGE | wgpu::BufferUsages::COPY_DST);
+        let bvh_buffer = create_new_buffer(&device, &bvh_uniform, bvh_descriptor);
+
+        // Store prim indices of the bvh nodes in a buffer as a array (these are needed for a tree traversal on the gpu)
+        let bvh_indices_descriptor = BufferInitDescriptor::new(Some("BVH Prim Indices Buffer"), wgpu::BufferUsages::STORAGE | wgpu::BufferUsages::COPY_DST);
+        let bvh_prim_indices_buffer = create_new_buffer(&device, &bvh_prim_indices, bvh_indices_descriptor);
+
+        // Send nodes and prim indices to the shader
+        let mut bvh_bind_group_descriptor = BindGroupDescriptor::new(
+            Some("bvh"),
+            wgpu::ShaderStages::COMPUTE,
+            vec![
+                BufferType {
+                    ty: BindingResourceTemplate::BufferStorage(
+                        bvh_buffer.as_entire_binding()
+                    ),
+                    view_dimension: None,
+                },
+                BufferType {
+                    ty: BindingResourceTemplate::BufferStorage(
+                        bvh_prim_indices_buffer.as_entire_binding()
+                    ),
+                    view_dimension: None,
+                }
+            ]
+        );
+
+        // Generate the bvh bind group & layout
+        let bvh_bind_group = bvh_bind_group_descriptor.generate_bind_group(&device);
+        let bvh_bind_goup_layout = bvh_bind_group_descriptor.layout.unwrap();
+        println!("BVH ready");
+
+        //------Textures & Materials------
+        // Create 3D textures with textures from config and glft or background hdri 
+        let textures_buffer = setup_textures(&userconfig, textures, &device, &queue, &config);
+        let background_texture = setup_hdri(&userconfig, &device, &queue, &config);
+
+        // Create a buffer to hold the material data from config and glft
+        let material_descriptor = BufferInitDescriptor::new(Some("Material Buffer"), wgpu::BufferUsages::STORAGE | wgpu::BufferUsages::COPY_DST);
+        let material_buffer = create_new_buffer(&device, &materials, material_descriptor);
+        // Create a buffer to hold the extra data for the background
+        let background_descriptor = BufferInitDescriptor::new(Some("Background Buffer"), wgpu::BufferUsages::STORAGE | wgpu::BufferUsages::COPY_DST);
+        let background_buffer = create_new_buffer(&device, &[userconfig.background], background_descriptor);
+
+        // Create a sampler for all textures
+        let texture_sampler = device.create_sampler(&wgpu::SamplerDescriptor {
+            label: Some("Sampler"),
+            address_mode_u: wgpu::AddressMode::Repeat,
+            address_mode_v: wgpu::AddressMode::Repeat,
+            address_mode_w: wgpu::AddressMode::Repeat,
+            mag_filter: wgpu::FilterMode::Linear,
+            min_filter: wgpu::FilterMode::Nearest,
+            mipmap_filter: wgpu::FilterMode::Nearest,
+            anisotropy_clamp: 1,
+            ..Default::default()
+        });
+
+        // Create a bind group for the textures, materials and background
+        let textures_view = textures_buffer.create_view(&wgpu::TextureViewDescriptor::default());
+        let background_texture_view = background_texture.create_view(&wgpu::TextureViewDescriptor::default());
+        let mut texture_bind_group_descriptor = BindGroupDescriptor::new(
+            Some("textures&materials"),
+            wgpu::ShaderStages::COMPUTE,
+            vec![
+                BufferType {
+                    ty: BindingResourceTemplate::Sampler(
+                        wgpu::BindingResource::Sampler(&texture_sampler)
+                    ),
+                    view_dimension: None,
+                },
+                BufferType {
+                    ty: BindingResourceTemplate::TextureView(
+                        wgpu::BindingResource::TextureView(&textures_view)
+                    ),
+                    view_dimension: Some(wgpu::TextureViewDimension::D2Array),
+                },
+                BufferType {
+                    ty: BindingResourceTemplate::BufferStorage(
+                        material_buffer.as_entire_binding()
+                    ),
+                    view_dimension: None,
+                },
+                BufferType {
+                    ty: BindingResourceTemplate::BufferStorage(
+                        background_buffer.as_entire_binding()
+                    ),
+                    view_dimension: None,
+                },
+                BufferType {
+                    ty: BindingResourceTemplate::TextureView(
+                        wgpu::BindingResource::TextureView(&background_texture_view)
+                    ),
+                    view_dimension: Some(wgpu::TextureViewDimension::D2),
+                }
+            ]
+        );
+
+        // Generate the texture bind group & layout
+        let texture_bind_group = texture_bind_group_descriptor.generate_bind_group(&device);
+        let texture_bind_group_layout = texture_bind_group_descriptor.layout.unwrap();
+        println!("Textures ready");
+
+        //============= Shader&Pipeline Setup =============
+
+        //--------Shader config-----------
+        // Initialize shader config
+        let shader_config = structs::ShaderConfig::default();
+        // Create a buffer to hold the shader config data
+        let shader_config_descriptor = BufferInitDescriptor::new(Some("Shader Config Buffer"), wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST);
+        let shader_config_buffer =  create_new_buffer(&device, &[shader_config], shader_config_descriptor);
+
+        // Create a bind group for pasing the shader config to the shader
+        let mut shader_config_bind_group_descriptor = BindGroupDescriptor::new(
+            Some("shader_config"),
+            wgpu::ShaderStages::COMPUTE,
+            vec![
+                BufferType {
+                    ty: BindingResourceTemplate::BufferUniform(
+                        shader_config_buffer.as_entire_binding()
+                    ),
+                    view_dimension: None,
+                }
+            ]
+        );
+        // Generate the shader config bind group & layout
+        let shader_config_bind_group = shader_config_bind_group_descriptor.generate_bind_group(&device);
+        let shader_config_bind_group_layout = shader_config_bind_group_descriptor.layout.unwrap();
+        println!("Shader config ready");
+
+        //----------Raytracing-------------
+        // Load the ray tracing shader
+        let ray_generation_shader = device.create_shader_module(wgpu::ShaderModuleDescriptor {
+            label: Some("Ray Generation Shader"),
+            source: wgpu::ShaderSource::Wgsl(include_str!("raygen.wgsl").into()), // Replace with your actual shader source
+        });
+
+        // Create the bind group layout for the shader
+        let mut raytracing_bind_group_descriptior = BindGroupDescriptor::new(
+            Some("raytracing"),
+            wgpu::ShaderStages::COMPUTE,
+            vec![
+                BufferType {
+                    ty: BindingResourceTemplate::StorageTexture(
+                        wgpu::BindingResource::TextureView(&color_buffer_view)
+                    ),
+                    view_dimension: Some(wgpu::TextureViewDimension::D2),
+                }
+            ]
+        );
+
+        // Generate the raytracing bind group & layout
+        let raytracing_bind_group = raytracing_bind_group_descriptior.generate_bind_group(&device);
+        let raytracing_bind_group_layout = raytracing_bind_group_descriptior.layout.unwrap();
+
+        // Create the ray tracing pipeline layout
+        let raytracing_pipeline_layout =
+        device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
+            label: Some("Ray Tracing Pipeline Layout"),
+            bind_group_layouts: &[
+                &shader_config_bind_group_layout,
+                &raytracing_bind_group_layout,
+                &camera_bind_group_layout,
+                &object_bind_group_layout,
+                &texture_bind_group_layout,
+                &bvh_bind_goup_layout,
+            ],
+            push_constant_ranges: &[],
+        });
+        // Create the ray tracing pipeline
+        let ray_tracing_pipeline = device.create_compute_pipeline(&wgpu::ComputePipelineDescriptor {
+            label: Some("Ray Tracing Pipeline"),
+            layout: Some(&raytracing_pipeline_layout),
+            module: &ray_generation_shader,
+            entry_point: "main",
+            }
+        );
+        println!("Raytracing shader&pipeline ready");
+
+        //--------Denoising pass----------
+        // Load the denoising shader
+        let denoising_shader = device.create_shader_module(wgpu::ShaderModuleDescriptor {
+            label: Some("Denoising Shader"),
+            source: wgpu::ShaderSource::Wgsl(include_str!("denoising.wgsl").into()), // Replace with your actual shader source
+        });
+
+        // Define Texture to store the temporal denoising result to use it in the next frame again for temporal denoising
         let denoising_texture = device.create_texture(&wgpu::TextureDescriptor {
-            label: Some("denoising Buffer"),
+            label: Some("Denoising Buffer"),
             view_formats: &[config.format], // Use the same format as the color buffer
             size: wgpu::Extent3d {
                 width: config.width,
@@ -125,24 +392,23 @@ impl<'a> State<'a>{
                 | wgpu::TextureUsages::COPY_DST
                 | wgpu::TextureUsages::STORAGE_BINDING
                 | wgpu::TextureUsages::COPY_SRC,
-        });
+        });        
+        // Create a view for the denoising texture
+        let denoising_texture_view = denoising_texture.create_view(&wgpu::TextureViewDescriptor::default());
 
-        // Pass camera info to denoising shader
+        // ~~~Pass camera info to denoising shader~~~
         let denoising_camera: Camera = camera.clone();
-
         let mut denoising_camera_uniform = CameraUniform::new();
         denoising_camera_uniform.update_view_proj(&denoising_camera, &projection);
-
-        // Create a buffer to hold the camera data for denoising
+        
+        // Create a buffer to hold the camera data for the denoising shader so it can be used to detect significant scene change
         let denoising_camera_buffer_descriptor = BufferInitDescriptor::new(Some("Denoising Camera Data Buffer"), wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST);
         let denoising_camera_buffer = create_new_buffer(&device, &[denoising_camera_uniform], denoising_camera_buffer_descriptor);
 
-        // Create a buffer to hold the denoising pass number
+        // Create a buffer to hold the denoising pass number so the correct denoising step (temporal or spatial) can be executed
         let denoising_pass_buffer_descriptor = BufferInitDescriptor::new(Some("Denoising Pass Buffer"), wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST);
         let denoising_pass_buffer = create_new_buffer(&device, &[0u32], denoising_pass_buffer_descriptor);
 
-        // Create a view for the denoising texture
-        let denoising_texture_view = denoising_texture.create_view(&wgpu::TextureViewDescriptor::default());
         // Create a bind group descriptor for denoising step
         let mut denoising_bind_group_descriptor = BindGroupDescriptor::new(
             Some("denoising"),
@@ -184,7 +450,7 @@ impl<'a> State<'a>{
         let denoising_bind_group = denoising_bind_group_descriptor.generate_bind_group(&device);
         let denoising_bind_group_layout = denoising_bind_group_descriptor.layout.unwrap();
 
-        // Create a pipeline layout for denoising denoising
+        // Create a pipeline layout for denoising
         let denoising_pipeline_layout = device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
             label: Some("Denoising Pipeline Layout"),
             bind_group_layouts: &[
@@ -192,249 +458,22 @@ impl<'a> State<'a>{
             push_constant_ranges: &[],
         });
 
-        // Load your denoising denoising shader
-        let denoising_shader = device.create_shader_module(wgpu::ShaderModuleDescriptor {
-            label: Some("Denoising Shader"),
-            source: wgpu::ShaderSource::Wgsl(include_str!("denoising.wgsl").into()), // Replace with your actual shader source
-        });
-
-        // Create a denoising denoising pipeline
+        // Create the denoising pipeline
         let denoising_pipeline = device.create_compute_pipeline(&wgpu::ComputePipelineDescriptor {
             label: Some("Denoising Pipeline"),
             layout: Some(&denoising_pipeline_layout),
             module: &denoising_shader,
             entry_point: "main", // Change to your actual entry point name
         });
-
-
-        //----------Objects-------------
-        let (triangles, 
-            triangles_uniform, 
-            materials, 
-            textures) = setup_tris_objects(&userconfig);
-
-        
-        // Create a buffer to hold the vertex data
-        let vertex_buffer_descriptor = BufferInitDescriptor::new(Some("Vertex Buffer"), wgpu::BufferUsages::STORAGE | wgpu::BufferUsages::COPY_DST);
-        let vertex_buffer = create_new_buffer(&device, &triangles_uniform, vertex_buffer_descriptor);
-
-        // Create Textureset
-        let textures_buffer = setup_textures(&userconfig, textures, &device, &queue, &config);
-
-        // ---------Spheres-------------
-        let spheres_uniform = setup_spheres(&userconfig);
-        // Spheres to Uniform buffer compatible type                   
-        
-        // Create a buffer to hold the sphere data
-        let sphere_buffer_descriptor = BufferInitDescriptor::new(Some("Sphere Buffer"), wgpu::BufferUsages::STORAGE | wgpu::BufferUsages::COPY_DST);
-        let sphere_buffer = create_new_buffer(&device, &spheres_uniform, sphere_buffer_descriptor);
-
-        // -------Combined Objects----------
-        // Create a bind group for the objects
-        let mut object_bind_group_descriptor = BindGroupDescriptor::new(
-            Some("object_bind_group"),
-            wgpu::ShaderStages::COMPUTE,
-            vec![
-                BufferType {
-                    ty: BindingResourceTemplate::BufferStorage(
-                        vertex_buffer.as_entire_binding()
-                    ),
-                    view_dimension: None,
-                },
-                BufferType {
-                    ty: BindingResourceTemplate::BufferStorage(
-                        sphere_buffer.as_entire_binding()
-                    ),
-                    view_dimension: None,
-                }
-            ]
-        );
-
-        // Generate the object bind group & layout
-        let object_bind_group = object_bind_group_descriptor.generate_bind_group(&device);
-        let object_bind_group_layout = object_bind_group_descriptor.layout.unwrap();
-        println!("Objects ready");
-
-        //-------------BVH---------------
-        
-        let (bvh_uniform, bvh_prim_indices) = setup_bvh(&triangles);
-        
-        // Store bvh nodes in a buffer as a array
-        let bvh_descriptor = BufferInitDescriptor::new(Some("BVH Buffer"), wgpu::BufferUsages::STORAGE | wgpu::BufferUsages::COPY_DST);
-        let bvh_buffer = create_new_buffer(&device, &bvh_uniform, bvh_descriptor);
-
-        // Store prim indices of the bvh nodes in a buffer as a array
-        let bvh_indices_descriptor = BufferInitDescriptor::new(Some("BVH Prim Indices Buffer"), wgpu::BufferUsages::STORAGE | wgpu::BufferUsages::COPY_DST);
-        let bvh_prim_indices_buffer = create_new_buffer(&device, &bvh_prim_indices, bvh_indices_descriptor);
-
-        // Send nodes and prim indices to the shader
-        let mut bvh_bind_group_descriptor = BindGroupDescriptor::new(
-            Some("bvh"),
-            wgpu::ShaderStages::COMPUTE,
-            vec![
-                BufferType {
-                    ty: BindingResourceTemplate::BufferStorage(
-                        bvh_buffer.as_entire_binding()
-                    ),
-                    view_dimension: None,
-                },
-                BufferType {
-                    ty: BindingResourceTemplate::BufferStorage(
-                        bvh_prim_indices_buffer.as_entire_binding()
-                    ),
-                    view_dimension: None,
-                }
-            ]
-        );
-
-        // Generate the bvh bind group & layout
-        let bvh_bind_group = bvh_bind_group_descriptor.generate_bind_group(&device);
-        let bvh_bind_goup_layout = bvh_bind_group_descriptor.layout.unwrap();
-        println!("BVH ready");
-
-        //----------Textures-------------
-        let background_texture = setup_hdri(&userconfig, &device, &queue, &config);
-
-        let material_descriptor = BufferInitDescriptor::new(Some("Material Buffer"), wgpu::BufferUsages::STORAGE | wgpu::BufferUsages::COPY_DST);
-        let material_buffer = create_new_buffer(&device, &materials, material_descriptor);
-
-        let background_descriptor = BufferInitDescriptor::new(Some("Background Buffer"), wgpu::BufferUsages::STORAGE | wgpu::BufferUsages::COPY_DST);
-        let background_buffer = create_new_buffer(&device, &[userconfig.background], background_descriptor);
-
-        let texture_sampler = device.create_sampler(&wgpu::SamplerDescriptor {
-            label: Some("Sampler"),
-            address_mode_u: wgpu::AddressMode::Repeat,
-            address_mode_v: wgpu::AddressMode::Repeat,
-            address_mode_w: wgpu::AddressMode::Repeat,
-            mag_filter: wgpu::FilterMode::Linear,
-            min_filter: wgpu::FilterMode::Nearest,
-            mipmap_filter: wgpu::FilterMode::Nearest,
-            anisotropy_clamp: 1,
-            ..Default::default()
-        });
-
-        // Create a bind group for the textures
-        let textures_view = textures_buffer.create_view(&wgpu::TextureViewDescriptor::default());
-        let background_texture_view = background_texture.create_view(&wgpu::TextureViewDescriptor::default());
-        let mut texture_bind_group_descriptor = BindGroupDescriptor::new(
-            Some("texture_bind_group"),
-            wgpu::ShaderStages::COMPUTE,
-            vec![
-                BufferType {
-                    ty: BindingResourceTemplate::Sampler(
-                        wgpu::BindingResource::Sampler(&texture_sampler)
-                    ),
-                    view_dimension: None,
-                },
-                BufferType {
-                    ty: BindingResourceTemplate::TextureView(
-                        wgpu::BindingResource::TextureView(&textures_view)
-                    ),
-                    view_dimension: Some(wgpu::TextureViewDimension::D2Array),
-                },
-                BufferType {
-                    ty: BindingResourceTemplate::BufferStorage(
-                        material_buffer.as_entire_binding()
-                    ),
-                    view_dimension: None,
-                },
-                BufferType {
-                    ty: BindingResourceTemplate::BufferStorage(
-                        background_buffer.as_entire_binding()
-                    ),
-                    view_dimension: None,
-                },
-                BufferType {
-                    ty: BindingResourceTemplate::TextureView(
-                        wgpu::BindingResource::TextureView(&background_texture_view)
-                    ),
-                    view_dimension: Some(wgpu::TextureViewDimension::D2),
-                }
-            ]
-        );
-
-        // Generate the texture bind group & layout
-        let texture_bind_group = texture_bind_group_descriptor.generate_bind_group(&device);
-        let texture_bind_group_layout = texture_bind_group_descriptor.layout.unwrap();
-        println!("Textures ready");
-        
-        //----------Shader Config-------------
-        let shader_config = structs::ShaderConfig::default();
-        // Raytracing config via uniform buffer
-        let shader_config_descriptor = BufferInitDescriptor::new(Some("Shader Config Buffer"), wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST);
-        let shader_config_buffer =  create_new_buffer(&device, &[shader_config], shader_config_descriptor);
-
-        let mut shader_config_bind_group_descriptor = BindGroupDescriptor::new(
-            Some("shader_config"),
-            wgpu::ShaderStages::COMPUTE,
-            vec![
-                BufferType {
-                    ty: BindingResourceTemplate::BufferUniform(
-                        shader_config_buffer.as_entire_binding()
-                    ),
-                    view_dimension: None,
-                }
-            ]
-        );
-
-        // Generate the shader config bind group & layout
-        let shader_config_bind_group = shader_config_bind_group_descriptor.generate_bind_group(&device);
-        let shader_config_bind_group_layout = shader_config_bind_group_descriptor.layout.unwrap();
-
-
-        //----------Raytracing-------------
-        // Create a bind group layout for the shader
-        let mut raytracing_bind_group_descriptior = BindGroupDescriptor::new(
-            Some("raytracing_bind_group"),
-            wgpu::ShaderStages::COMPUTE,
-            vec![
-                BufferType {
-                    ty: BindingResourceTemplate::StorageTexture(
-                        wgpu::BindingResource::TextureView(&color_buffer_view)
-                    ),
-                    view_dimension: Some(wgpu::TextureViewDimension::D2),
-                }
-            ]
-        );
-
-        // Generate the raytracing bind group & layout
-        let raytracing_bind_group = raytracing_bind_group_descriptior.generate_bind_group(&device);
-        let raytracing_bind_group_layout = raytracing_bind_group_descriptior.layout.unwrap();
-
-
-        // Load your ray tracing shaders (ray generation, intersection, etc.)
-        let ray_generation_shader = device.create_shader_module(wgpu::ShaderModuleDescriptor {
-            label: Some("Ray Generation Shader"),
-            source: wgpu::ShaderSource::Wgsl(include_str!("raygen.wgsl").into()), // Replace with your actual shader source
-        });
-
-        // Create a ray tracing pipeline layout
-        let raytracing_pipeline_layout =
-        device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
-            label: Some("Ray Tracing Pipeline Layout"),
-            bind_group_layouts: &[
-                &shader_config_bind_group_layout,
-                &raytracing_bind_group_layout,
-                &camera_bind_group_layout,
-                &object_bind_group_layout,
-                &texture_bind_group_layout,
-                &bvh_bind_goup_layout,
-            ],
-            push_constant_ranges: &[],
-        });
-
-        let ray_tracing_pipeline = device.create_compute_pipeline(&wgpu::ComputePipelineDescriptor {
-            label: Some("Ray Tracing Pipeline"),
-            layout: Some(&raytracing_pipeline_layout),
-            module: &ray_generation_shader,
-            entry_point: "main", // Change to your actual entry point name
-            }
-        );
-        println!("Raytracing shader ready");
-
+        println!("Denoising shader&pipeline ready");
 
         //----------Transfer to screen-------------
-        //Create a Sampler for trasfering color data from render to screen texture
+        // Load the screen transfer shader
+        let screen_shader = device.create_shader_module(wgpu::ShaderModuleDescriptor {
+            label: Some("Screen Transfer Shader"),
+            source: wgpu::ShaderSource::Wgsl(include_str!("screen-shader.wgsl").into()),
+        });
+        // Create a Sampler for trasfering color data from rendered texture to screen texture
         let sampler = device.create_sampler(&wgpu::SamplerDescriptor {
             label: Some("Sampler"),
             address_mode_u: wgpu::AddressMode::Repeat,
@@ -449,7 +488,7 @@ impl<'a> State<'a>{
 
         // Create a bind group layout for the shader
         let mut screen_bind_group_descriptor = BindGroupDescriptor::new(
-            Some("screen_bind_group"),
+            Some("screen_transfer"),
             wgpu::ShaderStages::FRAGMENT,
             vec![
                 BufferType {
@@ -471,35 +510,32 @@ impl<'a> State<'a>{
         let screen_bind_group = screen_bind_group_descriptor.generate_bind_group(&device);
         let screen_bind_group_layout = screen_bind_group_descriptor.layout.unwrap();    
 
-        // Create screen pipeline to display render result
-        let screen_shader = device.create_shader_module(wgpu::ShaderModuleDescriptor {
-            label: Some("Fragment Shader"),
-            source: wgpu::ShaderSource::Wgsl(include_str!("screen-shader.wgsl").into()),
-        });
-
+        // Create the pipeline to display render result
         let screen_pipeline_layout =
             device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
-                label: Some("Render Pipeline Layout"),
+                label: Some("Screen Transfer Pipeline Layout"),
                 bind_group_layouts: &[&screen_bind_group_layout],
                 push_constant_ranges: &[],
             });
         
         let screen_render_pipeline = device.create_render_pipeline(&wgpu::RenderPipelineDescriptor {
-            label: Some("Render Pipeline"),
+            label: Some("Screen Transfer Pipeline"),
             layout: Some(&screen_pipeline_layout),
             vertex: wgpu::VertexState {
                 module: &screen_shader,
-                entry_point: "vs_main", // Add your vertex shader entry point here
+                entry_point: "vs_main", // Entrypoint for vertex shader
                 buffers: &[],
             },
             fragment: Some(wgpu::FragmentState {
                 module: &screen_shader,
-                entry_point: "fs_main",
-                targets: &[Some(wgpu::ColorTargetState {
+                entry_point: "fs_main", // Entrypoint for fragment shader
+                targets: &[
+                    Some(wgpu::ColorTargetState {
                     format: config.format,
                     blend: Some(wgpu::BlendState::REPLACE),
                     write_mask: wgpu::ColorWrites::ALL,
-                })],
+                    })
+                ],
             }),
             depth_stencil: None,
             multisample: wgpu::MultisampleState {
@@ -524,8 +560,10 @@ impl<'a> State<'a>{
             // indicates how many array layers the attachments will have.
             multiview: None,
         });
+        println!("Screen transfer shader&pipeline ready");
 
-        //----------- GUI -------------        
+
+        //=============== GUI config (not directly in contact with wgpu) ===============
         let egui = EguiRenderer::new(
             &device,       // wgpu Device
             config.format, // TextureFormat
