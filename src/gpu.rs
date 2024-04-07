@@ -99,12 +99,3 @@ pub async fn setup_gpu<'a> (window: Window) -> (Window, wgpu::Device, wgpu::Queu
 
     return (window, device, queue, surface, config, color_buffer_view, userconfig, size)
 }
-
-
-pub fn create_buffer(device: &wgpu::Device, data: &[u8], usage: wgpu::BufferUsages) -> wgpu::Buffer {
-    device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
-        label: None,
-        contents: data,
-        usage,
-    })
-}

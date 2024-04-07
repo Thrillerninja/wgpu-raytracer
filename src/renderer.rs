@@ -8,6 +8,7 @@ use crate::structs::{Triangle, Material, TriangleUniform};
 use crate::models::load_obj;
 use crate::texture::{create_texture, load_textures, load_textures_from_image, scale_texture};
 use crate::load_hdri;
+use crate::config;
 
 
 pub fn setup_camera(config: &SurfaceConfiguration, userconfig: &crate::config::Config) -> (camera::Camera, camera::Projection, camera::CameraController, structs::CameraUniform) {
@@ -22,7 +23,7 @@ pub fn setup_camera(config: &SurfaceConfiguration, userconfig: &crate::config::C
     return (camera, projection, camera_controller, camera_uniform)
 }
 
-pub fn setup_tris_objects(userconfig: &crate::config::Config) -> (Vec<Triangle>, Vec<TriangleUniform>, Vec<Material>, Vec<DynamicImage>){
+pub fn setup_tris_objects(userconfig: &config::Config) -> (Vec<Triangle>, Vec<TriangleUniform>, Vec<Material>, Vec<DynamicImage>){
     // Load SVG UV mapping file
     let tris_uv_mapping = match load_svg(userconfig.triangle_svg_uv_mapping_path){
         Err(error) => {
@@ -91,9 +92,15 @@ pub fn setup_tris_objects(userconfig: &crate::config::Config) -> (Vec<Triangle>,
     return (triangles, triangles_uniform, materials, textures)
 }
 
-pub fn setup_textures(userconfig: &crate::config::Config, textures: Vec<DynamicImage>, device: &wgpu::Device, queue: &wgpu::Queue, config: &SurfaceConfiguration) -> wgpu::Texture {
+pub fn setup_textures(userconfig: &config::Config, textures: Vec<DynamicImage>, device: &wgpu::Device, queue: &wgpu::Queue, config: &SurfaceConfiguration) -> wgpu::Texture {
     // Load textures from files into a textureset
-    let mut textures_buffer = create_texture(&device, &config, 1024, 1024, 30);    //30 = max numer of textures
+    let num_textureslots = if textures.len() as u32 == 0{
+        2
+    } else {
+        textures.len() as u32
+    };
+
+    let mut textures_buffer = create_texture(&device, &config, 1024, 1024, num_textureslots);
     let mut texture_count = 0;
 
     // Add textures from config to textureset
@@ -135,7 +142,7 @@ pub fn setup_textures(userconfig: &crate::config::Config, textures: Vec<DynamicI
     return textures_buffer;
 }
 
-pub fn setup_spheres(userconfig: &crate::config::Config) -> Vec<SphereUniform> {
+pub fn setup_spheres(userconfig: &config::Config) -> Vec<SphereUniform> {
     let mut spheres_uniform: Vec<SphereUniform> = Vec::new();
     for sphere in userconfig.spheres.iter(){
         spheres_uniform.push(SphereUniform::new(*sphere));
@@ -193,7 +200,7 @@ pub fn setup_bvh(triangles: &Vec<Triangle>) ->(Vec<BvhUniform>, Vec<f32>){
 }
 
 
-pub fn setup_hdri(userconfig: &crate::config::Config, device: &wgpu::Device, queue: &wgpu::Queue, config: &SurfaceConfiguration) -> wgpu::Texture {
+pub fn setup_hdri(userconfig: &config::Config, device: &wgpu::Device, queue: &wgpu::Queue, config: &SurfaceConfiguration) -> wgpu::Texture {
     // Background
     let background_img = match load_hdri(userconfig.background_path){
         Err(error) => {

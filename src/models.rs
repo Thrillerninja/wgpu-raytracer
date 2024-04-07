@@ -4,7 +4,6 @@ use image::{DynamicImage, ImageBuffer, Rgba, GenericImageView};
 use std::sync::Arc;
 // use rand::Rng;
 use crate::structs::{Triangle, Material};
-use crate::texture;
 
 use cgmath::*;
 use core::ops::Deref;
@@ -320,12 +319,12 @@ where
     )]
 }
 
-fn convert_to_dynamic_image<P, Container>(texture: &ImageBuffer<P, Container>) -> DynamicImage
+fn convert_to_dynamic_image<P, Container>(texture: &image::ImageBuffer<P, Container>) -> DynamicImage
 where
     P: Pixel<Subpixel = u8> + 'static,
     Container: Deref<Target = [P::Subpixel]>,
 {
-    DynamicImage::ImageRgba8(
+    image::DynamicImage::ImageRgba8(
         ImageBuffer::<Rgba<u8>, Vec<u8>>::from_fn(texture.width(), texture.height(), |x, y| {
             let pixel = texture.get_pixel(x, y);
             let (r, g, b, a) = pixel.channels4();

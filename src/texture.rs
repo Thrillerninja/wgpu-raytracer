@@ -20,22 +20,11 @@ pub fn create_texture(device: &Device, config: &SurfaceConfiguration, texture_wi
         sample_count: 1,
         dimension: TextureDimension::D2,
         format: TextureFormat::Rgba8Unorm, // Adjust format as needed
-        usage: wgpu::TextureUsages::COPY_DST | wgpu::TextureUsages::TEXTURE_BINDING | wgpu::TextureUsages::RENDER_ATTACHMENT,
+        usage: wgpu::TextureUsages::COPY_DST | 
+               wgpu::TextureUsages::TEXTURE_BINDING | 
+               wgpu::TextureUsages::RENDER_ATTACHMENT,
     });   
 }
-
-// pub fn create_textureset(device: &Device, config: &SurfaceConfiguration, texture_width: u32, texture_height: u32, num_textures: u32) -> TextureSet {
-//     // Create a textureset
-//     let diffuse = create_texture(device, config, texture_width, texture_height, num_textures);
-//     let normal = create_texture(device, config, texture_width, texture_height, num_textures);
-//     let roughness = create_texture(device, config, texture_width, texture_height, num_textures);
-
-//     return TextureSet {
-//         diffuse,
-//         normal,
-//         roughness,
-//     }
-// }
 
 fn write_texture(queue: &Queue, texture: &Texture, image: DynamicImage, offset: wgpu::Origin3d) {
     let (width, height) = image.dimensions();
@@ -63,47 +52,6 @@ fn write_texture(queue: &Queue, texture: &Texture, image: DynamicImage, offset: 
         },
     );
 }
-
-// pub fn load_texture_set(queue: &Queue, textureset: TextureSet, diffuse: &str, normal: &str, roughness: &str, index: i32) -> Result<TextureSet, Box<dyn std::error::Error>> {
-//     let offset = wgpu::Origin3d {
-//         x: 0,
-//         y: 0,
-//         z: index as u32,
-//     };
-
-//     // Diffuse
-//     let diffuse_image = load_image(diffuse)?;
-//     write_texture(queue, &textureset.diffuse, diffuse_image, offset);
-
-//     // Normal
-//     let normal_image = load_image(normal)?;
-//     write_texture(queue, &textureset.normal, normal_image, offset);
-
-//     // Roughness
-//     let roughness_image = load_image(roughness)?;
-//     write_texture(queue, &textureset.roughness, roughness_image, offset);
-
-//     Ok(textureset)
-// }
-
-// pub fn load_texture_set_from_images(queue: &Queue, textureset: TextureSet, diffuse: &DynamicImage, normal: &DynamicImage, roughness: &DynamicImage, index: i32) -> Result<TextureSet, Box<dyn std::error::Error>> {
-//     let offset = wgpu::Origin3d {
-//         x: 0,
-//         y: 0,
-//         z: index as u32,
-//     };
-
-//     // Diffuse
-//     write_texture(queue, &textureset.diffuse, diffuse.clone(), offset);
-
-//     // Normal
-//     write_texture(queue, &textureset.normal, normal.clone(), offset);
-
-//     // Roughness
-//     write_texture(queue, &textureset.roughness, roughness.clone(), offset);
-
-//     Ok(textureset)
-// }
 
 pub fn load_textures(queue: &Queue, textureset: Texture, texture: &str, index: i32) -> Result<Texture, Box<dyn std::error::Error>> {
     let offset = wgpu::Origin3d {

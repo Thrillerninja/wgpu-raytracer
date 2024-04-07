@@ -1,11 +1,5 @@
 use std::collections::VecDeque;
-use image::{DynamicImage, GenericImageView};
-use wgpu::util::DeviceExt;
-use wgpu::Features;
-use winit::{
-    event::*, event_loop::{ControlFlow, EventLoop}, keyboard::{Key, KeyCode, NamedKey}, window::{ResizeDirection, Window}
-};
-use rtbvh::*;
+use winit::{event::*, event_loop::{ControlFlow, EventLoop}, keyboard::{Key, NamedKey}, window::Window};
 use egui_wgpu::ScreenDescriptor;
 
 #[cfg(target_arch = "wasm32")]
@@ -24,24 +18,19 @@ mod camera;
 use camera::Camera;
 
 mod models;
-use models::{load_obj, load_gltf, load_svg};
-
 mod texture;
-// use texture::{create_textureset, load_texture_set, load_texture_set_from_images};
-use texture::{create_texture, load_textures, load_textures_from_image, scale_texture};
+mod config;
 
 mod structs;
-use structs::{CameraUniform, TriangleUniform, SphereUniform, BvhUniform, ShaderConfig};
-use structs::{Material, Sphere, Triangle};
-
-mod config;
-use config::Config;
+use structs::CameraUniform;
 
 mod renderer;
 use renderer::setup_camera;
 
 use crate::{models::load_hdri, renderer::{setup_bvh, setup_spheres, setup_textures, setup_tris_objects, setup_hdri}};
 
+mod buffer;
+use buffer::{BufferInitDescriptor, BindGroupDescriptor, BufferType, BindingResourceTemplate, create_new_buffer};
 
 struct State<'a>{
     window: Window,
@@ -89,41 +78,32 @@ impl<'a> State<'a>{
             surface, 
             config, 
             color_buffer_view, 
-            mut userconfig, 
+            userconfig, 
             size) = setup_gpu(window).await;
 
         //----------Camera-------------
-        let (camera, projection, camera_controller, camera_uniform) = setup_camera(&config, &userconfig);
+        let (camera, 
+            projection, 
+            camera_controller, 
+            camera_uniform) = setup_camera(&config, &userconfig);
 
-        let camera_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
-            label: Some("Camera Buffer"),
-            contents: bytemuck::cast_slice(&[camera_uniform]),
-            usage: wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST | wgpu::BufferUsages::COPY_SRC,
-        });
+        // Create a buffer to hold the camera data
+        let camera_descriptor = BufferInitDescriptor::new(Some("Camera Buffer"), wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST | wgpu::BufferUsages::COPY_SRC);
+        let camera_buffer = create_new_buffer(&device, &[camera_uniform], camera_descriptor);
 
-        let camera_bind_group_layout =
-            device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
-                entries: &[wgpu::BindGroupLayoutEntry {
-                    binding: 0,
-                    visibility: wgpu::ShaderStages::COMPUTE,
-                    ty: wgpu::BindingType::Buffer {
-                        ty: wgpu::BufferBindingType::Uniform,
-                        has_dynamic_offset: false,
-                        min_binding_size: None,
-                    },
-                    count: None,
-                }],
-                label: Some("camera_bind_group_layout"),
-            });
-
-        let camera_bind_group = device.create_bind_group(&wgpu::BindGroupDescriptor {
-            layout: &camera_bind_group_layout,
-            entries: &[wgpu::BindGroupEntry {
-                binding: 0,
-                resource: camera_buffer.as_entire_binding(),
-            }],
-            label: Some("camera_bind_group"),
-        });
+        // Create a bind group for the camera
+        let mut camera_bind_group_descriptor = BindGroupDescriptor::new(
+            Some("camera_bind_group"),
+            wgpu::ShaderStages::COMPUTE,
+            vec![BufferType {
+                ty: BindingResourceTemplate::BufferUniform(
+                    camera_buffer.as_entire_binding()
+                ),
+                view_dimension: None,
+            }]
+        );
+        let camera_bind_group = camera_bind_group_descriptor.generate_bind_group(&device);
+        let camera_bind_group_layout = camera_bind_group_descriptor.layout.unwrap();
         println!("Camera ready");
 
         //----------Anit-Aliasing-------------
@@ -146,7 +126,6 @@ impl<'a> State<'a>{
                 | wgpu::TextureUsages::STORAGE_BINDING
                 | wgpu::TextureUsages::COPY_SRC,
         });
-        let denoising_buffer_view = denoising_texture.create_view(&wgpu::TextureViewDescriptor::default());
 
         // Pass camera info to denoising shader
         let denoising_camera: Camera = camera.clone();
@@ -154,102 +133,56 @@ impl<'a> State<'a>{
         let mut denoising_camera_uniform = CameraUniform::new();
         denoising_camera_uniform.update_view_proj(&denoising_camera, &projection);
 
-        let denoising_camera_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
-            label: Some("Denoising Camera Buffer"),
-            contents: bytemuck::cast_slice(&[denoising_camera_uniform]),
-            usage: wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST,
-        });
+        // Create a buffer to hold the camera data for denoising
+        let denoising_camera_buffer_descriptor = BufferInitDescriptor::new(Some("Denoising Camera Data Buffer"), wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST);
+        let denoising_camera_buffer = create_new_buffer(&device, &[denoising_camera_uniform], denoising_camera_buffer_descriptor);
 
-        // Small uniform buffer for denoising pass number indicator
-        let denoising_pass_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
-            label: Some("Denoising Pass Buffer"),
-            contents: bytemuck::cast_slice(&[0u32]),
-            usage: wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST,
-        });
+        // Create a buffer to hold the denoising pass number
+        let denoising_pass_buffer_descriptor = BufferInitDescriptor::new(Some("Denoising Pass Buffer"), wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST);
+        let denoising_pass_buffer = create_new_buffer(&device, &[0u32], denoising_pass_buffer_descriptor);
 
-        let denoising_bind_group_layout =
-            device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
-                entries: &[
-                    wgpu::BindGroupLayoutEntry {
-                        binding: 0, // This should match the binding number in the shader
-                        visibility: wgpu::ShaderStages::COMPUTE,
-                        ty: wgpu::BindingType::StorageTexture {
-                        access: wgpu::StorageTextureAccess::ReadWrite,
-                        format: config.format, // Match the texture format in the shader
-                        view_dimension: wgpu::TextureViewDimension::D2,
-                        },
-                        count: None,            
-                    },
-                    wgpu::BindGroupLayoutEntry {
-                        binding: 1, // This should match the binding number in the shader
-                        visibility: wgpu::ShaderStages::COMPUTE,
-                        ty: wgpu::BindingType::StorageTexture {
-                        access: wgpu::StorageTextureAccess::ReadWrite,
-                        format: config.format, // Match the texture format in the shader
-                        view_dimension: wgpu::TextureViewDimension::D2,
-                        },
-                        count: None,            
-                    },
-                    wgpu::BindGroupLayoutEntry {
-                        binding: 2,
-                        visibility: wgpu::ShaderStages::COMPUTE,
-                        ty: wgpu::BindingType::Buffer {
-                            ty: wgpu::BufferBindingType::Uniform,
-                            has_dynamic_offset: false,
-                            min_binding_size: None,
-                        },
-                        count: None,
-                    },
-                    wgpu::BindGroupLayoutEntry {
-                        binding: 3,
-                        visibility: wgpu::ShaderStages::COMPUTE,
-                        ty: wgpu::BindingType::Buffer {
-                            ty: wgpu::BufferBindingType::Uniform,
-                            has_dynamic_offset: false,
-                            min_binding_size: None,
-                        },
-                        count: None,
-                    },
-                    wgpu::BindGroupLayoutEntry {
-                        binding: 4,
-                        visibility: wgpu::ShaderStages::COMPUTE,
-                        ty: wgpu::BindingType::Buffer {
-                            ty: wgpu::BufferBindingType::Uniform,
-                            has_dynamic_offset: false,
-                            min_binding_size: None,
-                        },
-                        count: None,
-                    },
-                ],
-                label: Some("denoising_bind_group_layout"),
-            });
-
-        let denoising_bind_group = device.create_bind_group(&wgpu::BindGroupDescriptor {
-            layout: &denoising_bind_group_layout,
-            entries: &[
-                wgpu::BindGroupEntry {
-                    binding: 0, // This should match the binding number in the shader
-                    resource: wgpu::BindingResource::TextureView(&color_buffer_view),
+        // Create a view for the denoising texture
+        let denoising_texture_view = denoising_texture.create_view(&wgpu::TextureViewDescriptor::default());
+        // Create a bind group descriptor for denoising step
+        let mut denoising_bind_group_descriptor = BindGroupDescriptor::new(
+            Some("denoising"),
+            wgpu::ShaderStages::COMPUTE,
+            vec![
+                BufferType {
+                    ty: BindingResourceTemplate::StorageTexture(
+                        wgpu::BindingResource::TextureView(&color_buffer_view),
+                    ),
+                    view_dimension: Some(wgpu::TextureViewDimension::D2),
                 },
-                wgpu::BindGroupEntry {
-                    binding: 1, // This should match the binding number in the shader
-                    resource: wgpu::BindingResource::TextureView(&denoising_buffer_view),
+                BufferType {
+                    ty: BindingResourceTemplate::StorageTexture(
+                        wgpu::BindingResource::TextureView(&denoising_texture_view),
+                    ),
+                    view_dimension: Some(wgpu::TextureViewDimension::D2),
                 },
-                wgpu::BindGroupEntry {
-                    binding: 2,
-                    resource: camera_buffer.as_entire_binding(),
+                BufferType {
+                    ty: BindingResourceTemplate::BufferUniform(
+                        camera_buffer.as_entire_binding()
+                    ),
+                    view_dimension: None,
                 },
-                wgpu::BindGroupEntry {
-                    binding: 3,
-                    resource: denoising_camera_buffer.as_entire_binding(),
+                BufferType {
+                    ty: BindingResourceTemplate::BufferUniform(
+                        denoising_camera_buffer.as_entire_binding()
+                    ),
+                    view_dimension: None,
                 },
-                wgpu::BindGroupEntry {
-                    binding: 4,
-                    resource: denoising_pass_buffer.as_entire_binding(),
-                },
-            ],
-            label: Some("denoising_bind_group"),
-        });
+                BufferType {
+                    ty: BindingResourceTemplate::BufferUniform(
+                        denoising_pass_buffer.as_entire_binding()
+                    ),
+                    view_dimension: None,
+                }
+            ]
+        );
+        // Generate the denoising bind group & layout
+        let denoising_bind_group = denoising_bind_group_descriptor.generate_bind_group(&device);
+        let denoising_bind_group_layout = denoising_bind_group_descriptor.layout.unwrap();
 
         // Create a pipeline layout for denoising denoising
         let denoising_pipeline_layout = device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
@@ -282,11 +215,8 @@ impl<'a> State<'a>{
 
         
         // Create a buffer to hold the vertex data
-        let vertex_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
-            label: Some("Vertex Buffer"),
-            contents: bytemuck::cast_slice(&triangles_uniform),
-            usage: wgpu::BufferUsages::STORAGE | wgpu::BufferUsages::COPY_DST,
-        });
+        let vertex_buffer_descriptor = BufferInitDescriptor::new(Some("Vertex Buffer"), wgpu::BufferUsages::STORAGE | wgpu::BufferUsages::COPY_DST);
+        let vertex_buffer = create_new_buffer(&device, &triangles_uniform, vertex_buffer_descriptor);
 
         // Create Textureset
         let textures_buffer = setup_textures(&userconfig, textures, &device, &queue, &config);
@@ -296,185 +226,80 @@ impl<'a> State<'a>{
         // Spheres to Uniform buffer compatible type                   
         
         // Create a buffer to hold the sphere data
-        let sphere_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
-            label: Some("Vertex Buffer"),
-            contents: bytemuck::cast_slice(&spheres_uniform),
-            usage: wgpu::BufferUsages::STORAGE | wgpu::BufferUsages::COPY_DST,
-        });
+        let sphere_buffer_descriptor = BufferInitDescriptor::new(Some("Sphere Buffer"), wgpu::BufferUsages::STORAGE | wgpu::BufferUsages::COPY_DST);
+        let sphere_buffer = create_new_buffer(&device, &spheres_uniform, sphere_buffer_descriptor);
 
         // -------Combined Objects----------
-        // Create a bind group layout for the shader
-        let object_bind_group_layout = device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
-            entries: &[
-                wgpu::BindGroupLayoutEntry {
-                    binding: 0, // This should match the binding number in the shader for object data
-                    visibility: wgpu::ShaderStages::COMPUTE,
-                    ty: wgpu::BindingType::Buffer {
-                        ty: wgpu::BufferBindingType::Storage { read_only: true },
-                        has_dynamic_offset: false,
-                        min_binding_size: None,
-                    },
-                    count: None,            
+        // Create a bind group for the objects
+        let mut object_bind_group_descriptor = BindGroupDescriptor::new(
+            Some("object_bind_group"),
+            wgpu::ShaderStages::COMPUTE,
+            vec![
+                BufferType {
+                    ty: BindingResourceTemplate::BufferStorage(
+                        vertex_buffer.as_entire_binding()
+                    ),
+                    view_dimension: None,
                 },
-                wgpu::BindGroupLayoutEntry {
-                    binding: 1, // This should match the binding number in the shader for object data
-                    visibility: wgpu::ShaderStages::COMPUTE,
-                    ty: wgpu::BindingType::Buffer {
-                        ty: wgpu::BufferBindingType::Storage { read_only: true },
-                        has_dynamic_offset: false,
-                        min_binding_size: None,
-                    },
-                    count: None,            
+                BufferType {
+                    ty: BindingResourceTemplate::BufferStorage(
+                        sphere_buffer.as_entire_binding()
+                    ),
+                    view_dimension: None,
                 }
-            ],
-            label: Some("object_bind_group_layout"),
-        });
+            ]
+        );
 
-        // Create a bind group using the layout and the buffers
-        let object_bind_group = device.create_bind_group(&wgpu::BindGroupDescriptor {
-            layout: &object_bind_group_layout,
-            entries: &[
-                wgpu::BindGroupEntry {
-                    binding: 0, // This should match the binding number in the shader for object data
-                    resource: vertex_buffer.as_entire_binding(),
-                },
-                wgpu::BindGroupEntry {
-                    binding: 1, // This should match the binding number in the shader for object data
-                    resource: sphere_buffer.as_entire_binding(),
-                }
-            ],
-            label: Some("object_bind_group"),
-        });
+        // Generate the object bind group & layout
+        let object_bind_group = object_bind_group_descriptor.generate_bind_group(&device);
+        let object_bind_group_layout = object_bind_group_descriptor.layout.unwrap();
         println!("Objects ready");
-
 
         //-------------BVH---------------
         
         let (bvh_uniform, bvh_prim_indices) = setup_bvh(&triangles);
         
         // Store bvh nodes in a buffer as a array
-        let bvh_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
-            label: Some("BVH Buffer"),
-            contents: bytemuck::cast_slice(&bvh_uniform),
-            usage: wgpu::BufferUsages::STORAGE | wgpu::BufferUsages::COPY_DST,
-        });
+        let bvh_descriptor = BufferInitDescriptor::new(Some("BVH Buffer"), wgpu::BufferUsages::STORAGE | wgpu::BufferUsages::COPY_DST);
+        let bvh_buffer = create_new_buffer(&device, &bvh_uniform, bvh_descriptor);
 
         // Store prim indices of the bvh nodes in a buffer as a array
-        let bvh_prim_indices_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
-            label: Some("BVH Prim Indices Buffer"),
-            contents: bytemuck::cast_slice(&bvh_prim_indices),
-            usage: wgpu::BufferUsages::STORAGE | wgpu::BufferUsages::COPY_DST,
-        });
+        let bvh_indices_descriptor = BufferInitDescriptor::new(Some("BVH Prim Indices Buffer"), wgpu::BufferUsages::STORAGE | wgpu::BufferUsages::COPY_DST);
+        let bvh_prim_indices_buffer = create_new_buffer(&device, &bvh_prim_indices, bvh_indices_descriptor);
 
         // Send nodes and prim indices to the shader
-        let bvh_bind_goup_layout = device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
-            entries: &[
-                wgpu::BindGroupLayoutEntry {
-                    binding: 0, // This should match the binding number in the shader for object data
-                    visibility: wgpu::ShaderStages::COMPUTE,
-                    ty: wgpu::BindingType::Buffer {
-                        ty: wgpu::BufferBindingType::Storage { read_only: true },
-                        has_dynamic_offset: false,
-                        min_binding_size: None,
-                    },
-                    count: None,            
+        let mut bvh_bind_group_descriptor = BindGroupDescriptor::new(
+            Some("bvh"),
+            wgpu::ShaderStages::COMPUTE,
+            vec![
+                BufferType {
+                    ty: BindingResourceTemplate::BufferStorage(
+                        bvh_buffer.as_entire_binding()
+                    ),
+                    view_dimension: None,
                 },
-                wgpu::BindGroupLayoutEntry {
-                    binding: 1, // This should match the binding number in the shader for object data
-                    visibility: wgpu::ShaderStages::COMPUTE,
-                    ty: wgpu::BindingType::Buffer {
-                        ty: wgpu::BufferBindingType::Storage { read_only: true },
-                        has_dynamic_offset: false,
-                        min_binding_size: None,
-                    },
-                    count: None,            
+                BufferType {
+                    ty: BindingResourceTemplate::BufferStorage(
+                        bvh_prim_indices_buffer.as_entire_binding()
+                    ),
+                    view_dimension: None,
                 }
-            ],
-            label: Some("bvh_bind_group_layout"),
-        });
+            ]
+        );
 
-        let bvh_bind_group = device.create_bind_group(&wgpu::BindGroupDescriptor {
-            layout: &bvh_bind_goup_layout,
-            entries: &[
-                wgpu::BindGroupEntry {
-                    binding: 0, // This should match the binding number in the shader for object data
-                    resource: bvh_buffer.as_entire_binding(),
-                },
-                wgpu::BindGroupEntry {
-                    binding: 1, // This should match the binding number in the shader for object data
-                    resource: bvh_prim_indices_buffer.as_entire_binding(),
-                }
-            ],
-            label: Some("bvh_bind_group"),
-        });
+        // Generate the bvh bind group & layout
+        let bvh_bind_group = bvh_bind_group_descriptor.generate_bind_group(&device);
+        let bvh_bind_goup_layout = bvh_bind_group_descriptor.layout.unwrap();
         println!("BVH ready");
 
         //----------Textures-------------
         let background_texture = setup_hdri(&userconfig, &device, &queue, &config);
 
-        let material_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
-            label: Some("Material Buffer"),
-            contents: bytemuck::cast_slice(&materials),
-            usage: wgpu::BufferUsages::STORAGE | wgpu::BufferUsages::COPY_DST,
-        });
+        let material_descriptor = BufferInitDescriptor::new(Some("Material Buffer"), wgpu::BufferUsages::STORAGE | wgpu::BufferUsages::COPY_DST);
+        let material_buffer = create_new_buffer(&device, &materials, material_descriptor);
 
-        let background_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
-            label: Some("Background Buffer"),
-            contents: bytemuck::cast_slice(&[userconfig.background]),
-            usage: wgpu::BufferUsages::STORAGE | wgpu::BufferUsages::COPY_DST,
-        });
-
-        let texture_bind_group_layout = device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
-            entries: &[
-                wgpu::BindGroupLayoutEntry {
-                    binding: 0,
-                    visibility: wgpu::ShaderStages::COMPUTE,
-                    ty: wgpu::BindingType::Sampler(wgpu::SamplerBindingType::Filtering),
-                    count: None,
-                },
-                wgpu::BindGroupLayoutEntry {
-                    binding: 1,
-                    visibility: wgpu::ShaderStages::COMPUTE,
-                    ty: wgpu::BindingType::Texture {
-                        multisampled: false,
-                        view_dimension: wgpu::TextureViewDimension::D2Array,
-                        sample_type: wgpu::TextureSampleType::Float { filterable: true },
-                    },
-                    count: None,
-                },
-                wgpu::BindGroupLayoutEntry {
-                    binding: 2,
-                    visibility: wgpu::ShaderStages::COMPUTE,
-                    ty: wgpu::BindingType::Buffer {
-                        ty: wgpu::BufferBindingType::Storage { read_only: true },
-                        has_dynamic_offset: false,
-                        min_binding_size: None,
-                    },
-                    count: None,         
-                },
-                wgpu::BindGroupLayoutEntry {
-                    binding: 3,
-                    visibility: wgpu::ShaderStages::COMPUTE,
-                    ty: wgpu::BindingType::Buffer {
-                        ty: wgpu::BufferBindingType::Storage { read_only: true },
-                        has_dynamic_offset: false,
-                        min_binding_size: None,
-                    },
-                    count: None,         
-                },
-                wgpu::BindGroupLayoutEntry {
-                    binding: 4,
-                    visibility: wgpu::ShaderStages::COMPUTE,
-                    ty: wgpu::BindingType::Texture {
-                        multisampled: false,
-                        view_dimension: wgpu::TextureViewDimension::D2,
-                        sample_type: wgpu::TextureSampleType::Float { filterable: true },
-                    },
-                    count: None,
-                }
-            ],
-            label: Some("texture_bind_group_layout"),
-        });
+        let background_descriptor = BufferInitDescriptor::new(Some("Background Buffer"), wgpu::BufferUsages::STORAGE | wgpu::BufferUsages::COPY_DST);
+        let background_buffer = create_new_buffer(&device, &[userconfig.background], background_descriptor);
 
         let texture_sampler = device.create_sampler(&wgpu::SamplerDescriptor {
             label: Some("Sampler"),
@@ -488,103 +313,100 @@ impl<'a> State<'a>{
             ..Default::default()
         });
 
-        let texture_bind_group = device.create_bind_group(&wgpu::BindGroupDescriptor {
-            layout: &texture_bind_group_layout,
-            entries: &[
-                wgpu::BindGroupEntry {
-                    binding: 0,
-                    resource: wgpu::BindingResource::Sampler(&texture_sampler),
+        // Create a bind group for the textures
+        let textures_view = textures_buffer.create_view(&wgpu::TextureViewDescriptor::default());
+        let background_texture_view = background_texture.create_view(&wgpu::TextureViewDescriptor::default());
+        let mut texture_bind_group_descriptor = BindGroupDescriptor::new(
+            Some("texture_bind_group"),
+            wgpu::ShaderStages::COMPUTE,
+            vec![
+                BufferType {
+                    ty: BindingResourceTemplate::Sampler(
+                        wgpu::BindingResource::Sampler(&texture_sampler)
+                    ),
+                    view_dimension: None,
                 },
-                wgpu::BindGroupEntry {
-                    binding: 1,
-                    resource: wgpu::BindingResource::TextureView(&textures_buffer.create_view(&wgpu::TextureViewDescriptor::default())),
+                BufferType {
+                    ty: BindingResourceTemplate::TextureView(
+                        wgpu::BindingResource::TextureView(&textures_view)
+                    ),
+                    view_dimension: Some(wgpu::TextureViewDimension::D2Array),
                 },
-                wgpu::BindGroupEntry {
-                    binding: 2, 
-                    resource: material_buffer.as_entire_binding(),
+                BufferType {
+                    ty: BindingResourceTemplate::BufferStorage(
+                        material_buffer.as_entire_binding()
+                    ),
+                    view_dimension: None,
                 },
-                wgpu::BindGroupEntry {
-                    binding: 3, 
-                    resource: background_buffer.as_entire_binding(),
+                BufferType {
+                    ty: BindingResourceTemplate::BufferStorage(
+                        background_buffer.as_entire_binding()
+                    ),
+                    view_dimension: None,
                 },
-                wgpu::BindGroupEntry {
-                    binding: 4,
-                    resource: wgpu::BindingResource::TextureView(&background_texture.create_view(&wgpu::TextureViewDescriptor::default())),
+                BufferType {
+                    ty: BindingResourceTemplate::TextureView(
+                        wgpu::BindingResource::TextureView(&background_texture_view)
+                    ),
+                    view_dimension: Some(wgpu::TextureViewDimension::D2),
                 }
-            ],
-            label: Some("texture_bind_group"),
-        });
+            ]
+        );
+
+        // Generate the texture bind group & layout
+        let texture_bind_group = texture_bind_group_descriptor.generate_bind_group(&device);
+        let texture_bind_group_layout = texture_bind_group_descriptor.layout.unwrap();
         println!("Textures ready");
         
-        //----------Raytracing-------------
+        //----------Shader Config-------------
         let shader_config = structs::ShaderConfig::default();
         // Raytracing config via uniform buffer
-        let shader_config_bind_group_layout = device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
-            entries: &[
-                wgpu::BindGroupLayoutEntry {
-                    binding: 0,
-                    visibility: wgpu::ShaderStages::COMPUTE,
-                    ty: wgpu::BindingType::Buffer {
-                        ty: wgpu::BufferBindingType::Uniform,
-                        has_dynamic_offset: false,
-                        min_binding_size: None,
-                    },
-                    count: None,
-                },
-            ],
-            label: Some("shader_config"),
-        });
+        let shader_config_descriptor = BufferInitDescriptor::new(Some("Shader Config Buffer"), wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST);
+        let shader_config_buffer =  create_new_buffer(&device, &[shader_config], shader_config_descriptor);
 
-        let shader_config_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
-            label: Some("Shader config Buffer"),
-            contents: bytemuck::cast_slice(&[shader_config]),
-            usage: wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST,
-        });
+        let mut shader_config_bind_group_descriptor = BindGroupDescriptor::new(
+            Some("shader_config"),
+            wgpu::ShaderStages::COMPUTE,
+            vec![
+                BufferType {
+                    ty: BindingResourceTemplate::BufferUniform(
+                        shader_config_buffer.as_entire_binding()
+                    ),
+                    view_dimension: None,
+                }
+            ]
+        );
 
-        let shader_config_bind_group = device.create_bind_group(&wgpu::BindGroupDescriptor {
-            layout: &shader_config_bind_group_layout,
-            entries: &[wgpu::BindGroupEntry {
-                binding: 0,
-                resource: shader_config_buffer.as_entire_binding(),
-            }],
-            label: Some("shader_config_bind_group"),
-        });
+        // Generate the shader config bind group & layout
+        let shader_config_bind_group = shader_config_bind_group_descriptor.generate_bind_group(&device);
+        let shader_config_bind_group_layout = shader_config_bind_group_descriptor.layout.unwrap();
 
 
+        //----------Raytracing-------------
         // Create a bind group layout for the shader
-        let raytracing_bind_group_layout = device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
-            entries: &[
-                wgpu::BindGroupLayoutEntry {
-                    binding: 0, // This should match the binding number in the shader
-                    visibility: wgpu::ShaderStages::COMPUTE,
-                    ty: wgpu::BindingType::StorageTexture {
-                    access: wgpu::StorageTextureAccess::WriteOnly,
-                    format: config.format, // Match the texture format in the shader
-                    view_dimension: wgpu::TextureViewDimension::D2,
-                    },
-                    count: None,            
+        let mut raytracing_bind_group_descriptior = BindGroupDescriptor::new(
+            Some("raytracing_bind_group"),
+            wgpu::ShaderStages::COMPUTE,
+            vec![
+                BufferType {
+                    ty: BindingResourceTemplate::StorageTexture(
+                        wgpu::BindingResource::TextureView(&color_buffer_view)
+                    ),
+                    view_dimension: Some(wgpu::TextureViewDimension::D2),
                 }
-                ],
-            label: Some("raytracing_bind_group_layout")});
-        
-        // Create a bind group using the layout and the texture view
-        let raytracing_bind_group = device.create_bind_group(&wgpu::BindGroupDescriptor {
-            layout: &raytracing_bind_group_layout,
-            entries: &[
-                wgpu::BindGroupEntry {
-                    binding: 0, // This should match the binding number in the shader
-                    resource: wgpu::BindingResource::TextureView(&color_buffer_view),
-                }
-            ],
-            label: Some("raytracing_bind_group"),
-        });
+            ]
+        );
 
-                // Load your ray tracing shaders (ray generation, intersection, etc.)
+        // Generate the raytracing bind group & layout
+        let raytracing_bind_group = raytracing_bind_group_descriptior.generate_bind_group(&device);
+        let raytracing_bind_group_layout = raytracing_bind_group_descriptior.layout.unwrap();
+
+
+        // Load your ray tracing shaders (ray generation, intersection, etc.)
         let ray_generation_shader = device.create_shader_module(wgpu::ShaderModuleDescriptor {
             label: Some("Ray Generation Shader"),
             source: wgpu::ShaderSource::Wgsl(include_str!("raygen.wgsl").into()), // Replace with your actual shader source
         });
-
 
         // Create a ray tracing pipeline layout
         let raytracing_pipeline_layout =
@@ -626,43 +448,28 @@ impl<'a> State<'a>{
         });
 
         // Create a bind group layout for the shader
-        let screen_bind_group_layout = device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
-                entries: &[
-                    wgpu::BindGroupLayoutEntry {
-                        binding: 0,
-                        visibility: wgpu::ShaderStages::FRAGMENT,
-                        ty: wgpu::BindingType::Sampler(wgpu::SamplerBindingType::Filtering),
-                        count: None,
-                    },
-                    wgpu::BindGroupLayoutEntry {
-                        binding: 1,
-                        visibility: wgpu::ShaderStages::FRAGMENT,
-                        ty: wgpu::BindingType::Texture {
-                            multisampled: false,
-                            view_dimension: wgpu::TextureViewDimension::D2,
-                            sample_type: wgpu::TextureSampleType::Float { filterable: true },
-                        },
-                        count: None,
-                    },
-                ],
-                label: Some("screen_bind_group_layout"),
-            });
-        
-        let screen_bind_group = device.create_bind_group(&wgpu::BindGroupDescriptor {
-            layout: &screen_bind_group_layout,
-            entries: &[
-                wgpu::BindGroupEntry {
-                    binding: 0,
-                    resource: wgpu::BindingResource::Sampler(&sampler),
+        let mut screen_bind_group_descriptor = BindGroupDescriptor::new(
+            Some("screen_bind_group"),
+            wgpu::ShaderStages::FRAGMENT,
+            vec![
+                BufferType {
+                    ty: BindingResourceTemplate::Sampler(
+                        wgpu::BindingResource::Sampler(&sampler)
+                    ),
+                    view_dimension: None,
                 },
-                wgpu::BindGroupEntry {
-                    binding: 1,
-                    resource: wgpu::BindingResource::TextureView(&color_buffer_view),
-                },
-            ],
-            label: Some("screen_bind_group"),
-        });
-    
+                BufferType {
+                    ty: BindingResourceTemplate::TextureView(
+                        wgpu::BindingResource::TextureView(&color_buffer_view)
+                    ),
+                    view_dimension: Some(wgpu::TextureViewDimension::D2),
+                }
+            ]
+        );
+
+        // Generate the screen bind group & layout
+        let screen_bind_group = screen_bind_group_descriptor.generate_bind_group(&device);
+        let screen_bind_group_layout = screen_bind_group_descriptor.layout.unwrap();    
 
         // Create screen pipeline to display render result
         let screen_shader = device.create_shader_module(wgpu::ShaderModuleDescriptor {

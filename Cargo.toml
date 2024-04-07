@@ -28,7 +28,7 @@ hdrldr = "0.1"
 zune-hdr = "0.4.0"
 
 [dependencies.image]
-version = "0.25.0"
+version = "0.24"
 default-features = false
 features = ["png", "jpeg"]
 

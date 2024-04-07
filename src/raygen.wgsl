@@ -1,4 +1,4 @@
-@group(1) @binding(0) var color_buffer: texture_storage_2d<rgba8unorm, write>;
+@group(1) @binding(0) var color_buffer: texture_storage_2d<rgba8unorm, read_write>;// Only needs to be write, but helps with bindgroup generation
 @group(4) @binding(0) var temporal_color_buffer: sampler;
 // Camera
 struct Camera {
