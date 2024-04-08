@@ -2,6 +2,7 @@ use cgmath::prelude::*;
 use rand::Rng;
 use cgmath::*;
 use crate::camera::{Camera, Projection};
+use serde::Deserialize;
 use rtbvh::*;
 use glam::*;
 
@@ -38,7 +39,7 @@ impl CameraUniform {
 
 //-----------Material-----------------
 #[repr(C)]
-#[derive(Clone, Copy, bytemuck::Pod, bytemuck::Zeroable)]
+#[derive(Clone, Copy, bytemuck::Pod, bytemuck::Zeroable, Debug, Deserialize)]
 pub struct Material {
     albedo: [f32; 4],
     attenuation: [f32; 4],
@@ -64,7 +65,7 @@ impl Material {
 
 
 #[repr(C)]
-#[derive(Clone, Copy, bytemuck::Pod, bytemuck::Zeroable)]
+#[derive(Clone, Copy, bytemuck::Pod, bytemuck::Zeroable, Debug, Deserialize)]
 pub struct Background {
     pub material_texture_id: [f32; 4], //[material_id, texture_id_diffuse, ,]
     pub intensity: f32,
@@ -90,35 +91,22 @@ impl Background {
 }
 
 //-----------Sphere-----------------
-#[derive(Clone, Copy, Debug)]
-pub struct Sphere {
-    pub center: Point3<f32>,
-    pub radius: f32,
-    pub material_id: i32,
-    pub texture_ids: [i32; 3]
-}  
-
-impl Sphere {
-    pub fn new(center: Point3<f32>, radius: f32, material_id: i32, texture_ids: [i32; 3]) -> Self{
-        Self {center, radius, material_id, texture_ids}
-    }
-}
 
 #[repr(C)]
-#[derive(Clone, Copy, bytemuck::Pod, bytemuck::Zeroable)]
-pub struct SphereUniform {
+#[derive(Clone, Copy, bytemuck::Pod, bytemuck::Zeroable, Deserialize, Debug)]
+pub struct Sphere {
     center: [f32; 4],
     radius: [f32; 4],
     material_texture_id: [f32; 4], //[material_id, texture_id_diffuse, texture_id_roughness, texture_id_normal]
 }
 
-impl SphereUniform {
-    pub fn new(sphere: Sphere) -> Self {
+impl Sphere {
+    pub fn new(center: Point3<f32>, radius: f32, material_id: i32, texture_ids: [i32; 3]) -> Self {
         let mut rng = rand::thread_rng();
         Self {
-            center: [sphere.center[0], sphere.center[1], sphere.center[2], rng.gen_range(0.0..1.0)],//rand number in last slot
-            radius: [sphere.radius, 0.0, 0.0, 0.0],
-            material_texture_id: [sphere.material_id as f32, sphere.texture_ids[0] as f32, sphere.texture_ids[1] as f32, sphere.texture_ids[2] as f32], //material_id, texture_id_diffuse, texture_id_roughness, texture_id_normal
+            center: [center[0], center[1], center[2], rng.gen_range(0.0..1.0)],//rand number in last slot
+            radius: [radius, 0.0, 0.0, 0.0],
+            material_texture_id: [material_id as f32, texture_ids[0] as f32, texture_ids[1] as f32, texture_ids[2] as f32], //material_id, texture_id_diffuse, texture_id_roughness, texture_id_normal
         }
     }
 }
@@ -130,23 +118,23 @@ impl Primitive for Sphere {
 
     fn aabb(&self) -> Aabb {
         let mut aabb = Aabb::new();
-        aabb.grow(Vec3::new(self.center[0] - self.radius, self.center[1] - self.radius, self.center[2] - self.radius));
-        aabb.grow((self.center[0] + self.radius, self.center[1] + self.radius, self.center[2] + self.radius).into());
+        aabb.grow(Vec3::new(self.center[0] - self.radius[0], self.center[1] - self.radius[0], self.center[2] - self.radius[0]));
+        aabb.grow((self.center[0] + self.radius[0], self.center[1] + self.radius[0], self.center[2] + self.radius[0]).into());
         aabb
     }
 }
 
 impl SpatialTriangle for Sphere {
     fn vertex0(&self) -> Vec3 {
-        (self.center[0] - self.radius, self.center[1], self.center[2]).into()
+        (self.center[0] - self.radius[0], self.center[1], self.center[2]).into()
     }
 
     fn vertex1(&self) -> Vec3 {
-        (self.center[0], self.center[1] + self.radius, self.center[2]).into()
+        (self.center[0], self.center[1] + self.radius[0], self.center[2]).into()
     }
 
     fn vertex2(&self) -> Vec3 {
-        (self.center[0], self.center[1], self.center[2] + self.radius).into()
+        (self.center[0], self.center[1], self.center[2] + self.radius[0]).into()
     }
 }
 //-----------Triangle-----------------

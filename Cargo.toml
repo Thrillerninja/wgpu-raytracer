@@ -27,9 +27,10 @@ egui_plot = "0.27.1"
 hdrldr = "0.1"
 zune-hdr = "0.4.0"
 exr = "1.72.0"
+toml = "0.8.12"
 
 [dependencies.image]
-version = "0.25"
+version = "0.24"
 default-features = false
 features = ["png", "jpeg"]
 

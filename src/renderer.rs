@@ -2,7 +2,7 @@ use image::{DynamicImage, GenericImageView};
 use rtbvh::{Aabb, Builder, Primitive};
 use wgpu::SurfaceConfiguration;
 use crate::models::{load_svg, load_gltf};
-use crate::structs::{self, BvhUniform, SphereUniform};
+use crate::structs::{self, BvhUniform, Sphere};
 use crate::camera;
 use crate::structs::{Triangle, Material, TriangleUniform};
 use crate::models::load_obj;
@@ -25,7 +25,7 @@ pub fn setup_camera(config: &SurfaceConfiguration, userconfig: &crate::config::C
 
 pub fn setup_tris_objects(userconfig: &config::Config) -> (Vec<Triangle>, Vec<TriangleUniform>, Vec<Material>, Vec<DynamicImage>){
     // Load SVG UV mapping file
-    let tris_uv_mapping = match load_svg(userconfig.triangle_svg_uv_mapping_path){
+    let tris_uv_mapping = match load_svg(userconfig.triangle_svg_uv_mapping_path.clone()){
         Err(error) => {
             // Handle the error
             eprintln!("Error loading SVG file: {:?}", error);
@@ -49,7 +49,7 @@ pub fn setup_tris_objects(userconfig: &config::Config) -> (Vec<Triangle>, Vec<Tr
     // --------Triangles-------------
     // Load OBJ file
     if userconfig.obj_path != "" {
-        let (mut obj_triangles,mut obj_materials) = match load_obj(userconfig.obj_path) {
+        let (mut obj_triangles,mut obj_materials) = match load_obj(userconfig.obj_path.clone()) {
             Err(error) => {
                 // Handle the error
                 eprintln!("Error loading OBJ file: {:?}", error);
@@ -64,7 +64,7 @@ pub fn setup_tris_objects(userconfig: &config::Config) -> (Vec<Triangle>, Vec<Tr
 
     // Load GLTF file and add to triangles and materials
     if  userconfig.gltf_path != "" {
-        let (mut gltf_triangles, mut gltf_materials, mut gltf_textures) = match load_gltf(userconfig.gltf_path, materials.len() as i32, userconfig.textures.len() as i32) {
+        let (mut gltf_triangles, mut gltf_materials, mut gltf_textures) = match load_gltf(userconfig.gltf_path.clone(), materials.len() as i32, userconfig.textures.len() as i32) {
             Err(error) => {
                 // Handle the error
                 eprintln!("Error loading GLTF file: {:?}", error);
@@ -142,14 +142,6 @@ pub fn setup_textures(userconfig: &config::Config, textures: Vec<DynamicImage>, 
     return textures_buffer;
 }
 
-pub fn setup_spheres(userconfig: &config::Config) -> Vec<SphereUniform> {
-    let mut spheres_uniform: Vec<SphereUniform> = Vec::new();
-    for sphere in userconfig.spheres.iter(){
-        spheres_uniform.push(SphereUniform::new(*sphere));
-    }
-    return spheres_uniform;
-}
-
 pub fn setup_bvh(triangles: &Vec<Triangle>) ->(Vec<BvhUniform>, Vec<f32>){
     // Build BVH for triangles
     println!("AABB generation   0%");
@@ -202,7 +194,7 @@ pub fn setup_bvh(triangles: &Vec<Triangle>) ->(Vec<BvhUniform>, Vec<f32>){
 
 pub fn setup_hdri(userconfig: &config::Config, device: &wgpu::Device, queue: &wgpu::Queue, config: &SurfaceConfiguration) -> wgpu::Texture {
     // Background
-    let background_img = match load_hdr(userconfig.background_path){
+    let background_img = match load_hdr(userconfig.background_path.clone()){
         Err(error) => {
             // Handle the error
             eprintln!("Error loading HDRI file: {:?}", error);

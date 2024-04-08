@@ -5,14 +5,12 @@ use egui_wgpu::ScreenDescriptor;
 #[cfg(target_arch = "wasm32")]
 use wasm_bindgen::prelude::*;
 
-mod gpu;
-use gpu::setup_gpu;
+mod wgpu_utils;
+use wgpu_utils::setup_gpu;
+use wgpu_utils::{BufferInitDescriptor, BindGroupDescriptor, BufferType, BindingResourceTemplate, create_new_buffer};
 
 mod gui;
-use gui::EguiRenderer;
-
-mod gui_example;
-use gui_example::gui;
+use gui::{EguiRenderer, gui};
 
 mod camera;
 use camera::Camera;
@@ -27,10 +25,7 @@ use structs::CameraUniform;
 mod renderer;
 use renderer::setup_camera;
 
-use crate::{models::{load_hdri, load_exr, load_hdr}, renderer::{setup_bvh, setup_spheres, setup_textures, setup_tris_objects, setup_hdri}};
-
-mod buffer;
-use buffer::{BufferInitDescriptor, BindGroupDescriptor, BufferType, BindingResourceTemplate, create_new_buffer};
+use crate::{models::{load_hdri, load_exr, load_hdr}, renderer::{setup_bvh, setup_textures, setup_tris_objects, setup_hdri}};
 
 struct State<'a>{
     window: Window,
@@ -151,7 +146,7 @@ impl<'a> State<'a>{
 
         // --------- Load Spheres ---------
         // Load spheres amd store them as gpu compatible vector
-        let spheres_uniform = setup_spheres(&userconfig);
+        let spheres_uniform = &userconfig.spheres;
         
         // Create a buffer to hold the sphere data
         let sphere_buffer_descriptor = BufferInitDescriptor::new(Some("Sphere Buffer"), wgpu::BufferUsages::STORAGE | wgpu::BufferUsages::COPY_DST);

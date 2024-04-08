@@ -10,7 +10,7 @@ use core::ops::Deref;
 use image::Pixel;
 use exr;
 
-pub fn load_obj(file_path: &str) -> Result<(Vec<Triangle>, Vec<Material>), Box<dyn std::error::Error>> {
+pub fn load_obj(file_path: String) -> Result<(Vec<Triangle>, Vec<Material>), Box<dyn std::error::Error>> {
     let file = File::open(file_path)?;
     let reader = BufReader::new(file);
 
@@ -106,15 +106,15 @@ pub fn load_obj(file_path: &str) -> Result<(Vec<Triangle>, Vec<Material>), Box<d
     Ok((faces,mat))
 }
 
-pub fn load_svg(file_path: &str) -> Result<Vec<Vec<[f32; 2]>>, Box<dyn std::error::Error>> {
-    let mut file = match File::open(file_path){
+pub fn load_svg(file_path: String) -> Result<Vec<Vec<[f32; 2]>>, Box<dyn std::error::Error>> {
+    let mut file = match File::open(file_path.clone()){
         Ok(file) => file,
-        Err(e) => panic!("Failed to open SVG: {} | Error: {}", file_path, e),
+        Err(e) => panic!("Failed to open SVG: {} | Error: {}", file_path.clone(), e),
     };
     let mut svg_content = String::new();
     match file.read_to_string(&mut svg_content){
         Ok(_) => (),
-        Err(e) => panic!("Failed to read SVG: {} | Error: {}", file_path, e),
+        Err(e) => panic!("Failed to read SVG: {} | Error: {}", file_path.clone(), e),
     }
 
     // Parse the SVG content
@@ -152,7 +152,7 @@ pub fn load_svg(file_path: &str) -> Result<Vec<Vec<[f32; 2]>>, Box<dyn std::erro
     return Ok(tris);
 }
 
-pub fn load_gltf(path: &str, material_count: i32, texture_count: i32) -> Result<(Vec<Triangle>, Vec<Material>, Vec<DynamicImage>), Box<dyn std::error::Error>> {
+pub fn load_gltf(path: String, material_count: i32, texture_count: i32) -> Result<(Vec<Triangle>, Vec<Material>, Vec<DynamicImage>), Box<dyn std::error::Error>> {
     let scenes = easy_gltf::load(path).expect("Failed to load glTF");
     let mut converted_triangles = Vec::new();
     let mut converted_materials = Vec::new();
@@ -283,7 +283,7 @@ pub fn load_gltf(path: &str, material_count: i32, texture_count: i32) -> Result<
     Ok((converted_triangles, converted_materials, textures))
 }
 
-pub fn load_hdr(path: &str) -> Result<DynamicImage, Box<dyn std::error::Error>> {
+pub fn load_hdr(path: String) -> Result<DynamicImage, Box<dyn std::error::Error>> {
     // check fiel extension if hdr or exr
     let binding = path.split('.').collect::<Vec<&str>>();
     let extension = binding.last().unwrap();
@@ -294,7 +294,7 @@ pub fn load_hdr(path: &str) -> Result<DynamicImage, Box<dyn std::error::Error>> 
     }
 }
 
-pub fn load_hdri(path: &str) -> Result<DynamicImage, Box<dyn std::error::Error>> {
+pub fn load_hdri(path: String) -> Result<DynamicImage, Box<dyn std::error::Error>> {
     let contents = std::fs::read(path)?;
     let mut data = zune_hdr::HdrDecoder::new(contents);
     let pix: Vec<f32> = data.decode()?;
@@ -313,7 +313,7 @@ pub fn load_hdri(path: &str) -> Result<DynamicImage, Box<dyn std::error::Error>>
     Ok(texture)
 }
 
-pub fn load_exr(path: &str) -> Result<DynamicImage, Box<dyn std::error::Error>> {
+pub fn load_exr(path: String) -> Result<DynamicImage, Box<dyn std::error::Error>> {
     use exr::prelude::*;
     use exr::prelude as exrs;
 

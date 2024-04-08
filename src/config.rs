@@ -7,14 +7,14 @@ pub struct Config {
     pub camera_fov: f32,
     
     pub materials: Vec<Material>,
-    pub textures: Vec<[&'static str; 3]>,
-    pub triangle_svg_uv_mapping_path: &'static str,
+    pub textures: Vec<[String; 3]>,
+    pub triangle_svg_uv_mapping_path: String,
     pub background: Background,
-    pub background_path: &'static str,
+    pub background_path: String,
 
     pub spheres: Vec<Sphere>,
-    pub gltf_path: &'static str,
-    pub obj_path: &'static str,
+    pub gltf_path: String,
+    pub obj_path: String,
 
 }
 
@@ -59,9 +59,9 @@ impl Config {
 
             // Objects
             //obj
-            obj_path: r"",
+            obj_path: r"".to_string(),
             //gltf
-            gltf_path: r"res\untitled.gltf",
+            gltf_path: r"res\untitled.gltf".to_string(),
 
             //spheres
             spheres: spheres,
@@ -69,9 +69,9 @@ impl Config {
             // Materials & Textures
             materials: materials,
             textures: textures,
-            triangle_svg_uv_mapping_path: r"res\Cube.svg",
+            triangle_svg_uv_mapping_path: r"D:\0000MeineDaten\Hobby\Progammieren\Rust\00Raytracing\--Resources--\Cube.svg".to_string(),
             background: background,
-            background_path: r"res\belfast_farmhouse_4k.exr", //r"res\cobblestone_street_night_4k.hdr",
+            background_path: r"res\rural_asphalt_road_8k.exr".to_string(), //r"res\cobblestone_street_night_4k.hdr",
 
         }
     }
