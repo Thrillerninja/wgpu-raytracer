@@ -7,7 +7,7 @@ use crate::camera;
 use crate::structs::{Triangle, Material, TriangleUniform};
 use crate::models::load_obj;
 use crate::texture::{create_texture, load_textures, load_textures_from_image, scale_texture};
-use crate::load_hdri;
+use crate::{load_hdri, load_hdr, load_exr};
 use crate::config;
 
 
@@ -202,7 +202,7 @@ pub fn setup_bvh(triangles: &Vec<Triangle>) ->(Vec<BvhUniform>, Vec<f32>){
 
 pub fn setup_hdri(userconfig: &config::Config, device: &wgpu::Device, queue: &wgpu::Queue, config: &SurfaceConfiguration) -> wgpu::Texture {
     // Background
-    let background_img = match load_hdri(userconfig.background_path){
+    let background_img = match load_hdr(userconfig.background_path){
         Err(error) => {
             // Handle the error
             eprintln!("Error loading HDRI file: {:?}", error);

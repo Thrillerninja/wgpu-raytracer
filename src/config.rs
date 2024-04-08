@@ -23,7 +23,7 @@ impl Config {
         let mut spheres: Vec<Sphere> = Vec::new();
         //                                            x    y     z   radius    mat_id texture_id
         spheres.push(Sphere::new(cgmath::Point3::new(0.5, 0.0, -1.0), 0.2    , 0,       [-1, -1, -1]));
-        spheres.push(Sphere::new(cgmath::Point3::new(-0.5, 0.0, -1.0), 0.2   , 1,       [-1, -1, -1]));
+        spheres.push(Sphere::new(cgmath::Point3::new(-0.5, 3.0, -1.0), 0.5   , 1,       [-1, -1, -1]));
         spheres.push(Sphere::new(cgmath::Point3::new(0.5, 1.0, -1.0), 0.3    , 2,       [-1, -1, -1]));
         spheres.push(Sphere::new(cgmath::Point3::new(0.5, -50.5, -1.0), 50.0 , 3,       [-1, -1, -1]));
         spheres.push(Sphere::new(cgmath::Point3::new(-1.5, 0.0, -1.0), 0.4   , 4,       [-1, -1, -1]));
@@ -35,7 +35,7 @@ impl Config {
         let mut materials: Vec<Material> = Vec::new();
         //                            r     g    b      attenuation      rough emis  ior 
         materials.push(Material::new([1.0, 1.0, 1.0], [0.5, 1.0, 1.0], 0.8, 10.0, 0.0));
-        materials.push(Material::new([0.5, 0.2, 0.5], [1.0, 1.0, 1.0], 1.0, 20.0, 0.0));
+        materials.push(Material::new([0.2, 1.5, 0.2], [1.0, 1.0, 1.0], 1.0, 20.0, 0.0));
         materials.push(Material::new([0.0, 0.0, 1.0], [1.0, 1.0, 1.0], 0.0, 0.0, 0.0));
         materials.push(Material::new([1.0, 0.3, 0.2], [0.2, 1.0, 1.0], 0.2, 0.0, 0.0));
         materials.push(Material::new([1.0, 1.0, 1.0], [1.0, 1.0, 1.0], 0.0, 0.0, 1.0));
@@ -71,7 +71,7 @@ impl Config {
             textures: textures,
             triangle_svg_uv_mapping_path: r"res\Cube.svg",
             background: background,
-            background_path: r"res\cobblestone_street_night_4k.hdr",
+            background_path: r"res\belfast_farmhouse_4k.exr", //r"res\cobblestone_street_night_4k.hdr",
 
         }
     }

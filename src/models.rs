@@ -8,6 +8,7 @@ use crate::structs::{Triangle, Material};
 use cgmath::*;
 use core::ops::Deref;
 use image::Pixel;
+use exr;
 
 pub fn load_obj(file_path: &str) -> Result<(Vec<Triangle>, Vec<Material>), Box<dyn std::error::Error>> {
     let file = File::open(file_path)?;
@@ -282,6 +283,17 @@ pub fn load_gltf(path: &str, material_count: i32, texture_count: i32) -> Result<
     Ok((converted_triangles, converted_materials, textures))
 }
 
+pub fn load_hdr(path: &str) -> Result<DynamicImage, Box<dyn std::error::Error>> {
+    // check fiel extension if hdr or exr
+    let binding = path.split('.').collect::<Vec<&str>>();
+    let extension = binding.last().unwrap();
+    match extension {
+        &"hdr" => load_hdri(path),
+        &"exr" => load_exr(path),
+        _ => panic!("Unsupported file format for background image. Supported formats are: .hdr, .exr"),
+    }
+}
+
 pub fn load_hdri(path: &str) -> Result<DynamicImage, Box<dyn std::error::Error>> {
     let contents = std::fs::read(path)?;
     let mut data = zune_hdr::HdrDecoder::new(contents);
@@ -297,9 +309,55 @@ pub fn load_hdri(path: &str) -> Result<DynamicImage, Box<dyn std::error::Error>>
         Rgba([r, g, b, 255])
     });
     let texture: DynamicImage = DynamicImage::ImageRgba8(image);
-    //stome img
-    texture.save("res/cobblestone_street_night_4k.png")?;
+
     Ok(texture)
+}
+
+pub fn load_exr(path: &str) -> Result<DynamicImage, Box<dyn std::error::Error>> {
+    use exr::prelude::*;
+    use exr::prelude as exrs;
+
+    // read from the exr file directly into a new `png::RgbaImage` image without intermediate buffers
+    let reader = exrs::read()
+        .no_deep_data()
+        .largest_resolution_level()
+        .rgba_channels(
+        |resolution, _channels: &RgbaChannels| -> image::RgbaImage {
+                image::ImageBuffer::new(
+                    resolution.width() as u32,
+                    resolution.height() as u32
+                )
+            },
+
+            // set each pixel in the png buffer from the exr file
+            |png_pixels, position, (r,g,b,a): (f32,f32,f32,f32)| { // TODO implicit argument types!
+                png_pixels.put_pixel(
+                    position.x() as u32, position.y() as u32,
+                    image::Rgba([tone_map(r), tone_map(g), tone_map(b), (a * 255.0) as u8])
+                );
+            }
+        )
+        .first_valid_layer()
+        .all_attributes();
+
+    // an image that contains a single layer containing an png rgba buffer
+    let image: Image<Layer<SpecificChannels<image::RgbaImage, RgbaChannels>>> = reader
+        .from_file(path)
+        .expect("failed to read exr file");
+
+
+    /// compress any possible f32 into the range of [0,1].
+    /// and then convert it to an unsigned byte.
+    fn tone_map(linear: f32) -> u8 {
+        // TODO does the `image` crate expect gamma corrected data?
+        let clamped = (linear - 0.5).tanh() * 0.5 + 0.5;
+        (clamped * 255.0) as u8
+    }
+
+    let pixel_buffer = image.layer_data.channel_data.pixels;
+    // convert the image to a dynamic image
+    let image = DynamicImage::ImageRgba8(pixel_buffer);
+    Ok(image)
 }
 
 fn get_pixel<P, Container>(tex_coords: Vector2<f32>, texture: &ImageBuffer<P, Container>) -> P

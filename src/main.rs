@@ -27,7 +27,7 @@ use structs::CameraUniform;
 mod renderer;
 use renderer::setup_camera;
 
-use crate::{models::load_hdri, renderer::{setup_bvh, setup_spheres, setup_textures, setup_tris_objects, setup_hdri}};
+use crate::{models::{load_hdri, load_exr, load_hdr}, renderer::{setup_bvh, setup_spheres, setup_textures, setup_tris_objects, setup_hdri}};
 
 mod buffer;
 use buffer::{BufferInitDescriptor, BindGroupDescriptor, BufferType, BindingResourceTemplate, create_new_buffer};
