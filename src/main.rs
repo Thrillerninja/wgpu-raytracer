@@ -25,7 +25,7 @@ use structs::CameraUniform;
 mod renderer;
 use renderer::setup_camera;
 
-use crate::{models::{load_hdri, load_exr, load_hdr}, renderer::{setup_bvh, setup_textures, setup_tris_objects, setup_hdri}};
+use crate::{models::{load_exr, load_hdr, load_hdri}, renderer::{setup_bvh, setup_hdri, setup_textures, setup_tris_objects}, structs::Background};
 
 struct State<'a>{
     window: Window,
@@ -146,11 +146,16 @@ impl<'a> State<'a>{
 
         // --------- Load Spheres ---------
         // Load spheres amd store them as gpu compatible vector
-        let spheres_uniform = &userconfig.spheres;
+        let spheres = match userconfig.spheres {
+            Some(spheres) => {
+                spheres
+            }
+            None => vec![]
+        };
         
         // Create a buffer to hold the sphere data
         let sphere_buffer_descriptor = BufferInitDescriptor::new(Some("Sphere Buffer"), wgpu::BufferUsages::STORAGE | wgpu::BufferUsages::COPY_DST);
-        let sphere_buffer = create_new_buffer(&device, &spheres_uniform, sphere_buffer_descriptor);
+        let sphere_buffer = create_new_buffer(&device, &spheres, sphere_buffer_descriptor);
 
         // ------ Combined Bind Group ---------
         // Create a bind group for the objects
@@ -225,9 +230,17 @@ impl<'a> State<'a>{
         // Create a buffer to hold the material data from config and glft
         let material_descriptor = BufferInitDescriptor::new(Some("Material Buffer"), wgpu::BufferUsages::STORAGE | wgpu::BufferUsages::COPY_DST);
         let material_buffer = create_new_buffer(&device, &materials, material_descriptor);
+        
+        // Background
+        let background = match userconfig.background {
+            Some(background) => {
+                background
+            }
+            None => Background::default()
+        };
         // Create a buffer to hold the extra data for the background
         let background_descriptor = BufferInitDescriptor::new(Some("Background Buffer"), wgpu::BufferUsages::STORAGE | wgpu::BufferUsages::COPY_DST);
-        let background_buffer = create_new_buffer(&device, &[userconfig.background], background_descriptor);
+        let background_buffer = create_new_buffer(&device, &[background], background_descriptor);
 
         // Create a sampler for all textures
         let texture_sampler = device.create_sampler(&wgpu::SamplerDescriptor {

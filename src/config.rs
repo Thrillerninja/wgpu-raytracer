@@ -1,9 +1,7 @@
 use std::fs;
-use egui::epaint::textures;
 use serde::Deserialize;
 use toml;
 
-use crate::{camera, texture};
 use crate::structs::{Material, Sphere};
 use crate::structs::Background;
 #[derive(Debug, Deserialize)]
@@ -30,7 +28,7 @@ pub struct Config {
     pub background: Option<Background>,
     pub background_path: Option<String>,
 
-    pub spheres: Option>Vec<Sphere>>,
+    pub spheres: Option<Vec<Sphere>>,
     #[serde(rename = "3d_model_paths")]
     pub model_paths: ModelPaths,
 }
@@ -58,27 +56,16 @@ impl Config {
         // Materials these are optional
         let materials = load_materials_config(toml.get("materials"));
 
-
         // Textures
         let textures = load_textures_config(toml.get("textures"));
-
         let (background,background_path)  = load_background_config(toml.get("background"));
-
 
         // Spheres
         let spheres = load_spheres_config(toml.get("spheres"));
 
+        // 3d models
+        let model_paths = load_3d_models_config(toml.get("3d_model_paths"));
 
-        let model_paths = toml.get("3d_model_paths").expect("Missing 3d_model_paths");
-        let gltf_path = model_paths.get("gltf_path").expect("Missing gltf_path").as_str().expect("Expected string").to_string();
-        let obj_path = model_paths.get("obj_path").expect("Missing obj_path").as_str().expect("Expected string").to_string();
-        let triangle_svg_uv_mapping_path = model_paths.get("triangle_svg_uv_mapping_path").expect("Missing triangle_svg_uv_mapping_path").as_str().expect("Expected string").to_string();
-        // gen struct
-        let model_paths = ModelPaths {
-            gltf_path,
-            obj_path,
-            triangle_svg_uv_mapping_path,
-        };
         Self {
             camera_position,
             camera_rotation,
@@ -142,7 +129,7 @@ fn load_textures_config(value: Option<&toml::Value>) -> Option<Vec<Texture>> {
     match value {
         Some(value) => {
             let value = value.as_array().expect("Expected array").iter()
-            .map(|v| v.clone().try_into().expect("Could not convert to Texture")).collect()
+                .map(|v| v.clone().try_into().expect("Could not convert to Texture")).collect();
             Some(value)
         },
         None => {
@@ -156,18 +143,23 @@ fn load_textures_config(value: Option<&toml::Value>) -> Option<Vec<Texture>> {
 fn load_background_config(value: Option<&toml::Value>) -> (Option<Background>, Option<String>) {
     match value {
         Some(value) => {
-        let material_id = value.get("material_id").expect("Missing material_id").as_integer().expect("Expected int") as f32;
-        let background_path = value.get("background_path").expect("Missing background_path").as_str().expect("Expected string").to_string();
-        let intensity = value.get("intensity").expect("Missing intensity").as_float().expect("Expected float") as f32;
-        // gen the struct
-        (
-            Some(Background {
-                material_texture_id: [material_id, 0.0, 0.0, 0.0],
-                intensity: intensity.clone().try_into().expect("Could not convert to Background"),
-                _padding: [0.0; 3],
-            }), 
-            Some(background_path)
-        )
+            let material_id = value.get("material_id").and_then(|v| v.as_integer()).map(|v| v as f32);
+            let background_path = value.get("background_path").and_then(|v| v.as_str()).map(|v| v.to_string());
+            let intensity = value.get("intensity").and_then(|v| v.as_float()).map(|v| v as f32);
+
+            if let (Some(material_id), Some(background_path), Some(intensity)) = (material_id, background_path, intensity) {
+                (
+                    Some(Background {
+                        material_texture_id: [material_id, 0.0, 0.0, 0.0],
+                        intensity: intensity.try_into().unwrap_or_else(|_| 0.0),
+                        _padding: [0.0; 3],
+                    }), 
+                    Some(background_path)
+                )
+            } else {
+                println!("Missing or invalid fields in config");
+                (None, None)
+            }
         },
         None => {
             println!("No background defined in config");
@@ -180,9 +172,33 @@ fn load_background_config(value: Option<&toml::Value>) -> (Option<Background>, O
 fn load_3d_models_config(value: Option<&toml::Value>) -> ModelPaths {
     match value {
         Some(value) => {
-            let gltf_path = value.get("gltf_path").expect("Missing gltf_path").as_str().expect("Expected string").to_string();
-            let obj_path = value.get("obj_path").expect("Missing obj_path").as_str().expect("Expected string").to_string();
-            let triangle_svg_uv_mapping_path = value.get("triangle_svg_uv_mapping_path").expect("Missing triangle_svg_uv_mapping_path").as_str().expect("Expected string").to_string();
+            let gltf_path = value.get("gltf_path")
+                .map_or_else(|| {
+                    println!("Missing gltf_path");
+                    None
+                }, |v| v.as_str().map(|s| s.to_string())).or_else(|| {
+                    println!("Can't convert gltf_path to string");
+                    None
+                });
+
+            let obj_path = value.get("obj_path")
+                .map_or_else(|| {
+                    println!("Missing obj_path");
+                    None
+                }, |v| v.as_str().map(|s| s.to_string())).or_else(|| {
+                    println!("Can't convert obj_path to string");
+                    None
+                });
+
+            let triangle_svg_uv_mapping_path = value.get("triangle_svg_uv_mapping_path")
+                .map_or_else( ||{
+                    println!("Missing triangle_svg_uv_mapping_path");
+                    None
+                }, |v| v.as_str().map(|s| s.to_string())).or_else(|| {
+                    println!("Can't convert triangle_svg_uv_mapping_path to string");
+                    None
+                });
+
             // gen struct
             ModelPaths {
                 gltf_path,
@@ -193,19 +209,19 @@ fn load_3d_models_config(value: Option<&toml::Value>) -> ModelPaths {
         None => {
             println!("No 3d models defined in config");
             ModelPaths {
-                gltf_path: "".to_string(),
-                obj_path: "".to_string(),
-                triangle_svg_uv_mapping_path: "".to_string(),
+                gltf_path: None,
+                obj_path: None,
+                triangle_svg_uv_mapping_path: None,
             }
         }
     }
 }
 
 // makes spheres optional in config
-fn load_spheres_config(value: Option<&toml::Value>) -> Vec<Sphere> {
+fn load_spheres_config(value: Option<&toml::Value>) -> Option<Vec<Sphere>> {
     match value {
         Some(value) => {
-            value.as_array().expect("Expected array").iter()
+            let value = value.as_array().expect("Expected array").iter()
                 .map(|v| {
                     let mut v = v.clone();
                     let mut position = v.get("position").expect("Missing color").as_array().expect("Expected array").clone();
@@ -236,11 +252,12 @@ fn load_spheres_config(value: Option<&toml::Value>) -> Vec<Sphere> {
 
                     // Convert v to Material
                     v.try_into().expect("Could not convert to Material")
-                }).collect::<Vec<Sphere>>()
+                }).collect::<Vec<Sphere>>();
+            Some(value)
         },
         None => {
             println!("No spheres defined in config");
-            Vec::new()
+            None
         }
     }
 }

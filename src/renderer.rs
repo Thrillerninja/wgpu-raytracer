@@ -40,43 +40,57 @@ pub fn setup_tris_objects(userconfig: &config::Config) -> (Vec<Triangle>, Vec<Tr
     let mut triangles: Vec<Triangle> = Vec::new();
     let mut materials: Vec<Material> = Vec::new();
     let mut textures: Vec<DynamicImage> = Vec::new();
-    // Add materials from config to materials
-    materials.append(&mut userconfig.materials.clone());
-    println!("Config Sphere count: {}", userconfig.spheres.len());
+    // Add materials from config to materials if defined
+    match userconfig.materials {
+        Some(user_materials) => {
+            materials.append(&mut user_materials.clone());
+        }
+        None => {println!("No materials in config");}
+    }
     println!("Config Material count: {}", materials.len());
     
 
     // --------Triangles-------------
     // Load OBJ file
-    if userconfig.model_paths.obj_path != "" {
-        let (mut obj_triangles,mut obj_materials) = match load_obj(userconfig.model_paths.obj_path.clone()) {
-            Err(error) => {
-                // Handle the error
-                eprintln!("Error loading OBJ file: {:?}", error);
-                std::process::exit(1);
+    match userconfig.model_paths.obj_path {
+        Some(obj_path) => {
+            if obj_path != "" {
+                let (mut obj_triangles,mut obj_materials) = match load_obj(obj_path) {
+                    Err(error) => {
+                        // Handle the error
+                        eprintln!("Error loading OBJ file: {:?}", error);
+                        std::process::exit(1);
+                    }
+                    Ok(data) => data,
+                };   
+                println!("OBJ Triangle count: {}", obj_triangles.len());
+                triangles.append(&mut obj_triangles);
+                materials.append(&mut obj_materials);
             }
-            Ok(data) => data,
-        };   
-        println!("OBJ Triangle count: {}", triangles.len());
-        triangles.append(&mut obj_triangles);
-        materials.append(&mut obj_materials);
+        }
+        None => {println!("No OBJ path in config");}
     }
 
     // Load GLTF file and add to triangles and materials
-    if  userconfig.gltf_path != "" {
-        let (mut gltf_triangles, mut gltf_materials, mut gltf_textures) = match load_gltf(userconfig.model_paths.gltf_path.clone(), materials.len() as i32, userconfig.textures.len() as i32) {
-            Err(error) => {
-                // Handle the error
-                eprintln!("Error loading GLTF file: {:?}", error);
-                std::process::exit(1);
+    match userconfig.model_paths.gltf_path {
+        Some(gltf_path) => {
+            if gltf_path != "" {
+                let (mut gltf_triangles, mut gltf_materials, mut gltf_textures) = match load_gltf(gltf_path, materials.len() as i32, textures.len() as i32) {
+                    Err(error) => {
+                        // Handle the error
+                        eprintln!("Error loading GLTF file: {:?}", error);
+                        std::process::exit(1);
+                    }
+                    Ok(data) => data,
+                };
+                println!("GLTF Triangle count: {}", gltf_triangles.len());
+                println!("GLTF Material count: {}", gltf_materials.len());
+                triangles.append(&mut gltf_triangles);
+                materials.append(&mut gltf_materials);
+                textures.append(&mut gltf_textures);
             }
-            Ok(data) => data,
-        };
-        println!("GLTF Triangle count: {}", gltf_triangles.len());
-        println!("GLTF Material count: {}", gltf_materials.len());
-        triangles.append(&mut gltf_triangles);
-        materials.append(&mut gltf_materials);
-        textures.append(&mut gltf_textures);
+        }
+        None => {println!("No GLTF path in config");}
     }
 
     // Triangles and UV to Uniform buffer
@@ -104,19 +118,17 @@ pub fn setup_textures(userconfig: &config::Config, textures: Vec<DynamicImage>, 
     let mut texture_count = 0;
 
     // Add textures from config to textureset
-    for i in 0..userconfig.textures.len(){
-        for j in 0..3{  //userconfig.textures[i].len(){
-            match load_textures(&queue, textures_buffer, &userconfig.textures[i].paths[j], i as i32) {
-                Err(error) => {
-                    // Handle the error
-                    eprintln!("Error loading texture file: {:?}", error);
-                    std::process::exit(1);
-                }
-                Ok(data) => {
-                    textures_buffer = data;
-                    texture_count += 1;
-                }	
+    for i in 0..textures.len(){
+        match load_textures(&queue, textures_buffer, &textures[i], i as i32) {
+            Err(error) => {
+                // Handle the error
+                eprintln!("Error loading texture file: {:?}", error);
+                std::process::exit(1);
             }
+            Ok(data) => {
+                textures_buffer = data;
+                texture_count += 1;
+            }	
         }
     }
 
@@ -193,8 +205,22 @@ pub fn setup_bvh(triangles: &Vec<Triangle>) ->(Vec<BvhUniform>, Vec<f32>){
 
 
 pub fn setup_hdri(userconfig: &config::Config, device: &wgpu::Device, queue: &wgpu::Queue, config: &SurfaceConfiguration) -> wgpu::Texture {
-    // Background
-    let background_img = match load_hdr(userconfig.background_path.clone()){
+    // Check if a background is configured
+    let background_path = match userconfig.background_path {
+        Some(background_path) => {
+            if background_path == "" {
+                return create_texture(&device, &config, 1024, 1024, 1);
+            } else {
+                background_path
+            }
+        }
+        None => {
+            return create_texture(&device, &config, 1024, 1024, 1);
+        }
+    };
+
+    // Load background image
+    let background_img = match load_hdr(background_path){
         Err(error) => {
             // Handle the error
             eprintln!("Error loading HDRI file: {:?}", error);
@@ -203,6 +229,7 @@ pub fn setup_hdri(userconfig: &config::Config, device: &wgpu::Device, queue: &wg
         Ok(data) => data,
     };
 
+    // Create texture from background image
     let mut background_texture = create_texture(&device, &config, background_img.dimensions().0, background_img.dimensions().1, 1);
     background_texture = match load_textures_from_image(&queue, background_texture, &background_img, 0) {
         Err(error) => {

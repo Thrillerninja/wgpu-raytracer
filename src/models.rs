@@ -106,7 +106,14 @@ pub fn load_obj(file_path: String) -> Result<(Vec<Triangle>, Vec<Material>), Box
     Ok((faces,mat))
 }
 
-pub fn load_svg(file_path: String) -> Result<Vec<Vec<[f32; 2]>>, Box<dyn std::error::Error>> {
+pub fn load_svg(file_path: Option<String>) -> Result<Vec<Vec<[f32; 2]>>, Box<dyn std::error::Error>> {
+    // Check if file path is set
+    let file_path = match file_path {
+        Some(path) => path,
+        None => panic!("No file path set for SVG"),
+    };
+
+    // Open the SVG file
     let mut file = match File::open(file_path.clone()){
         Ok(file) => file,
         Err(e) => panic!("Failed to open SVG: {} | Error: {}", file_path.clone(), e),
