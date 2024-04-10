@@ -25,7 +25,7 @@ pub fn setup_camera(config: &SurfaceConfiguration, userconfig: &crate::config::C
 
 pub fn setup_tris_objects(userconfig: &config::Config) -> (Vec<Triangle>, Vec<TriangleUniform>, Vec<Material>, Vec<DynamicImage>){
     // Load SVG UV mapping file
-    let tris_uv_mapping = match load_svg(userconfig.triangle_svg_uv_mapping_path.clone()){
+    let tris_uv_mapping = match load_svg(userconfig.model_paths.triangle_svg_uv_mapping_path.clone()) {
         Err(error) => {
             // Handle the error
             eprintln!("Error loading SVG file: {:?}", error);
@@ -48,8 +48,8 @@ pub fn setup_tris_objects(userconfig: &config::Config) -> (Vec<Triangle>, Vec<Tr
 
     // --------Triangles-------------
     // Load OBJ file
-    if userconfig.obj_path != "" {
-        let (mut obj_triangles,mut obj_materials) = match load_obj(userconfig.obj_path.clone()) {
+    if userconfig.model_paths.obj_path != "" {
+        let (mut obj_triangles,mut obj_materials) = match load_obj(userconfig.model_paths.obj_path.clone()) {
             Err(error) => {
                 // Handle the error
                 eprintln!("Error loading OBJ file: {:?}", error);
@@ -64,7 +64,7 @@ pub fn setup_tris_objects(userconfig: &config::Config) -> (Vec<Triangle>, Vec<Tr
 
     // Load GLTF file and add to triangles and materials
     if  userconfig.gltf_path != "" {
-        let (mut gltf_triangles, mut gltf_materials, mut gltf_textures) = match load_gltf(userconfig.gltf_path.clone(), materials.len() as i32, userconfig.textures.len() as i32) {
+        let (mut gltf_triangles, mut gltf_materials, mut gltf_textures) = match load_gltf(userconfig.model_paths.gltf_path.clone(), materials.len() as i32, userconfig.textures.len() as i32) {
             Err(error) => {
                 // Handle the error
                 eprintln!("Error loading GLTF file: {:?}", error);
@@ -106,7 +106,7 @@ pub fn setup_textures(userconfig: &config::Config, textures: Vec<DynamicImage>, 
     // Add textures from config to textureset
     for i in 0..userconfig.textures.len(){
         for j in 0..3{  //userconfig.textures[i].len(){
-            match load_textures(&queue, textures_buffer, &userconfig.textures[i][j], i as i32) {
+            match load_textures(&queue, textures_buffer, &userconfig.textures[i].paths[j], i as i32) {
                 Err(error) => {
                     // Handle the error
                     eprintln!("Error loading texture file: {:?}", error);

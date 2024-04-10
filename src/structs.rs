@@ -41,6 +41,7 @@ impl CameraUniform {
 #[repr(C)]
 #[derive(Clone, Copy, bytemuck::Pod, bytemuck::Zeroable, Debug, Deserialize)]
 pub struct Material {
+    #[serde(rename = "color")]
     albedo: [f32; 4],
     attenuation: [f32; 4],
     roughness: f32,     //0.0 - 1.0 0.0 = mirror, 1.0 = diffuse
@@ -69,7 +70,7 @@ impl Material {
 pub struct Background {
     pub material_texture_id: [f32; 4], //[material_id, texture_id_diffuse, ,]
     pub intensity: f32,
-    _padding: [f32; 3],
+    pub _padding: [f32; 3],
 }
 
 impl Background {

@@ -1,78 +1,246 @@
-use crate::structs::{Background, Material, Sphere};
+use std::fs;
+use egui::epaint::textures;
+use serde::Deserialize;
+use toml;
 
+use crate::{camera, texture};
+use crate::structs::{Material, Sphere};
+use crate::structs::Background;
+#[derive(Debug, Deserialize)]
+pub struct Texture {
+    pub paths: Vec<String>,
+}
+
+#[derive(Debug, Deserialize)]
+pub struct ModelPaths {
+    pub gltf_path: Option<String>,
+    pub obj_path: Option<String>,
+    pub triangle_svg_uv_mapping_path: Option<String>,
+}
+
+#[derive(Debug, Deserialize)]
 pub struct Config {
-    pub camera_position: (f32, f32, f32),
+    pub camera_position: [f32; 3],
     pub camera_rotation: [f32; 2],
     pub camera_near_far: [f32; 2],
     pub camera_fov: f32,
-    
-    pub materials: Vec<Material>,
-    pub textures: Vec<[String; 3]>,
-    pub triangle_svg_uv_mapping_path: String,
-    pub background: Background,
-    pub background_path: String,
 
-    pub spheres: Vec<Sphere>,
-    pub gltf_path: String,
-    pub obj_path: String,
+    pub materials: Option<Vec<Material>>,
+    pub textures: Option<Vec<Texture>>,
+    pub background: Option<Background>,
+    pub background_path: Option<String>,
 
+    pub spheres: Option>Vec<Sphere>>,
+    #[serde(rename = "3d_model_paths")]
+    pub model_paths: ModelPaths,
 }
 
 impl Config {
     pub fn new() -> Self {
-        let mut spheres: Vec<Sphere> = Vec::new();
-        //                                            x    y     z   radius    mat_id texture_id
-        spheres.push(Sphere::new(cgmath::Point3::new(0.5, 0.0, -1.0), 0.2    , 0,       [-1, -1, -1]));
-        spheres.push(Sphere::new(cgmath::Point3::new(-0.5, 3.0, -1.0), 0.5   , 1,       [-1, -1, -1]));
-        spheres.push(Sphere::new(cgmath::Point3::new(0.5, 1.0, -1.0), 0.3    , 2,       [-1, -1, -1]));
-        spheres.push(Sphere::new(cgmath::Point3::new(0.5, -50.5, -1.0), 50.0 , 3,       [-1, -1, -1]));
-        spheres.push(Sphere::new(cgmath::Point3::new(-1.5, 0.0, -1.0), 0.4   , 4,       [-1, -1, -1]));
-        spheres.push(Sphere::new(cgmath::Point3::new(-1.5, 0.0, -1.0), 0.2   , 6,       [-1, -1, -1]));
-        // for i in 0..100 {
-        //     spheres.push(Sphere::new(cgmath::Point3::new(rand::random::<f32>() * 10.0 - 5.0, rand::random::<f32>() * 10.0 - 5.0, rand::random::<f32>() * 10.0 - 5.0), rand::random::<f32>() * 0.5, 1, -1));
-        // }
-        
-        let mut materials: Vec<Material> = Vec::new();
-        //                            r     g    b      attenuation      rough emis  ior 
-        materials.push(Material::new([1.0, 1.0, 1.0], [0.5, 1.0, 1.0], 0.8, 10.0, 0.0));
-        materials.push(Material::new([0.2, 1.5, 0.2], [1.0, 1.0, 1.0], 1.0, 20.0, 0.0));
-        materials.push(Material::new([0.0, 0.0, 1.0], [1.0, 1.0, 1.0], 0.0, 0.0, 0.0));
-        materials.push(Material::new([1.0, 0.3, 0.2], [0.2, 1.0, 1.0], 0.2, 0.0, 0.0));
-        materials.push(Material::new([1.0, 1.0, 1.0], [1.0, 1.0, 1.0], 0.0, 0.0, 1.0));
-        materials.push(Material::new([1.0, 1.0, 1.0], [1.0, 1.0, 1.0], 0.0, 30.0, 0.0));
-        materials.push(Material::new([1.0, 1.0, 1.0], [1.0, 1.0, 1.0], 0.0, 0.0, -1.0));
+        let toml_str = fs::read_to_string("Config.toml")
+            .expect("Could not read config file");
 
-        // Load textures from files into a textures
-        let mut textures = Vec::new();
-        // textures.push(["res/cobble-diffuse.png", "res/cobble-normal.png", "res/cobble-diffuse.png"]);
-        //textures.push(["res/COlor.png", "res/Unbenannt2.png", "res/roughness.png"]);
-        // textures.push([ "res/PavingStones134_1K-PNG_Color.png", "res/PavingStones134_1K-PNG_Color.png", "res/PavingStones134_1K-PNG_Color.png"]);
-        
-        let background = Background::new(-1, 0, 1.0);
+        let toml: toml::Value = toml::from_str(&toml_str)
+        .expect("Could not parse TOML");
 
+        println!("{:#?}", toml);
+
+        // Extract required fields for Config struct
+        let toml_camera = toml.get("camera").expect("Missing camera");
+        let camera_position_vec = parse_array(toml_camera.get("position").expect("Missing camera position"));
+        let camera_position = [camera_position_vec[0], camera_position_vec[1], camera_position_vec[2]];
+        let camera_rotation_vec = parse_array(toml_camera.get("rotation").expect("Missing camera rotation"));
+        let camera_rotation = [camera_rotation_vec[0], camera_rotation_vec[1]];
+        let camera_near_far_vec = parse_array(toml_camera.get("near_far").expect("Missing camera near_far"));
+        let camera_near_far = [camera_near_far_vec[0], camera_near_far_vec[1]];
+        let camera_fov = toml_camera.get("fov").expect("Missing camera fov").as_float().expect("Expected float") as f32;
+
+        // Materials these are optional
+        let materials = load_materials_config(toml.get("materials"));
+
+
+        // Textures
+        let textures = load_textures_config(toml.get("textures"));
+
+        let (background,background_path)  = load_background_config(toml.get("background"));
+
+
+        // Spheres
+        let spheres = load_spheres_config(toml.get("spheres"));
+
+
+        let model_paths = toml.get("3d_model_paths").expect("Missing 3d_model_paths");
+        let gltf_path = model_paths.get("gltf_path").expect("Missing gltf_path").as_str().expect("Expected string").to_string();
+        let obj_path = model_paths.get("obj_path").expect("Missing obj_path").as_str().expect("Expected string").to_string();
+        let triangle_svg_uv_mapping_path = model_paths.get("triangle_svg_uv_mapping_path").expect("Missing triangle_svg_uv_mapping_path").as_str().expect("Expected string").to_string();
+        // gen struct
+        let model_paths = ModelPaths {
+            gltf_path,
+            obj_path,
+            triangle_svg_uv_mapping_path,
+        };
         Self {
-            // Camera
-            camera_position: (0.0,2.0,0.0),//(-0.8, 1.59, -2.14),
-            camera_rotation: [0.0,-90.0],//[195.0, -20.0],
-            camera_near_far: [0.1, 100.0],
-            camera_fov: 90.0,
+            camera_position,
+            camera_rotation,
+            camera_near_far,
+            camera_fov,
 
-            // Objects
-            //obj
-            obj_path: r"".to_string(),
-            //gltf
-            gltf_path: r"res\untitled.gltf".to_string(),
+            materials,
+            textures,
+            background,
+            background_path,
 
-            //spheres
-            spheres: spheres,
+            spheres,
+            model_paths,
+        }
+    }
+}
 
-            // Materials & Textures
-            materials: materials,
-            textures: textures,
-            triangle_svg_uv_mapping_path: r"D:\0000MeineDaten\Hobby\Progammieren\Rust\00Raytracing\--Resources--\Cube.svg".to_string(),
-            background: background,
-            background_path: r"res\rural_asphalt_road_8k.exr".to_string(), //r"res\cobblestone_street_night_4k.hdr",
+fn parse_array(value: &toml::Value) -> Vec<f32> {
+    let array = value.as_array().expect("Expected array");
+    let mut result: Vec<f32> = vec![0.0; array.len()];
+    for (i, v) in array.iter().enumerate() {
+        result[i] = v.as_float().expect("Expected float") as f32;
+    }
+    return result
+}
 
+// makes materials optional in config
+fn load_materials_config(value: Option<&toml::Value>) -> Option<Vec<Material>> {
+    match value {
+        Some(value) => {
+            let value = value.as_array().expect("Expected array").iter()
+            .map(|v| {
+                let mut v = v.clone();
+                //make color and attenuation 4 elements instead of 3
+                let mut color = v.get("color").expect("Missing color").as_array().expect("Expected array").clone();
+                let mut attenuation = v.get("attenuation").expect("Missing attenuation").as_array().expect("Expected array").clone();
+                
+                // Add a fourth element to color and attenuation
+                color.push(toml::Value::Float(0.0));
+                attenuation.push(toml::Value::Float(0.0));
+
+                // Update the color and attenuation in v
+                v.as_table_mut().unwrap().insert("color".to_string(), toml::Value::Array(color));
+                v.as_table_mut().unwrap().insert("attenuation".to_string(), toml::Value::Array(attenuation));
+                v.as_table_mut().unwrap().insert("__padding".to_string(), toml::Value::Float(0.0));
+
+                // Convert v to Material
+                v.try_into().expect("Could not convert to Material")
+            }).collect::<Vec<Material>>();
+            return Some(value)
+        },
+        None => {
+            println!("No materials defined in config");
+            return None
+        }
+    }
+}
+
+// makes textues optional in config
+fn load_textures_config(value: Option<&toml::Value>) -> Option<Vec<Texture>> {
+    match value {
+        Some(value) => {
+            let value = value.as_array().expect("Expected array").iter()
+            .map(|v| v.clone().try_into().expect("Could not convert to Texture")).collect()
+            Some(value)
+        },
+        None => {
+            println!("No textures defined in config");
+            None
+        }
+    }
+}
+
+// makes background optional in config
+fn load_background_config(value: Option<&toml::Value>) -> (Option<Background>, Option<String>) {
+    match value {
+        Some(value) => {
+        let material_id = value.get("material_id").expect("Missing material_id").as_integer().expect("Expected int") as f32;
+        let background_path = value.get("background_path").expect("Missing background_path").as_str().expect("Expected string").to_string();
+        let intensity = value.get("intensity").expect("Missing intensity").as_float().expect("Expected float") as f32;
+        // gen the struct
+        (
+            Some(Background {
+                material_texture_id: [material_id, 0.0, 0.0, 0.0],
+                intensity: intensity.clone().try_into().expect("Could not convert to Background"),
+                _padding: [0.0; 3],
+            }), 
+            Some(background_path)
+        )
+        },
+        None => {
+            println!("No background defined in config");
+            (None, None)
+        }
+    }
+}
+
+// makes 3d models optional in config
+fn load_3d_models_config(value: Option<&toml::Value>) -> ModelPaths {
+    match value {
+        Some(value) => {
+            let gltf_path = value.get("gltf_path").expect("Missing gltf_path").as_str().expect("Expected string").to_string();
+            let obj_path = value.get("obj_path").expect("Missing obj_path").as_str().expect("Expected string").to_string();
+            let triangle_svg_uv_mapping_path = value.get("triangle_svg_uv_mapping_path").expect("Missing triangle_svg_uv_mapping_path").as_str().expect("Expected string").to_string();
+            // gen struct
+            ModelPaths {
+                gltf_path,
+                obj_path,
+                triangle_svg_uv_mapping_path,
+            }
+        },
+        None => {
+            println!("No 3d models defined in config");
+            ModelPaths {
+                gltf_path: "".to_string(),
+                obj_path: "".to_string(),
+                triangle_svg_uv_mapping_path: "".to_string(),
+            }
+        }
+    }
+}
+
+// makes spheres optional in config
+fn load_spheres_config(value: Option<&toml::Value>) -> Vec<Sphere> {
+    match value {
+        Some(value) => {
+            value.as_array().expect("Expected array").iter()
+                .map(|v| {
+                    let mut v = v.clone();
+                    let mut position = v.get("position").expect("Missing color").as_array().expect("Expected array").clone();
+
+                    let texture_id: Vec<f32> = v.get("texture_id").expect("Missing texture_id").as_array().expect("Expected array")
+                        .iter()
+                        .map(|value| value.as_integer().expect("Expected int") as f32)
+                        .collect();
+
+                    let radius = v.get("radius").expect("Missing radius").as_float().expect("Expected float") as f32;
+                    let material_id = v.get("material_id").expect("Missing material_id").as_integer().expect("Expected int") as f32;
+
+                    // Fix length of arrays
+                    let radius_array = vec![radius, 0.0, 0.0, 0.0].iter().map(|&value| toml::Value::Float(value as f64)).collect::<Vec<toml::Value>>();
+
+                    position.push(toml::Value::Float(0.0));
+                    let material_texture_id = [
+                        material_id,
+                        texture_id[0],
+                        texture_id[1],
+                        texture_id[2],
+                    ].iter().map(|&value| toml::Value::Float(value as f64)).collect::<Vec<toml::Value>>();
+
+                    // Update the color and attenuation in v
+                    v.as_table_mut().unwrap().insert("center".to_string(), toml::Value::Array(position));
+                    v.as_table_mut().unwrap().insert("radius".to_string(), toml::Value::Array(radius_array));
+                    v.as_table_mut().unwrap().insert("material_texture_id".to_string(), toml::Value::Array(material_texture_id));
+
+                    // Convert v to Material
+                    v.try_into().expect("Could not convert to Material")
+                }).collect::<Vec<Sphere>>()
+        },
+        None => {
+            println!("No spheres defined in config");
+            Vec::new()
         }
     }
 }
