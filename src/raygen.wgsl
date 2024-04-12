@@ -35,8 +35,6 @@ struct Triangle {
     vertex2: vec4<f32>,
     vertex3: vec4<f32>,
     normals: vec4<f32>,
-    uv1: vec4<f32>,
-    uv2: vec4<f32>, // Z of first tris is count of triangles
     tex_coords1: vec4<f32>,
     tex_coords2: vec4<f32>,
     material_texture_ids: vec4<f32>, //material_id, texture_id_diffuse, texture_id_roughness, texture_id_normal
@@ -573,38 +571,6 @@ fn sphereUVMapping(hit_point: vec3<f32>, sphere: Sphere) -> vec2<f32> {
     
     return vec2<f32>(u, v);
 }
-
-fn trisUVMapping(hit_point: vec3<f32>, closest_tris: Triangle) -> vec2<f32> {
-    let p0 = closest_tris.vertex1.xyz;
-    let p1 = closest_tris.vertex2.xyz;	
-    let p2 = closest_tris.vertex3.xyz;
-
-    let uv0 = closest_tris.uv1.xy;
-    let uv1 = closest_tris.uv1.zw;
-    let uv2 = closest_tris.uv2.xy;
-
-    let v0 = p1 - p0;
-    let v1 = p2 - p0;
-    let v2 = hit_point - p0;
-
-    let dot00 = dot(v0,v0);
-    let dot01 = dot(v0,v1);
-    let dot02 = dot(v0,v2);
-    let dot11 = dot(v1,v1);
-    let dot12 = dot(v1,v2);
-
-    let denom = dot00 * dot11 - dot01 * dot01;
-
-    // Calculate barycentric coordinates
-    let u = (dot11 * dot02 - dot01 * dot12) / denom;
-    let v = (dot00 * dot12 - dot01 * dot02) / denom;
-
-    // Interpolate the UV coordinates
-    let interpolated_uv = uv0 * (1.0 - u - v) + uv1 * u + uv2 * v;
-
-    return vec2<f32>(interpolated_uv[0], interpolated_uv[1]);
-}
-
 
 // Ray-box intersection function
 fn intersectBox(ray: Ray, min: vec3<f32>, max: vec3<f32>, t_min: f32, t_max: f32) -> f32 {

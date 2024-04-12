@@ -13,7 +13,6 @@ pub struct Texture {
 pub struct ModelPaths {
     pub gltf_path: Option<String>,
     pub obj_path: Option<String>,
-    pub triangle_svg_uv_mapping_path: Option<String>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -41,8 +40,6 @@ impl Config {
         let toml: toml::Value = toml::from_str(&toml_str)
         .expect("Could not parse TOML");
 
-        println!("{:#?}", toml);
-
         // Extract required fields for Config struct
         let toml_camera = toml.get("camera").expect("Missing camera");
         let camera_position_vec = parse_array(toml_camera.get("position").expect("Missing camera position"));
@@ -53,7 +50,7 @@ impl Config {
         let camera_near_far = [camera_near_far_vec[0], camera_near_far_vec[1]];
         let camera_fov = toml_camera.get("fov").expect("Missing camera fov").as_float().expect("Expected float") as f32;
 
-        // Materials these are optional
+        // Materials
         let materials = load_materials_config(toml.get("materials"));
 
         // Textures
@@ -63,7 +60,7 @@ impl Config {
         // Spheres
         let spheres = load_spheres_config(toml.get("spheres"));
 
-        // 3d models
+        // 3D Models
         let model_paths = load_3d_models_config(toml.get("3d_model_paths"));
 
         Self {
@@ -190,20 +187,10 @@ fn load_3d_models_config(value: Option<&toml::Value>) -> ModelPaths {
                     None
                 });
 
-            let triangle_svg_uv_mapping_path = value.get("triangle_svg_uv_mapping_path")
-                .map_or_else( ||{
-                    println!("Missing triangle_svg_uv_mapping_path");
-                    None
-                }, |v| v.as_str().map(|s| s.to_string())).or_else(|| {
-                    println!("Can't convert triangle_svg_uv_mapping_path to string");
-                    None
-                });
-
             // gen struct
             ModelPaths {
                 gltf_path,
                 obj_path,
-                triangle_svg_uv_mapping_path,
             }
         },
         None => {
@@ -211,7 +198,6 @@ fn load_3d_models_config(value: Option<&toml::Value>) -> ModelPaths {
             ModelPaths {
                 gltf_path: None,
                 obj_path: None,
-                triangle_svg_uv_mapping_path: None,
             }
         }
     }

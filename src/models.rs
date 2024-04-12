@@ -1,8 +1,6 @@
 use std::fs::File;
 use std::io::{BufRead, BufReader, Read};
-use image::{DynamicImage, ImageBuffer, Rgba, GenericImageView};
-use std::sync::Arc;
-// use rand::Rng;
+use image::{DynamicImage, ImageBuffer, Rgba};
 use crate::structs::{Triangle, Material};
 
 use cgmath::*;
@@ -18,8 +16,6 @@ pub fn load_obj(file_path: String) -> Result<(Vec<Triangle>, Vec<Material>), Box
     let mut texture_coords = Vec::new();
     let mut normals = Vec::new();
     let mut faces: Vec<Triangle> = Vec::new();
-
-    let mut mat: Vec<Material> = Vec::new();
 
     for line in reader.lines() {
         let line = line?;
@@ -103,60 +99,7 @@ pub fn load_obj(file_path: String) -> Result<(Vec<Triangle>, Vec<Material>), Box
         }
     }
 
-    Ok((faces,mat))
-}
-
-pub fn load_svg(file_path: Option<String>) -> Result<Vec<Vec<[f32; 2]>>, Box<dyn std::error::Error>> {
-    // Check if file path is set
-    let file_path = match file_path {
-        Some(path) => path,
-        None => panic!("No file path set for SVG"),
-    };
-
-    // Open the SVG file
-    let mut file = match File::open(file_path.clone()){
-        Ok(file) => file,
-        Err(e) => panic!("Failed to open SVG: {} | Error: {}", file_path.clone(), e),
-    };
-    let mut svg_content = String::new();
-    match file.read_to_string(&mut svg_content){
-        Ok(_) => (),
-        Err(e) => panic!("Failed to read SVG: {} | Error: {}", file_path.clone(), e),
-    }
-
-    // Parse the SVG content
-    let mut tris = Vec::new();
-    let mut height: f32 = 1.0;
-    let mut width: f32 = 1.0;
-
-    for line in svg_content.lines() {
-        // FIlter for svg size info
-        if line.trim().starts_with("<svg ") {
-            let width_string = line.split("width=\"").collect::<Vec<&str>>()[1].to_string();
-            width = width_string.split("\" ").collect::<Vec<&str>>()[0].to_string().parse::<f32>().unwrap();
-
-            let height_string = line.split("height=\"").collect::<Vec<&str>>()[1].to_string();
-            height = height_string.split("\" ").collect::<Vec<&str>>()[0].to_string().parse::<f32>().unwrap();
-        // Filter for polygons
-        }else if line.trim().starts_with("<polygon") {
-            //filter for points
-            let mut point_string = line.split("points=\"").collect::<Vec<&str>>()[1].to_string();  //xxxxx points="xxxxx" yyyyy => "xxxxx" yyyyy
-            point_string = point_string.split(" \" />").collect::<Vec<&str>>()[0].to_string();      //"xxxxx" yyyyy => "xxxxx"
-
-            //split into single points
-            let point_string = point_string.split(" ").collect::<Vec<&str>>();
-            let mut points = Vec::new();
-            for point in point_string {
-                let point = point.split(",").collect::<Vec<&str>>();
-                let x = point[0].parse::<f32>().unwrap();
-                let y = point[1].parse::<f32>().unwrap();
-                points.push([x / width, y / height]);   //scale points to 0.0 - 1.0
-            }
-            tris.push(points);
-        }
-    }
-
-    return Ok(tris);
+    Ok((faces,Vec::new()))
 }
 
 pub fn load_gltf(path: String, material_count: i32, texture_count: i32) -> Result<(Vec<Triangle>, Vec<Material>, Vec<DynamicImage>), Box<dyn std::error::Error>> {

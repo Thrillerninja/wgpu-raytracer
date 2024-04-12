@@ -1,11 +1,5 @@
 use image::{DynamicImage, GenericImageView};
 use wgpu::{Device, Queue, Texture, TextureDimension, TextureFormat, SurfaceConfiguration};
-// use crate::structs::TextureSet;
-
-// Load an image from a file and return it as DynamicImage
-fn load_image(file_path: &str) -> Result<DynamicImage, Box<dyn std::error::Error>> {
-    image::open(file_path).map_err(|err| format!("Failed to load texture from {}: {}", file_path, err).into())
-}
 
 pub fn create_texture(device: &Device, config: &SurfaceConfiguration, texture_width: u32, texture_height: u32, num_textures: u32) -> Texture {
     return device.create_texture(&wgpu::TextureDescriptor {
@@ -53,20 +47,6 @@ fn write_texture(queue: &Queue, texture: &Texture, image: DynamicImage, offset: 
     );
 }
 
-pub fn load_textures(queue: &Queue, textureset: Texture, texture: &str, index: i32) -> Result<Texture, Box<dyn std::error::Error>> {
-    let offset = wgpu::Origin3d {
-        x: 0,
-        y: 0,
-        z: index as u32,
-    };
-
-    // Diffuse
-    let texture_image = load_image(texture)?;
-    write_texture(queue, &textureset, texture_image, offset);
-
-    Ok(textureset)
-}
-
 pub fn load_textures_from_image(queue: &Queue, textureset: Texture, texture: &DynamicImage, index: i32) -> Result<Texture, Box<dyn std::error::Error>> {
     let offset = wgpu::Origin3d {
         x: 0,
@@ -80,16 +60,16 @@ pub fn load_textures_from_image(queue: &Queue, textureset: Texture, texture: &Dy
 }
 
 pub fn scale_texture(texture: &DynamicImage, width: u32, height: u32) -> DynamicImage {
-    
+    // Inspect images: if uncommented
     // Save the original texture
-    let original_path = "texture_{}_original.png";
+    // let original_path = "texture_{}_original.png";
     // texture.save(original_path);
 
     // Resize the texture
     let resized_texture = texture.resize(width, height, image::imageops::FilterType::Nearest);
 
     // Save the resized texture
-    let resized_path = "texture_{}_resized.png";
+    // let resized_path = "texture_{}_resized.png";
     // resized_texture.save(resized_path);
     return resized_texture;
 }

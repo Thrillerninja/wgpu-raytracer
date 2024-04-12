@@ -3,6 +3,9 @@ name = "wgpu_raytracer"
 version = "0.1.0"
 edition = "2021"
 
+[lib]
+crate-type = ["cdylib", "rlib"]
+
 [dependencies]
 cfg-if = "1"
 anyhow = "1.0"
@@ -30,7 +33,7 @@ exr = "1.72.0"
 toml = "0.8.12"
 
 [dependencies.image]
-version = "0.24"
+version = "0.25"
 default-features = false
 features = ["png", "jpeg"]
 
