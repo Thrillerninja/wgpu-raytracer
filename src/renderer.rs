@@ -86,7 +86,7 @@ fn load_gltf_file(triangles: &mut Vec<Triangle>, materials: &mut Vec<Material>, 
         Some(gltf_path) => gltf_path,
         None => return,
     };
-    if gltf_path!= "" {
+    if gltf_path != "" {
         let (mut gltf_triangles, mut gltf_materials, mut gltf_textures) = match load_gltf(gltf_path, materials.len() as i32, textures.len() as i32) {
             Err(error) => {
                 eprintln!("Error loading GLTF file: {:?}", error);

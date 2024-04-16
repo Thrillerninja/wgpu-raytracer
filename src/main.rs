@@ -1,11 +1,14 @@
 use wgpu_raytracer::State;
 use winit::{event::*, event_loop::{ControlFlow, EventLoop}, keyboard::{Key, NamedKey}};
 
+/// Entry point for the application.
 fn main() {
     pollster::block_on(run());
 }
 
-#[cfg_attr(target_arch = "wasm32", wasm_bindgen(start))]
+/// Starts the application.
+///
+/// It initializes the logger, creates the window, and starts the event loop.
 pub async fn run() {
     cfg_if::cfg_if! {
         if #[cfg(target_arch = "wasm32")] {
@@ -24,33 +27,15 @@ pub async fn run() {
         .build(&event_loop)
         //Probably change the size here;
         .unwrap();
-
-    #[cfg(target_arch = "wasm32")]
-    {
-        // Winit prevents sizing with CSS, so we have to set
-        // the size manually when on web.
-        use winit::dpi::PhysicalSize;
-        window.set_inner_size(PhysicalSize::new(1920, 1080));
-
-        use winit::platform::web::WindowExtWebSys;
-        web_sys::window()
-            .and_then(|win| win.document())
-            .and_then(|doc| {
-                let dst = doc.get_element_by_id("wasm-example")?;
-                let canvas = web_sys::Element::from(window.canvas());
-                dst.append_child(&canvas).ok()?;
-                Some(())
-            })
-            .expect("Couldn't append canvas to document body.");
-    }
         
-    // ControlFlow::Poll continuously runs the event loop, even if the OS hasn't
-    // dispatched any events.
+    // ControlFlow::Poll continuously runs the event loop, 
+    // even if the OS hasn't dispatched any events.
     event_loop.set_control_flow(ControlFlow::Poll);
 
     let mut state = State::new(window).await;
     let mut last_render_time = instant::Instant::now();
 
+    // Start the event loop
     let _ = event_loop.run(move |event, elwt| {
         match event {
             Event::WindowEvent {
@@ -62,9 +47,24 @@ pub async fn run() {
 
                 // Handle window events
                 match event {
-                    #[cfg(not(target_arch="wasm32"))]
+                    // Close the window if requested by the user
                     WindowEvent::CloseRequested => {
                         elwt.exit();
+                    }
+                    // Close the window if the escape key is pressed                    
+                    WindowEvent::KeyboardInput {
+                        event:
+                            KeyEvent {
+                                state: ElementState::Pressed,
+                                logical_key: key,
+                                ..
+                            },
+                        ..
+                    } => {
+                        match key {
+                            Key::Named(NamedKey::Escape) => elwt.exit(),
+                            _ => {}
+                        }
                     }
                     WindowEvent::RedrawRequested => {
                         let now = instant::Instant::now();
@@ -81,24 +81,11 @@ pub async fn run() {
                             Err(wgpu::SurfaceError::Timeout) => log::warn!("Surface timeout"),
                         }
                     }
-                    WindowEvent::KeyboardInput {
-                        event:
-                            KeyEvent {
-                                state: ElementState::Pressed,
-                                logical_key: key,
-                                ..
-                            },
-                        ..
-                    } => {
-                        match key {
-                            Key::Named(NamedKey::Escape) => elwt.exit(),
-                            _ => {}
-                        }
-                    }
                     WindowEvent::Resized(physical_size) => {
                         state.resize(*physical_size);
                     }
                     WindowEvent::ScaleFactorChanged  {scale_factor, .. } => {
+                        // Log when the window scale factor changes
                         println!("Window={window_id:?} changed scale to {scale_factor}");
                     }
                     _ => {}
@@ -110,14 +97,9 @@ pub async fn run() {
             } => if state.mouse_pressed {
                 state.camera_controller.process_mouse(delta.0, delta.1)
             }
+            // Request a redraw bevore the system goes to idle
             Event::AboutToWait => {
-                // Application update code.
-    
-                // Queue a RedrawRequested event.
-                //
-                // You only need to call this if you've determined that you need to redraw in
-                // applications which do not always need to. Applications that redraw continuously
-                // can render here instead.
+                // Application update call
                 state.window().request_redraw();
             },
             _ => ()

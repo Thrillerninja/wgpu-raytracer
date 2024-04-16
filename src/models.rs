@@ -1,9 +1,8 @@
 use std::fs::File;
-use std::io::{BufRead, BufReader, Read};
+use std::io::{BufRead, BufReader};
 use image::{DynamicImage, ImageBuffer, Rgba};
 use crate::structs::{Triangle, Material};
 
-use cgmath::*;
 use core::ops::Deref;
 use image::Pixel;
 use exr;
@@ -308,23 +307,6 @@ pub fn load_exr(path: String) -> Result<DynamicImage, Box<dyn std::error::Error>
     // convert the image to a dynamic image
     let image = DynamicImage::ImageRgba8(pixel_buffer);
     Ok(image)
-}
-
-fn get_pixel<P, Container>(tex_coords: Vector2<f32>, texture: &ImageBuffer<P, Container>) -> P
-where
-    P: Pixel + 'static,
-    P::Subpixel: 'static,
-    Container: Deref<Target = [P::Subpixel]>,
-{
-    let coords = tex_coords.mul_element_wise(Vector2::new(
-        texture.width() as f32,
-        texture.height() as f32,
-    ));
-
-    texture[(
-        (coords.x as i64).rem_euclid(texture.width() as i64) as u32,
-        (coords.y as i64).rem_euclid(texture.height() as i64) as u32,
-    )]
 }
 
 fn convert_to_dynamic_image<P, Container>(texture: &image::ImageBuffer<P, Container>) -> DynamicImage

@@ -1,5 +1,5 @@
 use std::collections::VecDeque;
-use winit::{event::*, event_loop::{ControlFlow, EventLoop}, keyboard::{Key, NamedKey}, window::Window};
+use winit::{event::*, window::Window};
 use egui_wgpu::ScreenDescriptor;
 
 #[cfg(target_arch = "wasm32")]
@@ -25,7 +25,7 @@ use structs::CameraUniform;
 mod renderer;
 use renderer::setup_camera;
 
-use crate::{models::{load_exr, load_hdr, load_hdri}, renderer::{setup_bvh, setup_hdri, setup_textures, setup_tris_objects}, structs::{Background, Sphere}};
+use crate::{models::load_hdr, renderer::{setup_bvh, setup_hdri, setup_textures, setup_tris_objects}, structs::{Background, Sphere}};
 
 pub struct State<'a>{
     pub window: Window,
@@ -122,12 +122,11 @@ impl<'a> State<'a>{
         let mut camera_bind_group_descriptor = BindGroupDescriptor::new(
             Some("camera"),
             wgpu::ShaderStages::COMPUTE,
-            vec![BufferType {
-                ty: BindingResourceTemplate::BufferUniform(
-                    camera_buffer.as_entire_binding()
-                ),
-                view_dimension: None,
-            }]
+            vec![BufferType::new(
+                BindingResourceTemplate::BufferUniform(
+                    camera_buffer.as_entire_binding())
+                )
+            ]
         );
         let camera_bind_group = camera_bind_group_descriptor.generate_bind_group(&device);
         let camera_bind_group_layout = camera_bind_group_descriptor.layout.unwrap();
@@ -168,18 +167,16 @@ impl<'a> State<'a>{
             Some("object_bind_group"),
             wgpu::ShaderStages::COMPUTE,
             vec![
-                BufferType {
-                    ty: BindingResourceTemplate::BufferStorage(
+                BufferType::new(
+                    BindingResourceTemplate::BufferStorage(
                         vertex_buffer.as_entire_binding()
-                    ),
-                    view_dimension: None,
-                },
-                BufferType {
-                    ty: BindingResourceTemplate::BufferStorage(
+                    )
+                ),
+                BufferType::new(
+                    BindingResourceTemplate::BufferStorage(
                         sphere_buffer.as_entire_binding()
-                    ),
-                    view_dimension: None,
-                }
+                    )
+                )
             ]
         );
 
@@ -207,18 +204,16 @@ impl<'a> State<'a>{
             Some("bvh"),
             wgpu::ShaderStages::COMPUTE,
             vec![
-                BufferType {
-                    ty: BindingResourceTemplate::BufferStorage(
+                BufferType::new(
+                    BindingResourceTemplate::BufferStorage(
                         bvh_buffer.as_entire_binding()
-                    ),
-                    view_dimension: None,
-                },
-                BufferType {
-                    ty: BindingResourceTemplate::BufferStorage(
+                    )
+                ),
+                BufferType::new(
+                    BindingResourceTemplate::BufferStorage(
                         bvh_prim_indices_buffer.as_entire_binding()
-                    ),
-                    view_dimension: None,
-                }
+                    )
+                )
             ]
         );
 
@@ -267,36 +262,33 @@ impl<'a> State<'a>{
             Some("textures&materials"),
             wgpu::ShaderStages::COMPUTE,
             vec![
-                BufferType {
-                    ty: BindingResourceTemplate::Sampler(
+                BufferType::new(
+                    BindingResourceTemplate::Sampler(
                         wgpu::BindingResource::Sampler(&texture_sampler)
-                    ),
-                    view_dimension: None,
-                },
-                BufferType {
-                    ty: BindingResourceTemplate::TextureView(
+                    )
+                ),
+                BufferType::with_view_dimension(
+                    BindingResourceTemplate::TextureView(
                         wgpu::BindingResource::TextureView(&textures_view)
                     ),
-                    view_dimension: Some(wgpu::TextureViewDimension::D2Array),
-                },
-                BufferType {
-                    ty: BindingResourceTemplate::BufferStorage(
+                    wgpu::TextureViewDimension::D2Array
+                ),
+                BufferType::new(
+                    BindingResourceTemplate::BufferStorage(
                         material_buffer.as_entire_binding()
-                    ),
-                    view_dimension: None,
-                },
-                BufferType {
-                    ty: BindingResourceTemplate::BufferStorage(
+                    )
+                ),
+                BufferType::new(
+                    BindingResourceTemplate::BufferStorage(
                         background_buffer.as_entire_binding()
-                    ),
-                    view_dimension: None,
-                },
-                BufferType {
-                    ty: BindingResourceTemplate::TextureView(
+                    )
+                ),
+                BufferType::with_view_dimension(
+                    BindingResourceTemplate::TextureView(
                         wgpu::BindingResource::TextureView(&background_texture_view)
                     ),
-                    view_dimension: Some(wgpu::TextureViewDimension::D2),
-                }
+                    wgpu::TextureViewDimension::D2,
+                )
             ]
         );
 
@@ -319,12 +311,11 @@ impl<'a> State<'a>{
             Some("shader_config"),
             wgpu::ShaderStages::COMPUTE,
             vec![
-                BufferType {
-                    ty: BindingResourceTemplate::BufferUniform(
+                BufferType::new(
+                    BindingResourceTemplate::BufferUniform(
                         shader_config_buffer.as_entire_binding()
-                    ),
-                    view_dimension: None,
-                }
+                    )
+                )
             ]
         );
         // Generate the shader config bind group & layout
@@ -344,12 +335,12 @@ impl<'a> State<'a>{
             Some("raytracing"),
             wgpu::ShaderStages::COMPUTE,
             vec![
-                BufferType {
-                    ty: BindingResourceTemplate::StorageTexture(
+                BufferType::with_view_dimension(
+                    BindingResourceTemplate::StorageTexture(
                         wgpu::BindingResource::TextureView(&color_buffer_view)
                     ),
-                    view_dimension: Some(wgpu::TextureViewDimension::D2),
-                }
+                    wgpu::TextureViewDimension::D2
+                )
             ]
         );
 
@@ -427,36 +418,33 @@ impl<'a> State<'a>{
             Some("denoising"),
             wgpu::ShaderStages::COMPUTE,
             vec![
-                BufferType {
-                    ty: BindingResourceTemplate::StorageTexture(
+                BufferType::with_view_dimension(
+                    BindingResourceTemplate::StorageTexture(
                         wgpu::BindingResource::TextureView(&color_buffer_view),
                     ),
-                    view_dimension: Some(wgpu::TextureViewDimension::D2),
-                },
-                BufferType {
-                    ty: BindingResourceTemplate::StorageTexture(
+                    wgpu::TextureViewDimension::D2
+                ),
+                BufferType::with_view_dimension(
+                    BindingResourceTemplate::StorageTexture(
                         wgpu::BindingResource::TextureView(&denoising_texture_view),
                     ),
-                    view_dimension: Some(wgpu::TextureViewDimension::D2),
-                },
-                BufferType {
-                    ty: BindingResourceTemplate::BufferUniform(
+                    wgpu::TextureViewDimension::D2
+                ),
+                BufferType::new(
+                    BindingResourceTemplate::BufferUniform(
                         camera_buffer.as_entire_binding()
-                    ),
-                    view_dimension: None,
-                },
-                BufferType {
-                    ty: BindingResourceTemplate::BufferUniform(
+                    )
+                ),
+                BufferType::new(
+                    BindingResourceTemplate::BufferUniform(
                         denoising_camera_buffer.as_entire_binding()
                     ),
-                    view_dimension: None,
-                },
-                BufferType {
-                    ty: BindingResourceTemplate::BufferUniform(
+                ),
+                BufferType::new(
+                    BindingResourceTemplate::BufferUniform(
                         denoising_pass_buffer.as_entire_binding()
-                    ),
-                    view_dimension: None,
-                }
+                    )
+                )
             ]
         );
         // Generate the denoising bind group & layout
@@ -505,18 +493,17 @@ impl<'a> State<'a>{
             Some("screen_transfer"),
             wgpu::ShaderStages::FRAGMENT,
             vec![
-                BufferType {
-                    ty: BindingResourceTemplate::Sampler(
+                BufferType::new(
+                    BindingResourceTemplate::Sampler(
                         wgpu::BindingResource::Sampler(&sampler)
-                    ),
-                    view_dimension: None,
-                },
-                BufferType {
-                    ty: BindingResourceTemplate::TextureView(
+                    )
+                ),
+                BufferType::with_view_dimension(
+                    BindingResourceTemplate::TextureView(
                         wgpu::BindingResource::TextureView(&color_buffer_view)
                     ),
-                    view_dimension: Some(wgpu::TextureViewDimension::D2),
-                }
+                    wgpu::TextureViewDimension::D2
+                )
             ]
         );
 
@@ -675,7 +662,7 @@ impl<'a> State<'a>{
 
         // If fps is empty fill with the first value
         if self.fps.is_empty() {
-            for i in 0..100 {
+            for _ in 0..100 {
                 self.fps.push_back(1.0 / dt.as_secs_f32());
             }
         }

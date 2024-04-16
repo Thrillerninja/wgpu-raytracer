@@ -1,12 +1,9 @@
 use cgmath::*;
-use wgpu::naga::proc::NameKey;
-use winit::keyboard::{Key, KeyCode, NamedKey, SmolStr};
-use std::f32::consts::FRAC_PI_2;
+use winit::keyboard::{Key, NamedKey};
 use std::time::Duration;
 use winit::dpi::PhysicalPosition;
 use winit::event::*;
 
-const SAFE_FRAC_PI_2: f32 = FRAC_PI_2 - 0.0001;
 #[derive(Debug, Clone, Copy)]
 pub struct Camera {
     pub position: Point3<f32>,

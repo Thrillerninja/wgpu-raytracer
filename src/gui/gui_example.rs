@@ -1,7 +1,6 @@
 use std::collections::VecDeque;
 use egui::{Align2, Context};
-use egui_plot::{AxisHints, GridMark, Legend, PlotPoints};
-use wgpu::hal::empty;
+use egui_plot::{AxisHints, GridMark, PlotPoints};
 use std::ops::RangeInclusive;
 
 pub fn gui(ui: &Context, fps: &VecDeque<f32>) {
@@ -33,10 +32,6 @@ pub fn gui(ui: &Context, fps: &VecDeque<f32>) {
 
             let ms_formatter = |mark: GridMark, _digits: usize, _range : &'_ RangeInclusive<f64>| {
                 format!("{:}ms", mark.value)
-            };
-
-            let empty_formatter = |mark: GridMark, _digits: usize, _range : &'_ RangeInclusive<f64>| {
-                format!("{:}", "")
             };
 
             let y_axis = vec![

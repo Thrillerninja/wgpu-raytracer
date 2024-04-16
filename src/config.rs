@@ -15,6 +15,22 @@ pub struct ModelPaths {
     pub obj_path: Option<String>,
 }
 
+impl ModelPaths {
+    pub fn new(gltf_path: Option<String>, obj_path: Option<String>) -> Self {
+        Self {
+            gltf_path,
+            obj_path,
+        }
+    }
+
+    pub fn default() -> Self {
+        Self {
+            gltf_path: None,
+            obj_path: None,
+        }
+    }
+}
+
 #[derive(Debug, Deserialize)]
 pub struct Config {
     pub camera_position: [f32; 3],
@@ -34,7 +50,7 @@ pub struct Config {
 
 impl Config {
     pub fn new() -> Self {
-        let toml_str = fs::read_to_string("Config.toml")
+        let toml_str = fs::read_to_string("res/Config.toml")
             .expect("Could not read config file");
 
         let toml: toml::Value = toml::from_str(&toml_str)
@@ -146,11 +162,11 @@ fn load_background_config(value: Option<&toml::Value>) -> (Option<Background>, O
 
             if let (Some(material_id), Some(background_path), Some(intensity)) = (material_id, background_path, intensity) {
                 (
-                    Some(Background {
-                        material_texture_id: [material_id, 0.0, 0.0, 0.0],
-                        intensity: intensity.try_into().unwrap_or_else(|_| 0.0),
-                        _padding: [0.0; 3],
-                    }), 
+                    Some(Background::new(
+                        material_id as i32,
+                        0,
+                        intensity.try_into().unwrap_or_else(|_| 0.0),
+                    )), 
                     Some(background_path)
                 )
             } else {
@@ -188,17 +204,14 @@ fn load_3d_models_config(value: Option<&toml::Value>) -> ModelPaths {
                 });
 
             // gen struct
-            ModelPaths {
+            ModelPaths::new(
                 gltf_path,
-                obj_path,
-            }
+                obj_path
+            )
         },
         None => {
             println!("No 3d models defined in config");
-            ModelPaths {
-                gltf_path: None,
-                obj_path: None,
-            }
+            ModelPaths::default()
         }
     }
 }

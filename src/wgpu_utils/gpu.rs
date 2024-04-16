@@ -1,15 +1,10 @@
-use wgpu::util::DeviceExt;
-
 use crate::config::Config;
 
-use wgpu::{Features, TextureView};
-use winit::{
-    event::*, event_loop::{ControlFlow, EventLoop}, keyboard::{Key, KeyCode, NamedKey}, window::{ResizeDirection, Window}
-};
+use wgpu::Features;
+use winit::window::Window;
 
 
-
-pub async fn setup_gpu<'a> (window: Window) -> (Window, wgpu::Device, wgpu::Queue, wgpu::Surface<'static> , wgpu::SurfaceConfiguration, wgpu::TextureView, Config, winit::dpi::PhysicalSize<u32>) {
+pub async fn setup_gpu<'a> (window: Window) -> (Window, wgpu::Device, wgpu::Queue, wgpu::Surface<'a> , wgpu::SurfaceConfiguration, wgpu::TextureView, Config, winit::dpi::PhysicalSize<u32>) {
     
     let instance = wgpu::Instance::new(wgpu::InstanceDescriptor {
         backends: wgpu::Backends::DX12,
@@ -18,6 +13,9 @@ pub async fn setup_gpu<'a> (window: Window) -> (Window, wgpu::Device, wgpu::Queu
         flags: wgpu::InstanceFlags::empty(),
     });
 
+    // This unsafe is strictly nessesary for the GPU
+    // It is not possible to create a surface without it
+    // Its because of the way of communication with the gpu
     let surface_result = unsafe {
         instance.create_surface_unsafe(wgpu::SurfaceTargetUnsafe::from_window(&window).unwrap())
     };
@@ -47,7 +45,8 @@ pub async fn setup_gpu<'a> (window: Window) -> (Window, wgpu::Device, wgpu::Queu
                 required_features: Features::TEXTURE_ADAPTER_SPECIFIC_FORMAT_FEATURES,
                 label: None,
                 required_limits: wgpu::Limits {
-                    max_bind_groups: 6,
+                    max_bind_groups: 6, // Not every old GPU supports more than 4 bind groups, 
+                                        // but should be no problem today. Either way, it makes the buffers better structured
                     ..Default::default()
                 }
             },

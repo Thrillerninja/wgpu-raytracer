@@ -17,13 +17,6 @@ impl<'a> BufferInitDescriptor<'a> {
     pub fn new(label: wgpu::Label<'a>, usage: wgpu::BufferUsages) -> Self {
         Self { label, usage }
     }
-
-    pub fn with_label(&self, label: wgpu::Label<'a>) -> Self {
-        Self { 
-            label, 
-            usage: wgpu::BufferUsages::COPY_DST 
-        }
-    }
 }
 
 impl<'a> Default for BufferInitDescriptor<'a> {
@@ -77,8 +70,8 @@ pub fn get_binding_resource<'a>(template: BindingResourceTemplate<'a>) -> wgpu::
 ///
 /// This struct contains a `BindingResourceTemplate` and an optional `TextureViewDimension`.
 pub struct BufferType<'a> {
-    pub ty: BindingResourceTemplate<'a>,
-    pub view_dimension: Option<wgpu::TextureViewDimension>,
+    ty: BindingResourceTemplate<'a>,
+    view_dimension: Option<wgpu::TextureViewDimension>,
 }
 
 impl PartialEq for BindingResourceTemplate<'_> {
@@ -100,10 +93,13 @@ impl<'a> BufferType<'a> {
     }
 
     pub fn with_view_dimension(ty: BindingResourceTemplate<'a>, view_dimension: wgpu::TextureViewDimension) -> Self {
-        // Check if the binding type is a texture view
+        // Check if the binding type is a texture view or Storage Texture,
+        //Other types aren't alowed to have a view dimension
         if let BindingResourceTemplate::TextureView(_) = ty {
             Self { ty, view_dimension: Some(view_dimension) }
-        } else {
+        } else if let BindingResourceTemplate::StorageTexture(_) = ty {
+            Self { ty, view_dimension: Some(view_dimension) }
+        } else{
             panic!("BufferType::with_view_dimension can only be used with BindingResource::TextureView");
         }
     }
@@ -236,14 +232,5 @@ impl<'a> BindGroupDescriptor<'a> {
                 }
             }).collect::<Vec<_>>(),
         }));
-    }
-
-    pub fn generate_bind_group_layout_entry(&self, ty: wgpu::BindingType) -> wgpu::BindGroupLayoutEntry {
-        wgpu::BindGroupLayoutEntry {
-            binding: 0,
-            visibility: self.vis,
-            ty: ty,
-            count: None,
-        }
     }
 }
