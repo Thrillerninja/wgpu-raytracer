@@ -9,23 +9,16 @@ mod wgpu_utils;
 use wgpu_utils::setup_gpu;
 use wgpu_utils::{BufferInitDescriptor, BindGroupDescriptor, BufferType, BindingResourceTemplate, create_new_buffer};
 
-mod gui;
 use gui::{EguiRenderer, gui};
 
-mod camera;
-use camera::Camera;
-
-mod models;
-mod texture;
-mod config;
-
-mod structs;
-use structs::CameraUniform;
+use scene::{
+    camera::Camera, 
+    models::load_hdr, 
+    renderer::{setup_bvh, setup_hdri, setup_textures, setup_tris_objects}, 
+    structs::{Background, Sphere, CameraUniform}};
 
 mod renderer;
 use renderer::setup_camera;
-
-use crate::{models::load_hdr, renderer::{setup_bvh, setup_hdri, setup_textures, setup_tris_objects}, structs::{Background, Sphere}};
 
 pub struct State<'a>{
     pub window: Window,

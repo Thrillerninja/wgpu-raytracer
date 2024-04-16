@@ -1,4 +1,4 @@
-use crate::config::Config;
+use scene::config::Config;
 
 use wgpu::Features;
 use winit::window::Window;

@@ -1048,6 +1048,24 @@ dependencies = [
 ]
 
 [[package]]
+name = "gui"
+version = "0.1.0"
+dependencies = [
+ "easy-gltf",
+ "egui",
+ "egui-wgpu",
+ "egui-winit",
+ "egui_plot",
+ "glam",
+ "instant",
+ "rand",
+ "rtbvh",
+ "serde",
+ "wgpu",
+ "winit",
+]
+
+[[package]]
 name = "half"
 version = "2.4.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2156,6 +2174,44 @@ dependencies = [
 ]
 
 [[package]]
+name = "scene"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "bytemuck",
+ "cfg-if",
+ "cgmath",
+ "console_error_panic_hook",
+ "console_log",
+ "easy-gltf",
+ "egui",
+ "egui-wgpu",
+ "egui-winit",
+ "egui_plot",
+ "env_logger",
+ "exr",
+ "fs_extra",
+ "glam",
+ "glob",
+ "hdrldr",
+ "image 0.25.1",
+ "instant",
+ "log",
+ "pollster",
+ "rand",
+ "rtbvh",
+ "serde",
+ "tobj",
+ "toml",
+ "wasm-bindgen",
+ "wasm-bindgen-futures",
+ "web-sys",
+ "wgpu",
+ "winit",
+ "zune-hdr",
+]
+
+[[package]]
 name = "scoped-tls"
 version = "1.0.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2980,6 +3036,7 @@ dependencies = [
  "fs_extra",
  "glam",
  "glob",
+ "gui",
  "hdrldr",
  "image 0.25.1",
  "instant",
@@ -2987,6 +3044,7 @@ dependencies = [
  "pollster",
  "rand",
  "rtbvh",
+ "scene",
  "serde",
  "tobj",
  "toml",
