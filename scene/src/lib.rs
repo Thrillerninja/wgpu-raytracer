@@ -1,12 +1,10 @@
+#![warn(unused_extern_crates)]
 
 pub mod config;
-pub mod bvh;
 pub mod structs;
 pub mod models;
 pub mod texture;
 pub mod camera;
-
-
 
 pub fn add(left: usize, right: usize) -> usize {
     left + right

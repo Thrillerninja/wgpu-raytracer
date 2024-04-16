@@ -12,10 +12,11 @@ use wgpu_utils::{BufferInitDescriptor, BindGroupDescriptor, BufferType, BindingR
 use gui::{EguiRenderer, gui};
 
 use scene::{
-    camera::Camera, 
+    camera::{self, Camera}, 
     models::load_hdr, 
-    renderer::{setup_bvh, setup_hdri, setup_textures, setup_tris_objects}, 
-    structs::{Background, Sphere, CameraUniform}};
+    structs::{Background, Sphere, CameraUniform, ShaderConfig}};
+
+use crate::renderer::{setup_bvh, setup_hdri, setup_textures, setup_tris_objects};
 
 mod renderer;
 use renderer::setup_camera;
@@ -294,7 +295,7 @@ impl<'a> State<'a>{
 
         //--------Shader config-----------
         // Initialize shader config
-        let shader_config = structs::ShaderConfig::default();
+        let shader_config = ShaderConfig::default();
         // Create a buffer to hold the shader config data
         let shader_config_descriptor = BufferInitDescriptor::new(Some("Shader Config Buffer"), wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST);
         let shader_config_buffer =  create_new_buffer(&device, &[shader_config], shader_config_descriptor);

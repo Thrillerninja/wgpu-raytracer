@@ -1,10 +1,11 @@
-use cgmath::prelude::*;
+
 use rand::Rng;
-use cgmath::*;
-use crate::camera::{Camera, Projection};
+use cgmath::{Matrix4, Point3, SquareMatrix};
+use rtbvh::{Aabb, Primitive, SpatialTriangle, BvhNode};
 use serde::Deserialize;
-use rtbvh::*;
-use glam::*;
+use glam::Vec3;
+
+use crate::camera::{Camera, Projection};
 
 //-----------Camera-----------------
 #[repr(C)]
@@ -20,14 +21,14 @@ impl CameraUniform {
         Self {
             frame: [0.0; 4],
             view_position: [0.0; 4],
-            view_proj: cgmath::Matrix4::identity().into(),
+            view_proj: Matrix4::identity().into(),
         }
     }
 
     // UPDATED!
     pub fn update_view_proj(&mut self, camera: &Camera, projection: &Projection) {
         self.view_position = camera.position.to_homogeneous().into();
-        self.view_proj = cgmath::Matrix4::from(camera.rotation).into();
+        self.view_proj = Matrix4::from(camera.rotation).into();
         self.frame[1] = projection.fovy.0.to_degrees() as f32;
     }
 

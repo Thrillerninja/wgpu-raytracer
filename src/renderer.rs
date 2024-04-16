@@ -1,18 +1,18 @@
 use image::{DynamicImage, GenericImageView};
 use rtbvh::{Aabb, Builder, Primitive};
 use wgpu::SurfaceConfiguration;
-use crate::models::load_gltf;
-use crate::structs::{self, BvhUniform};
-use crate::camera;
-use crate::structs::{Triangle, Material, TriangleUniform};
-use crate::models::load_obj;
-use crate::texture::{create_texture, load_textures_from_image, scale_texture};
-use crate::load_hdr;
-use crate::config;
+use scene::{
+    models::{load_gltf, load_obj},
+    structs::{self, BvhUniform},
+    camera,
+    structs::{Triangle, Material, TriangleUniform},
+    config::Config};
 
+use scene::texture::{create_texture, load_textures_from_image, scale_texture};
+use crate::load_hdr;
 
 pub fn setup_camera(config: &SurfaceConfiguration, 
-                    userconfig: &crate::config::Config) -> (
+                    userconfig: &Config) -> (
                                                             camera::Camera, 
                                                             camera::Projection, 
                                                             camera::CameraController, 
@@ -33,7 +33,7 @@ pub fn setup_camera(config: &SurfaceConfiguration,
     return (camera, projection, camera_controller, camera_uniform)
 }
 
-pub fn setup_tris_objects(userconfig: config::Config) -> (Vec<Triangle>, Vec<TriangleUniform>, Vec<Material>, Vec<DynamicImage>, config::Config) {
+pub fn setup_tris_objects(userconfig: Config) -> (Vec<Triangle>, Vec<TriangleUniform>, Vec<Material>, Vec<DynamicImage>, Config) {
     let obj_path = userconfig.model_paths.obj_path.clone();
     let gltf_path = userconfig.model_paths.gltf_path.clone();
 
@@ -202,7 +202,7 @@ pub fn setup_bvh(triangles: &Vec<Triangle>) ->(Vec<BvhUniform>, Vec<f32>){
 }
 
 
-pub fn setup_hdri(userconfig: &config::Config, device: &wgpu::Device, queue: &wgpu::Queue, config: &SurfaceConfiguration) -> wgpu::Texture {
+pub fn setup_hdri(userconfig: &Config, device: &wgpu::Device, queue: &wgpu::Queue, config: &SurfaceConfiguration) -> wgpu::Texture {
     // Check if a background is configured
     let background_path = userconfig.background_path.clone();
     

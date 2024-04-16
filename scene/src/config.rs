@@ -51,7 +51,7 @@ pub struct Config {
 impl Config {
     pub fn new() -> Self {
         let toml_str = fs::read_to_string("res/Config.toml")
-            .expect("Could not read config file");
+            .expect("Could not find/read config file");
 
         let toml: toml::Value = toml::from_str(&toml_str)
         .expect("Could not parse TOML");
