@@ -156,21 +156,33 @@ fn load_textures_config(value: Option<&toml::Value>) -> Option<Vec<Texture>> {
 fn load_background_config(value: Option<&toml::Value>) -> (Option<Background>, Option<String>) {
     match value {
         Some(value) => {
-            let material_id = value.get("material_id").and_then(|v| v.as_integer()).map(|v| v as f32);
+            let material_id = value.get("material_id").and_then(|v| v.as_integer()).map(|v| v as i32);
             let background_path = value.get("background_path").and_then(|v| v.as_str()).map(|v| v.to_string());
             let intensity = value.get("intensity").and_then(|v| v.as_float()).map(|v| v as f32);
 
-            if let (Some(material_id), Some(background_path), Some(intensity)) = (material_id, background_path, intensity) {
+            if let (Some(material_id), Some(background_path), Some(intensity)) = (material_id, background_path.clone(), intensity) {
+                println!("Background defined in config");
                 (
                     Some(Background::new(
-                        material_id as i32,
+                        material_id,
                         0,
                         intensity.try_into().unwrap_or_else(|_| 0.0),
                     )), 
                     Some(background_path)
                 )
+            } else if let (Some(material_id), Some(intensity)) = (material_id, intensity)  {
+                println!("Background defined without path in config");
+                (
+                    Some(Background::new(
+                        material_id,
+                        0,
+                        intensity.try_into().unwrap_or_else(|_| 0.0),
+                    )), 
+                    None
+                )
             } else {
-                println!("Missing or invalid fields in config");
+                print!("material_id: {:?}, background_path: {:?}, intensity: {:?}", material_id, background_path, intensity);
+                println!("Missing or invalid fields in background config");
                 (None, None)
             }
         },

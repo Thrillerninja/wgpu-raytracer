@@ -1,0 +1,106 @@
+# Camera:
+[camera]
+position = [0.0, 2.0, 0.0]
+rotation = [0.0, -90.0]
+near_far = [0.1, 100.0]
+fov = 90.0
+
+# Materials:
+[[materials]]
+color = [1.0, 1.0, 1.0]
+attenuation = [0.5, 1.0, 1.0]
+roughness = 0.0
+emission = 2.0
+ior = 0.0
+
+[[materials]]
+color = [0.2, 1.5, 0.2]
+attenuation = [1.0, 1.0, 1.0]
+roughness = 1.0
+emission = 4.0
+ior = 0.0
+
+[[materials]]
+color = [0.0, 0.0, 0.0]
+attenuation = [1.0, 1.0, 1.0]
+roughness = 0.0
+emission = 0.0
+ior = 0.0
+
+[[materials]]
+color = [1.0, 0.3, 0.2]
+attenuation = [0.2, 1.0, 1.0]
+roughness = 1.0
+emission = 0.0
+ior = 0.0
+
+[[materials]]
+color = [0.1, 0.1, 1.0]
+attenuation = [1.0, 1.0, 1.0]
+roughness = 0.0
+emission = 5.0
+ior = -1.0
+
+[[materials]]
+color = [1.0, 1.0, 1.0]
+attenuation = [1.0, 1.0, 1.0]
+roughness = 0.0
+emission = 0.0
+ior = -1.0
+
+[[materials]]
+color = [1.0, 1.0, 1.0]
+attenuation = [0.0, 0.0, 0.0]
+roughness = 0.0
+emission = 0.0
+ior = 0.0
+
+# textures:
+
+# Spheres:
+[[spheres]]
+position = [0.6, 5.5, -0.5]
+radius = 2.3
+material_id = 0
+texture_id = [-1, -1, -1]
+
+[[spheres]]
+position = [-0.5, 3.0, -1.0]
+radius = 0.2
+material_id = 1
+texture_id = [-1, -1, -1]
+
+[[spheres]]
+position = [0.5, 1.0, -1.0]
+radius = 0.3
+material_id = 2
+texture_id = [-1, -1, -1]
+
+[[spheres]]
+position = [0.5, -50.5, -1.0]
+radius = 50.0
+material_id = 3
+texture_id = [-1, -1, -1]
+
+[[spheres]]
+position = [-1.5, 0.0, -1.0]
+radius = 0.4
+material_id = 4
+texture_id = [-1, -1, -1]
+
+[[spheres]]
+position = [-1.5, 0.0, -1.0]
+radius = 0.3
+material_id = 6
+texture_id = [-1, -1, -1]
+
+[background]
+material_id = 7
+intensity = 1.0
+# background_path = "res/assets/belfast_farmhouse_4k.exr"
+
+
+[3d_model_paths]
+gltf_path = "res/assets/untitled.gltf"
+# obj_path = "res/assets/untitled.obj"
+

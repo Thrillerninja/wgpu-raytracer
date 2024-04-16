@@ -35,7 +35,6 @@ pub struct State<'a>{
     denoising_pipeline: wgpu::ComputePipeline,
     //Raytracing
     shader_config_bind_group: wgpu::BindGroup,
-    shader_config_buffer: wgpu::Buffer,
     ray_tracing_pipeline: wgpu::ComputePipeline,
     raytracing_bind_group: wgpu::BindGroup,
     screen_render_pipeline: wgpu::RenderPipeline,
@@ -236,6 +235,8 @@ impl<'a> State<'a>{
         let background_descriptor = BufferInitDescriptor::new(Some("Background Buffer"), wgpu::BufferUsages::STORAGE | wgpu::BufferUsages::COPY_DST);
         let background_buffer = create_new_buffer(&device, &[background], background_descriptor);
 
+        println!("BAckground: {:?}", background);
+
         // Create a sampler for all textures
         let texture_sampler = device.create_sampler(&wgpu::SamplerDescriptor {
             label: Some("Sampler"),
@@ -321,7 +322,7 @@ impl<'a> State<'a>{
         // Load the ray tracing shader
         let ray_generation_shader = device.create_shader_module(wgpu::ShaderModuleDescriptor {
             label: Some("Ray Generation Shader"),
-            source: wgpu::ShaderSource::Wgsl(include_str!("raygen.wgsl").into()), // Replace with your actual shader source
+            source: wgpu::ShaderSource::Wgsl(include_str!("../res/shader/raygen.wgsl").into()), // Replace with your actual shader source
         });
 
         // Create the bind group layout for the shader
@@ -370,7 +371,7 @@ impl<'a> State<'a>{
         // Load the denoising shader
         let denoising_shader = device.create_shader_module(wgpu::ShaderModuleDescriptor {
             label: Some("Denoising Shader"),
-            source: wgpu::ShaderSource::Wgsl(include_str!("denoising.wgsl").into()), // Replace with your actual shader source
+            source: wgpu::ShaderSource::Wgsl(include_str!("../res/shader/denoising.wgsl").into()), // Replace with your actual shader source
         });
 
         // Define Texture to store the temporal denoising result to use it in the next frame again for temporal denoising
@@ -466,7 +467,7 @@ impl<'a> State<'a>{
         // Load the screen transfer shader
         let screen_shader = device.create_shader_module(wgpu::ShaderModuleDescriptor {
             label: Some("Screen Transfer Shader"),
-            source: wgpu::ShaderSource::Wgsl(include_str!("screen-shader.wgsl").into()),
+            source: wgpu::ShaderSource::Wgsl(include_str!("../res/shader/screen-shader.wgsl").into()),
         });
 
         // Create a Sampler for trasfering color data from rendered texture to screen texture
@@ -580,7 +581,6 @@ impl<'a> State<'a>{
             denoising_bind_group,
             denoising_pipeline,
             shader_config_bind_group,
-            shader_config_buffer,
             ray_tracing_pipeline,
             raytracing_bind_group,
             screen_render_pipeline,
