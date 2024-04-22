@@ -180,7 +180,7 @@ pub fn load_gltf(path: String, material_count: i32, texture_count: i32) -> Resul
                 texture_ids[0] = texture_index - 4;
                 texture_ids[1] = texture_index - 3;
                 texture_ids[2] = texture_index - 2;
-                texture_ids[3] = texture_index - 1;
+                // texture_ids[3] = texture_index - 1;
             } else if has_base_color_texture && has_roughness_texture && has_normal_texture {
                 texture_ids[0] = texture_index - 3;
                 texture_ids[1] = texture_index - 2;
@@ -188,15 +188,15 @@ pub fn load_gltf(path: String, material_count: i32, texture_count: i32) -> Resul
             } else if has_base_color_texture && has_roughness_texture && has_emissive_texture {
                 texture_ids[0] = texture_index - 3;
                 texture_ids[1] = texture_index - 2;
-                texture_ids[3] = texture_index - 1;
+                // texture_ids[3] = texture_index - 1;
             } else if has_base_color_texture && has_normal_texture && has_emissive_texture {
                 texture_ids[0] = texture_index - 3;
                 texture_ids[2] = texture_index - 2;
-                texture_ids[3] = texture_index - 1;
+                // texture_ids[3] = texture_index - 1;
             } else if has_roughness_texture && has_normal_texture && has_emissive_texture {
                 texture_ids[1] = texture_index - 3;
                 texture_ids[2] = texture_index - 2;
-                texture_ids[3] = texture_index - 1;
+                // texture_ids[3] = texture_index - 1;
             } else if has_base_color_texture && has_roughness_texture {
                 texture_ids[0] = texture_index - 2;
                 texture_ids[1] = texture_index - 1;
@@ -205,16 +205,16 @@ pub fn load_gltf(path: String, material_count: i32, texture_count: i32) -> Resul
                 texture_ids[2] = texture_index - 1;
             } else if has_base_color_texture && has_emissive_texture {
                 texture_ids[0] = texture_index - 2;
-                texture_ids[3] = texture_index - 1;
+                // texture_ids[3] = texture_index - 1;
             } else if has_roughness_texture && has_normal_texture {
                 texture_ids[1] = texture_index - 2;
                 texture_ids[2] = texture_index - 1;
             } else if has_roughness_texture && has_emissive_texture {
                 texture_ids[1] = texture_index - 2;
-                texture_ids[3] = texture_index - 1;
+                // texture_ids[3] = texture_index - 1;
             } else if has_normal_texture && has_emissive_texture {
                 texture_ids[2] = texture_index - 2;
-                texture_ids[3] = texture_index - 1;
+                // texture_ids[3] = texture_index - 1;
             } else if has_base_color_texture {
                 texture_ids[0] = texture_index - 1;
             } else if has_roughness_texture {
@@ -222,7 +222,7 @@ pub fn load_gltf(path: String, material_count: i32, texture_count: i32) -> Resul
             } else if has_normal_texture {
                 texture_ids[2] = texture_index - 1;
             } else if has_emissive_texture {
-                texture_ids[3] = texture_index - 1;
+                // texture_ids[3] = texture_index - 1;
             }
             // Convert the mesh to a triangle list
             match model.triangles() {

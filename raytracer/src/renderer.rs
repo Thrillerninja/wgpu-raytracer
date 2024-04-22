@@ -9,7 +9,7 @@ use scene::{
     config::Config};
 
 use scene::texture::{create_texture, load_textures_from_image, scale_texture};
-use crate::load_hdr;
+use scene::models::load_hdr;
 
 pub fn setup_camera(config: &SurfaceConfiguration, 
                     userconfig: &Config) -> (

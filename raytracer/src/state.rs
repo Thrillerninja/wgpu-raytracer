@@ -5,9 +5,8 @@ use egui_wgpu::ScreenDescriptor;
 #[cfg(target_arch = "wasm32")]
 use wasm_bindgen::prelude::*;
 
-mod wgpu_utils;
-use wgpu_utils::setup_gpu;
-use wgpu_utils::{BufferInitDescriptor, BindGroupDescriptor, BufferType, BindingResourceTemplate, create_new_buffer};
+use crate::wgpu_utils::setup_gpu;
+use crate::wgpu_utils::{BufferInitDescriptor, BindGroupDescriptor, BufferType, BindingResourceTemplate, create_new_buffer};
 
 use gui::{EguiRenderer, gui};
 
@@ -18,8 +17,7 @@ use scene::{
 
 use crate::renderer::{setup_bvh, setup_hdri, setup_textures, setup_tris_objects};
 
-mod renderer;
-use renderer::setup_camera;
+use crate::renderer::setup_camera;
 
 pub struct State<'a>{
     pub window: Window,
@@ -322,7 +320,7 @@ impl<'a> State<'a>{
         // Load the ray tracing shader
         let ray_generation_shader = device.create_shader_module(wgpu::ShaderModuleDescriptor {
             label: Some("Ray Generation Shader"),
-            source: wgpu::ShaderSource::Wgsl(include_str!("../res/shader/raygen.wgsl").into()), // Replace with your actual shader source
+            source: wgpu::ShaderSource::Wgsl(include_str!("../../res/shader/raygen.wgsl").into()), // Replace with your actual shader source
         });
 
         // Create the bind group layout for the shader
@@ -371,7 +369,7 @@ impl<'a> State<'a>{
         // Load the denoising shader
         let denoising_shader = device.create_shader_module(wgpu::ShaderModuleDescriptor {
             label: Some("Denoising Shader"),
-            source: wgpu::ShaderSource::Wgsl(include_str!("../res/shader/denoising.wgsl").into()), // Replace with your actual shader source
+            source: wgpu::ShaderSource::Wgsl(include_str!("../../res/shader/denoising.wgsl").into()), // Replace with your actual shader source
         });
 
         // Define Texture to store the temporal denoising result to use it in the next frame again for temporal denoising
@@ -467,7 +465,7 @@ impl<'a> State<'a>{
         // Load the screen transfer shader
         let screen_shader = device.create_shader_module(wgpu::ShaderModuleDescriptor {
             label: Some("Screen Transfer Shader"),
-            source: wgpu::ShaderSource::Wgsl(include_str!("../res/shader/screen-shader.wgsl").into()),
+            source: wgpu::ShaderSource::Wgsl(include_str!("../../res/shader/screen-shader.wgsl").into()),
         });
 
         // Create a Sampler for trasfering color data from rendered texture to screen texture

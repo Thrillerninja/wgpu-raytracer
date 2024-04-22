@@ -2085,6 +2085,39 @@ dependencies = [
 ]
 
 [[package]]
+name = "raytracer"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "bytemuck",
+ "cfg-if",
+ "cgmath",
+ "easy-gltf",
+ "egui",
+ "egui-wgpu",
+ "egui-winit",
+ "egui_plot",
+ "env_logger",
+ "exr",
+ "glam",
+ "gui",
+ "hdrldr",
+ "image 0.25.1",
+ "instant",
+ "log",
+ "pollster",
+ "rand",
+ "rtbvh",
+ "scene",
+ "serde",
+ "tobj",
+ "toml",
+ "wgpu",
+ "winit",
+ "zune-hdr",
+]
+
+[[package]]
 name = "redox_syscall"
 version = "0.3.5"
 source = "registry+https://github.com/rust-lang/crates.io-index"

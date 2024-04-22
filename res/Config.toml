@@ -95,7 +95,7 @@ material_id = 6
 texture_id = [-1, -1, -1]
 
 [background]
-material_id = 7
+material_id = 0
 intensity = 1.0
 # background_path = "res/assets/belfast_farmhouse_4k.exr"
 
