@@ -1,4 +1,3 @@
-#![warn(unused_extern_crates)]
 
 pub mod config;
 pub mod structs;

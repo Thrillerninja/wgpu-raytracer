@@ -91,7 +91,7 @@ var<private> rand_val: vec2<f32>;
 var<private> pi: f32 = 3.1415926535897932384626433832795;
 
 // Constants
-var<private> _SAMPLES: i32 = 20; // Adjust the number of samples as needed
+var<private> _SAMPLES: i32 = 2; // Adjust the number of samples as needed
 
 // Flag to indicate if it's the first frame (for buffer initialization)
 var<private> first_frame: bool = true;
@@ -180,11 +180,11 @@ fn background_color(ray: Ray) -> vec3<f32> {
     let uv = sphereUVMapping(-1.0*ray.direction, null_sphere); // *-1 fixes upside down environment
     
     if (background.material_ids.x != -1.0) && (background.material_ids.y != -1.0) {
-        return textureSampleLevel(background_texture, texture_sampler, uv, 0.0).xyz*background.intensity.xyz*materials[i32(background.material_ids.x)].albedo.xyz;
-    } else if (background.material_ids.x != -1.0) {
-        return background.intensity.xyz*materials[i32(background.material_ids.x)].albedo.xyz;
-    } else if (background.material_ids.y != -1.0) {
-        return textureSampleLevel(background_texture, texture_sampler, uv, 0.0).xyz;
+        return textureSampleLevel(background_texture, texture_sampler, uv, 0.0).xyz * background.intensity.x * materials[i32(background.material_ids.x)].albedo.xyz;
+    //} else if (background.material_ids.x != -1.0) {
+    //    return background.intensity.x * materials[i32(background.material_ids.x)].albedo.xyz;
+    //} else if (background.material_ids.y != -1.0) {
+    //    return textureSampleLevel(background_texture, texture_sampler, uv, 0.0).xyz * background.intensity.x;
     } else {
         return sky_color(ray);
     }
@@ -369,7 +369,10 @@ fn color(primary_ray: Ray, MAX_BOUNCES: i32, t_max: f32) -> vec4<f32> {
     var ray: Ray = primary_ray;
 
     // Initialize pixel_color to background color
-    var pixel_color = vec3<f32>(0.1,0.1,0.1);
+    var pixel_color: array<vec3<f32>, 32>;
+    var attenuation: array<vec3<f32>, 32>;
+    var stacknr: i32 = 0;
+
     var weight = vec3<f32>(1.0,1.0,1.0);
 
     while (depth <= MAX_BOUNCES) {
@@ -401,11 +404,12 @@ fn color(primary_ray: Ray, MAX_BOUNCES: i32, t_max: f32) -> vec4<f32> {
         // Return background color if no object is hit
         if (t == t_max) {
             if (depth == 0){
-                return vec4<f32>(background_color(ray), 1.0);
+                //return vec4<f32>(background_color(ray), 1.0);
             } else {
-                pixel_color = mix(pixel_color, background_color(ray), weight); //like this or with weight.x better?
-                return vec4<f32>(pixel_color, 1.0);
+                //pixel_color = mix(pixel_color, background_color(ray), weight); //like this or with weight.x better?
+                //return vec4<f32>(pixel_color, 1.0);
             }
+            pixel_color[depth] = background_color(ray);
         }
         
         let hit_point: vec3<f32> = ray.origin + ray.direction * t;
@@ -442,18 +446,21 @@ fn color(primary_ray: Ray, MAX_BOUNCES: i32, t_max: f32) -> vec4<f32> {
 
         // Update color
         if texture_id_diffuse > -1 {
-            pixel_color *= get_texture_color(texture_id_diffuse, uv);
+            //pixel_color *= get_texture_color(texture_id_diffuse, uv);
+            pixel_color[depth] = get_texture_color(texture_id_diffuse, uv);
             // weight *= get_texture_color(texture_id_roughness, uv); // Update weight based on material attenuation
         } else if (material.emission > 0.0) {
             // Handle emissive material directly
-            if (depth == 0) {
-                pixel_color =  material.albedo.xyz * material.emission;
-            } else{
-                pixel_color += material.albedo.xyz * material.emission * weight;
-            }
-            return vec4<f32>(pixel_color, 1.0); // Terminate the loop when an emissive object is hit
+            //if (depth == 0) {
+            //    pixel_color = material.albedo.xyz * material.emission;
+            //} else{
+            //    pixel_color += material.albedo.xyz * material.emission * weight;
+            //}
+            pixel_color[depth] = material.albedo.xyz * material.emission;
+            //return vec4<f32>(pixel_color, 1.0); // Terminate the loop when an emissive object is hit
         } else {
-            pixel_color *= material.albedo.xyz;
+            //pixel_color *= material.albedo.xyz;
+            pixel_color[depth] = material.albedo.xyz;
             // weight *= material.attenuation.xyz; // Update weight based on material attenuation
         }
 
@@ -472,11 +479,21 @@ fn color(primary_ray: Ray, MAX_BOUNCES: i32, t_max: f32) -> vec4<f32> {
         }
 
         weight *= material.attenuation.x; // Update weight based on material attenuation
+        attenuation[depth] = material.attenuation.xyz;
         depth += 1;
     }
 
     // Return the accumulated color as the pixel color
-    return vec4<f32>(pixel_color, 1.0);
+
+    // calculate the fincal color
+    var final_color: vec3<f32> = vec3<f32>(0.0, 0.0, 0.0);
+
+    for (var i = 0; i < depth; i = i + 1) {
+        final_color += pixel_color[i] * weight;
+        weight *= attenuation[i];
+    }
+
+    return vec4<f32>(final_color, 1.0);
 }
 
 fn tex_coord(tris1_pos: vec3<f32>, tris2_pos: vec3<f32>, tris3_pos: vec3<f32>, tex1: vec2<f32>, tex2: vec2<f32>, tex3: vec2<f32>, hit_point: vec3<f32>) -> vec2<f32> {

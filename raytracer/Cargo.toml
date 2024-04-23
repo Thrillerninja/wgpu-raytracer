@@ -31,6 +31,7 @@ toml = "0.8.12"
 
 gui = { path = "../gui" }
 scene = { path = "../scene" }
+wgpu_utils = { path = "../wgpu_utils" }
 
 
 [dependencies.image]

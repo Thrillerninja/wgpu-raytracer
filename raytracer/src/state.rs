@@ -2,18 +2,17 @@ use std::collections::VecDeque;
 use winit::{event::*, window::Window};
 use egui_wgpu::ScreenDescriptor;
 
-#[cfg(target_arch = "wasm32")]
-use wasm_bindgen::prelude::*;
-
-use crate::wgpu_utils::setup_gpu;
-use crate::wgpu_utils::{BufferInitDescriptor, BindGroupDescriptor, BufferType, BindingResourceTemplate, create_new_buffer};
+use wgpu_utils::{
+    buffer::{BufferInitDescriptor, BindGroupDescriptor, BufferType, BindingResourceTemplate, create_new_buffer},
+    gpu::setup_gpu,
+};
 
 use gui::{EguiRenderer, gui};
 
 use scene::{
-    camera::{self, Camera}, 
-    models::load_hdr, 
-    structs::{Background, Sphere, CameraUniform, ShaderConfig}};
+    camera::{self, Camera},
+    structs::{Background, Sphere, CameraUniform, ShaderConfig}
+};
 
 use crate::renderer::{setup_bvh, setup_hdri, setup_textures, setup_tris_objects};
 

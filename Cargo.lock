@@ -2113,6 +2113,7 @@ dependencies = [
  "tobj",
  "toml",
  "wgpu",
+ "wgpu_utils",
  "winit",
  "zune-hdr",
 ]
@@ -3087,8 +3088,26 @@ dependencies = [
  "tobj",
  "toml",
  "wgpu",
+ "wgpu_utils",
  "winit",
  "zune-hdr",
+]
+
+[[package]]
+name = "wgpu_utils"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "bytemuck",
+ "cfg-if",
+ "glam",
+ "instant",
+ "rand",
+ "rtbvh",
+ "scene",
+ "serde",
+ "wgpu",
+ "winit",
 ]
 
 [[package]]

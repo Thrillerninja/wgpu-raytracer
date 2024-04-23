@@ -2,11 +2,11 @@ use winit::{event::*, event_loop::{ControlFlow, EventLoop}, keyboard::{Key, Name
 
 pub mod state;
 pub mod renderer;
-pub mod wgpu_utils;
 use state::State;
 
 /// Entry point for the application.
 fn main() {
+    std::env::set_var("RUST_BACKTRACE", "1");
     pollster::block_on(run());
 }
 

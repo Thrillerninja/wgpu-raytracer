@@ -4,7 +4,7 @@ version = "0.1.0"
 edition = "2021"
 
 [workspace]
-members = [ "gui", "raytracer","scene"]
+members = ["gui", "raytracer","scene", "wgpu_utils"]
 
 [dependencies]
 cfg-if = "1"
@@ -34,6 +34,7 @@ toml = "0.8.12"
 
 gui = { path = "gui" }
 scene = { path = "scene" }
+wgpu_utils = { path = "wgpu_utils" }
 
 
 [dependencies.image]
