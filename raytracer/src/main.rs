@@ -28,8 +28,8 @@ pub async fn run() {
     let builder = winit::window::WindowBuilder::new();
     let window = builder
         .with_title(title)
+        .with_inner_size(winit::dpi::LogicalSize::new(1200.0, 800.0))
         .build(&event_loop)
-        //Probably change the size here;
         .unwrap();
         
     // ControlFlow::Poll continuously runs the event loop, 
@@ -46,10 +46,7 @@ pub async fn run() {
                 ref event,
                 window_id,
             } if window_id == state.window().id() && !state.input(event) => {
-                // UI upadtes
-                state.egui.handle_input(&mut state.window, &event);
-
-                // Handle window events
+                // Handle window events that aren't related to the ui or camera
                 match event {
                     // Close the window if requested by the user
                     WindowEvent::CloseRequested => {
@@ -88,7 +85,7 @@ pub async fn run() {
                     WindowEvent::Resized(physical_size) => {
                         state.resize(*physical_size);
                     }
-                    WindowEvent::ScaleFactorChanged  {scale_factor, .. } => {
+                    WindowEvent::ScaleFactorChanged  { scale_factor, .. } => {
                         // Log when the window scale factor changes
                         println!("Window={window_id:?} changed scale to {scale_factor}");
                     }

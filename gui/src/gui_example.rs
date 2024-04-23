@@ -2,17 +2,30 @@ use std::collections::VecDeque;
 use egui::{Align2, Context};
 use egui_plot::{AxisHints, GridMark, PlotPoints};
 use std::ops::RangeInclusive;
+use scene::structs::ShaderConfig;
 
-pub fn gui(ui: &Context, fps: &VecDeque<f32>) {
-    egui::Window::new("Debug Info")
+pub fn gui(ui: &Context, fps: &VecDeque<f32>, settings_open: &mut bool, shader_config: &mut ShaderConfig) {
+    // Top bar
+    egui::TopBottomPanel::top("top").show(ui, |ui| {
+        ui.horizontal(|ui| {
+            ui.heading("Top bar");
+            ui.separator();
+            if ui.button("Settings").clicked() {
+                *settings_open = !*settings_open;
+            }
+        });
+    });
+
+    // Frame info window
+    egui::Window::new("Frame Info")
         .default_open(true)
         .max_width(1000.0)
         .max_height(800.0)
         .default_width(800.0)
-        .resizable(true)
         .anchor(Align2::RIGHT_TOP, [0.0, 0.0])
         .frame(egui::Frame::default().fill(egui::Color32::from_black_alpha(150)))
         .title_bar(false)
+        .interactable(false)
         .show(&ui, |ui| {
             // show fps counter
             // average fps over the last 100 frames
@@ -54,6 +67,7 @@ pub fn gui(ui: &Context, fps: &VecDeque<f32>) {
                 ui.colored_label(egui::Color32::WHITE, "Frametimes (ms):");
                 egui_plot::Plot::new("plot")
                     .allow_zoom(false)
+                    .allow_boxed_zoom(false)
                     .allow_drag(false)
                     .allow_scroll(false)
                     .show_x(false)
@@ -71,4 +85,47 @@ pub fn gui(ui: &Context, fps: &VecDeque<f32>) {
                     })
             });
         });
+
+    // Settings window
+    if *settings_open {
+        egui::SidePanel::left("Settings")
+            .frame(egui::Frame::default().fill(egui::Color32::from_black_alpha(200)))
+            .show(ui, |ui| {
+                ui.heading("Settings");
+                ui.add(egui::Slider::new(&mut shader_config.ray_max_bounces, 0..=1000).text("Max Bounces"));
+                ui.add(egui::Slider::new(&mut shader_config.ray_samples_per_pixel, 1..=50).text("Samples per Pixel"));
+                ui.add(egui::Slider::new(&mut shader_config.ray_max_ray_distance, 0.0..=100_000.0).text("Max Ray Distance"));
+                ui.separator();
+                ui.add(egui::Slider::new(&mut shader_config.ray_focus_distance, 0.0..=5.0).text("Focus Distance"));
+                ui.add(egui::Slider::new(&mut shader_config.ray_aperture, 0.0..=0.6).text("Aperture"));
+                ui.add(egui::Slider::new(&mut shader_config.ray_lens_radius, 0.0..=0.5).text("Lens Radius"));
+                ui.separator();
+                // convert to bool
+                let mut ray_debug_rand_color: bool = shader_config.ray_debug_rand_color != 0;
+                let mut ray_focus_viewer_visible: bool = shader_config.ray_focus_viewer_visible != 0;
+                let mut ray_debug_bvh_bounding_box: bool = shader_config.ray_debug_bvh_bounding_box != 0;
+                let mut ray_debug_bvh_bounding_color: bool = shader_config.ray_debug_bvh_bounding_color != 0;
+
+                ui.checkbox(&mut ray_debug_rand_color, "Debug Random Colors");
+                ui.checkbox(&mut ray_focus_viewer_visible,"Focus Viewer On/Off");
+                ui.checkbox(&mut ray_debug_bvh_bounding_box, "Debug BVH Bounding Box");
+                ui.checkbox(&mut ray_debug_bvh_bounding_color, "Debug BVH Bounding Color");
+
+                //convert back to int for Pod trait implementation
+                shader_config.ray_debug_rand_color = if ray_debug_rand_color { 1 } else { 0 };
+                shader_config.ray_focus_viewer_visible = if ray_focus_viewer_visible { 1 } else { 0 };
+                shader_config.ray_debug_bvh_bounding_box = if ray_debug_bvh_bounding_box { 1 } else { 0 };
+                shader_config.ray_debug_bvh_bounding_color = if ray_debug_bvh_bounding_color { 1 } else { 0 };
+
+                ui.separator();
+                ui.add(egui::Slider::new(&mut shader_config.temporal_den_motion_threshold, 0.0..=0.1).text("Temporal Denoise Motion Threshold"));
+                ui.add(egui::Slider::new(&mut shader_config.temporal_den_direction_threshold, 0.0..=0.1).text("Temporal Denoise Direction Threshold"));
+                ui.add(egui::Slider::new(&mut shader_config.temporal_den_low_threshold, 0.0..=0.1).text("Temporal Denoise Low Threshold"));
+                ui.add(egui::Slider::new(&mut shader_config.temporal_den_low_blend_factor, 0.0..=0.1).text("Temporal Denoise Low Blend Factor"));
+                ui.add(egui::Slider::new(&mut shader_config.temporal_den_high_blend_factor, 0.0..=0.1).text("Temporal Denoise High Blend Factor"));
+                ui.add(egui::Slider::new(&mut shader_config.spatial_den_cormpare_radius, 0..=100).text("Spatial Denoise Compare Radius"));
+                ui.add(egui::Slider::new(&mut shader_config.spatial_den_patch_radius, 0..=100).text("Spatial Denoise Patch Radius"));
+                ui.add(egui::Slider::new(&mut shader_config.spatial_den_significant_weight, 0.0..=0.1).text("Spatial Denoise Significant Weight"));
+            });
+    }
 }

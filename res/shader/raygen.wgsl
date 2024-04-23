@@ -1,14 +1,14 @@
 struct Shaderconfig  {
     max_bounces: i32,
     samples: i32,
-    may_ray_distance: f32,
+    max_ray_distance: f32,
     
     focus_distance: f32,
     aperture: f32,
     lens_radius: f32,
 
-    focus_viewer_visible: i32,
     debug_random_color_visible: i32,
+    focus_viewer_visible: i32,
     debug_bvh_bounding_visible: i32,
     debug_bvh_bounding_color_visible: i32,
 }
@@ -90,8 +90,7 @@ var<private> screen_pos: vec2<u32>;
 var<private> rand_val: vec2<f32>;
 var<private> pi: f32 = 3.1415926535897932384626433832795;
 
-// Constants
-var<private> _SAMPLES: i32 = 2; // Adjust the number of samples as needed
+var<private> focus_distance: f32 = 0.0;
 
 // Flag to indicate if it's the first frame (for buffer initialization)
 var<private> first_frame: bool = true;
@@ -112,16 +111,27 @@ fn main(@builtin(global_invocation_id) GlobalInvocationID: vec3<u32>) {
     seed = f32(initRng(screen_pos, screen_size, u32(camera.frame[0])));
 
     // Multiple Samples as Antialiasing (MSAA)
-    for (var color_samples = 0; color_samples < _SAMPLES; color_samples += 1) {
+    for (var color_samples = 0; color_samples < config.samples; color_samples += 1) {
         // Calculate Ray
         var ray = calc_ray(screen_pos, screen_size);
 
-        // debug_bvh_bounding_color(ray);
+        // Debugging options, Focus viewer is toggled in color() function
+        if (config.debug_random_color_visible == 1) {
+            pixel_color += debug_rand_color();
+        } else if (config.debug_bvh_bounding_visible == 1) {
+            pixel_color += debug_bvh_bounding(ray);
+            pixel_color += color(ray).xyz * 0.2;
+        } else if (config.debug_bvh_bounding_color_visible == 1) {
+            debug_bvh_bounding_color(ray);
+            pixel_color += color(ray).xyz * 0.4;
+        } else {
+            // Normal color calculation
+            pixel_color += color(ray).xyz;
+        }
 
-        pixel_color += color(ray, 10, 10000.0).xyz;
     }
     // Weighted average of pixel colors
-    pixel_color /= f32(_SAMPLES);
+    pixel_color /= f32(config.samples);
 
     // Store the pixel color in the color buffer
     textureStore(color_buffer, vec2<i32>(screen_pos), vec4<f32>(pixel_color, 1.0));
@@ -137,41 +147,36 @@ fn intersectPrimitive(ray: Ray, prim_index: i32) -> f32 {
 }
 
 fn debug_rand_color() -> vec3<f32> {
-    let rand = rngNextFloat();
-    if (rand<0.0){
-        return vec3<f32>(1.0, 0.0, 0.0);
-    } else if (rand<1.0 && rand>0.0){
-        return vec3<f32>(0.0, 1.0, 0.0);
-    } else {
-        return vec3<f32>(0.0, 0.0, 1.0);
-    }
+    return vec3<f32>(rngNextFloat(), rngNextFloat(), rngNextFloat());
 }
 
-fn debug_bvh_bounding(ray: Ray) -> f32 {
+fn debug_bvh_bounding(ray: Ray) -> vec3<f32> {
     // draws all the bounding boxes
     // Optimized O(logn) complexity
-    var hit_bvh: vec3<f32> = intersectBVH(ray, 10000.0);
-    return hit_bvh.z;
+    var hit_bvh: vec3<f32> = intersectBVH(ray);
+    return vec3<f32>(0.1*hit_bvh.z, 0.0, 0.0); // Adjust Scaling factor to make the bounding boxes more visible
 }
 
 fn debug_bvh_bounding_color(ray: Ray) {
-    var hit_bvh: f32 = debug_bvh_bounding(ray);
+    // draws all the bounding boxes and colors them
+    // Optimized O(logn) complexity
+    var hit_bvh: f32 = intersectBVH(ray).z;
     if (hit_bvh > 0.0) {
         // BVH node hit, color the pixel red
         let color_index = i32(hit_bvh) % 4; // Adjust 4 based on the number of layers
         if color_index == 0 {
-            pixel_color += vec3<f32>(1.0, 0.0, 0.0);
+            pixel_color += vec3<f32>(0.5, 0.0, 0.0);
         } else if color_index == 1 {
-            pixel_color += vec3<f32>(0.0, 1.0, 0.0);
+            pixel_color += vec3<f32>(0.0, 0.5, 0.0);
         } else if color_index == 2 {
-            pixel_color += vec3<f32>(0.0, 0.0, 1.0);
+            pixel_color += vec3<f32>(0.0, 0.0, 0.5);
         } else {
-            pixel_color += vec3<f32>(1.0, 1.0, 0.0);
+            pixel_color += vec3<f32>(0.5, 0.5, 0.0);
         }
         // pixel_color += mix(color(ray, 10, 10000.0).xyz, vec3<f32>(0.3, 0.0, 0.0) * hit_bvh, 0.9);
     } else {
-        // No BVH node hit, color the pixel based on your ray tracing logic
-        pixel_color += mix(color(ray, 10, 10000.0).xyz, vec3<f32>(0.0, 0.0, 0.0), 0.4);
+        // No BVH node hit, color the pixel based on ray tracing logic
+        pixel_color += mix(color(ray).xyz, vec3<f32>(0.0, 0.0, 0.0), 0.4);
     }
 }
 
@@ -202,8 +207,8 @@ fn calc_ray(screen_pos: vec2<u32>, screen_size: vec2<u32>) -> Ray {
     let look_at: vec3<f32> = camera.view_pos.xyz + normalize(camera.view_proj * vec4<f32>(0.0, 0.0, -1.0, 0.0)).xyz;
 
 
-    let focus_dist: f32 = 2.5; // Focus distance
-    let aperture: f32 = 0.05; // Aperture size
+    let focus_dist: f32 = config.focus_distance; // Focus distance
+    let aperture: f32 = config.aperture; // Aperture size
 
     let theta: f32 = radians(vfov);
     let h: f32 = tan(theta / 2.0);
@@ -222,7 +227,7 @@ fn calc_ray(screen_pos: vec2<u32>, screen_size: vec2<u32>) -> Ray {
     let lower_left_corner: vec3<f32> = look_from - 0.5 * horizontal - 0.5 * vertical - w*focus_dist;
 
     // Depth of field settings
-    let lens_radius: f32 = 0.0; // Radius of the lens aperture (small numbers)
+    let lens_radius: f32 = config.lens_radius; // Radius of the lens aperture (small numbers)
 
     // Randomly sample a point within the lens aperture
     let random_in_unit_disk: vec2<f32> = rngNextVec2InUnitDisk() * lens_radius;
@@ -236,9 +241,9 @@ fn calc_ray(screen_pos: vec2<u32>, screen_size: vec2<u32>) -> Ray {
     return Ray(ray_origin, ray_direction);
 }
 
-fn intersectBVH(ray: Ray, t_max: f32) -> vec3<f32> {
+fn intersectBVH(ray: Ray, ) -> vec3<f32> {
     var hit_bvh: i32 = -1;  //has any hit happened?
-    var t: f32 = t_max;     //at what t did it happen?
+    var t: f32 = config.max_ray_distance;     //at what t did it happen?
     var hit_count: f32 = 0.0; //how many hits happened? (Only for debug shader)
 
     // Traverse the BVH
@@ -272,8 +277,8 @@ fn intersectBVH(ray: Ray, t_max: f32) -> vec3<f32> {
                 let leftChildIdx = i32(node.extra2.x);
                 let rightChildIdx = leftChildIdx + 1;
 
-                let left_hit = intersectBox(ray, bvh[i32(node.extra2.x)].min.xyz, bvh[i32(node.extra2.x)].max.xyz, 0.0, 10000.0);
-                let right_hit = intersectBox(ray, bvh[i32(node.extra2.x)+1].min.xyz, bvh[i32(node.extra2.x)+1].max.xyz, 0.0, 10000.0);
+                let left_hit = intersectBox(ray, bvh[i32(node.extra2.x)].min.xyz, bvh[i32(node.extra2.x)].max.xyz, 0.0);
+                let right_hit = intersectBox(ray, bvh[i32(node.extra2.x)+1].min.xyz, bvh[i32(node.extra2.x)+1].max.xyz, 0.0);
 
                 if (left_hit != -1.0 && right_hit != -1.0) {
                     if (left_hit < right_hit) {
@@ -362,21 +367,20 @@ fn sky_color(ray: Ray) -> vec3<f32> {
     return mix(vec3<f32>(1.0, 1.0, 1.0), vec3<f32>(0.5, 0.7, 1.0), t);
 }
 
-fn color(primary_ray: Ray, MAX_BOUNCES: i32, t_max: f32) -> vec4<f32> {
+fn color(primary_ray: Ray) -> vec4<f32> {
     let MAX_COLOR: f32 = 1.0;
 
     var depth = 0;
     var ray: Ray = primary_ray;
 
     // Initialize pixel_color to background color
-    var pixel_color: array<vec3<f32>, 32>;
-    var attenuation: array<vec3<f32>, 32>;
+    var pixel_color: vec3<f32> = vec3<f32>(1.0, 1.0, 1.0);
     var stacknr: i32 = 0;
 
     var weight = vec3<f32>(1.0,1.0,1.0);
 
-    while (depth <= MAX_BOUNCES) {
-        var t = t_max;
+    while (depth <= config.max_bounces) {
+        var t = config.max_ray_distance;
         var closest_sphere: Sphere;
         var closest_tris: Triangle;
         var is_sphere: bool = false;
@@ -392,7 +396,7 @@ fn color(primary_ray: Ray, MAX_BOUNCES: i32, t_max: f32) -> vec4<f32> {
         }
 
         // Check if a BVH node is hit
-        var hit_bvh: vec3<f32> = intersectBVH(ray, t_max);
+        var hit_bvh: vec3<f32> = intersectBVH(ray);
         if (hit_bvh.x > -1.0 && hit_bvh.y < t) {
             // Set 'bvh_hit' to the index of the hit BVH node
             t = hit_bvh.y;
@@ -400,16 +404,23 @@ fn color(primary_ray: Ray, MAX_BOUNCES: i32, t_max: f32) -> vec4<f32> {
             is_sphere = false;
         }
         
-
         // Return background color if no object is hit
-        if (t == t_max) {
+        if (t == config.max_ray_distance) {
             if (depth == 0){
-                //return vec4<f32>(background_color(ray), 1.0);
+                return vec4<f32>(background_color(ray), 1.0);
             } else {
-                //pixel_color = mix(pixel_color, background_color(ray), weight); //like this or with weight.x better?
-                //return vec4<f32>(pixel_color, 1.0);
+                pixel_color = mix(pixel_color, background_color(ray), weight); //like this or with weight.x better?
+                return vec4<f32>(pixel_color, 1.0);
             }
-            pixel_color[depth] = background_color(ray);
+        }
+
+        // Check for focus distance if focus viewer is enabled
+        if (config.focus_viewer_visible == 1) {
+            if (depth == 0) {
+                if (t > 1.0 - 0.005 && t < 1.0 + 0.005) {
+                    return vec4<f32>(1.0, 0.0, 0.0, 1.0);
+                }
+            }
         }
         
         let hit_point: vec3<f32> = ray.origin + ray.direction * t;
@@ -446,28 +457,25 @@ fn color(primary_ray: Ray, MAX_BOUNCES: i32, t_max: f32) -> vec4<f32> {
 
         // Update color
         if texture_id_diffuse > -1 {
-            //pixel_color *= get_texture_color(texture_id_diffuse, uv);
-            pixel_color[depth] = get_texture_color(texture_id_diffuse, uv);
-            // weight *= get_texture_color(texture_id_roughness, uv); // Update weight based on material attenuation
+            pixel_color *= get_texture_color(texture_id_diffuse, uv);
+            weight *= get_texture_color(texture_id_roughness, uv); // Update weight based on material attenuation
         } else if (material.emission > 0.0) {
             // Handle emissive material directly
-            //if (depth == 0) {
-            //    pixel_color = material.albedo.xyz * material.emission;
-            //} else{
-            //    pixel_color += material.albedo.xyz * material.emission * weight;
-            //}
-            pixel_color[depth] = material.albedo.xyz * material.emission;
-            //return vec4<f32>(pixel_color, 1.0); // Terminate the loop when an emissive object is hit
+            if (depth == 0) {
+                pixel_color = material.albedo.xyz * material.emission;
+            } else{
+                pixel_color += material.albedo.xyz * material.emission * weight;
+            }
+            return vec4<f32>(pixel_color, 1.0); // Terminate the loop when an emissive object is hit
         } else {
-            //pixel_color *= material.albedo.xyz;
-            pixel_color[depth] = material.albedo.xyz;
-            // weight *= material.attenuation.xyz; // Update weight based on material attenuation
+            pixel_color *= material.albedo.xyz;
+            weight *= material.attenuation.xyz; // Update weight based on material attenuation
         }
 
         // Calculate new ray
         if (texture_id_roughness > -1 && texture_id_normal > -1){
             ray = Ray(hit_point + normal*0.001, reflect(ray.direction,  get_texture_color(texture_id_normal, uv) + rngNextVec3InUnitSphere() * get_texture_color(texture_id_roughness, uv)));
-            // return vec4<f32>(ray.direction, 1.0);
+            return vec4<f32>(ray.direction, 1.0);
         } else if (texture_id_roughness > -1) {
             ray = Ray(hit_point + normal*0.001, reflect(ray.direction, normal + rngNextVec3InUnitSphere() * material.roughness * get_texture_color(texture_id_roughness, uv))); //normal*0.01 is a offset to fix z-fighting
         } else if (texture_id_normal > -1) {
@@ -479,21 +487,9 @@ fn color(primary_ray: Ray, MAX_BOUNCES: i32, t_max: f32) -> vec4<f32> {
         }
 
         weight *= material.attenuation.x; // Update weight based on material attenuation
-        attenuation[depth] = material.attenuation.xyz;
         depth += 1;
     }
-
-    // Return the accumulated color as the pixel color
-
-    // calculate the fincal color
-    var final_color: vec3<f32> = vec3<f32>(0.0, 0.0, 0.0);
-
-    for (var i = 0; i < depth; i = i + 1) {
-        final_color += pixel_color[i] * weight;
-        weight *= attenuation[i];
-    }
-
-    return vec4<f32>(final_color, 1.0);
+    return vec4<f32>(pixel_color, 1.0);
 }
 
 fn tex_coord(tris1_pos: vec3<f32>, tris2_pos: vec3<f32>, tris3_pos: vec3<f32>, tex1: vec2<f32>, tex2: vec2<f32>, tex3: vec2<f32>, hit_point: vec3<f32>) -> vec2<f32> {
@@ -592,7 +588,7 @@ fn sphereUVMapping(hit_point: vec3<f32>, sphere: Sphere) -> vec2<f32> {
 }
 
 // Ray-box intersection function
-fn intersectBox(ray: Ray, min: vec3<f32>, max: vec3<f32>, t_min: f32, t_max: f32) -> f32 {
+fn intersectBox(ray: Ray, min: vec3<f32>, max: vec3<f32>, t_min: f32) -> f32 {
     var t0 = (min - ray.origin) / ray.direction;
     var t1 = (max - ray.origin) / ray.direction;
     var tMinVec = min(t0, t1);
@@ -602,9 +598,9 @@ fn intersectBox(ray: Ray, min: vec3<f32>, max: vec3<f32>, t_min: f32, t_max: f32
     var tExit = min(min(tMaxVec.x, tMaxVec.y), tMaxVec.z);
 
     tEnter = max(tEnter, t_min);
-    tExit = min(tExit, t_max);
+    tExit = min(tExit, config.max_ray_distance);
 
-    if (tEnter <= tExit) && (tExit > 0.0) && (tEnter < 10000.0) {
+    if (tEnter <= tExit) && (tExit > 0.0) && (tEnter < config.max_ray_distance) {
         return tEnter;
     } else {
         return -1.0;

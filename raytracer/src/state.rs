@@ -31,6 +31,8 @@ pub struct State<'a>{
     denoising_bind_group: wgpu::BindGroup,
     denoising_pipeline: wgpu::ComputePipeline,
     //Raytracing
+    shader_config: ShaderConfig,
+    shader_config_buffer: wgpu::Buffer,
     shader_config_bind_group: wgpu::BindGroup,
     ray_tracing_pipeline: wgpu::ComputePipeline,
     raytracing_bind_group: wgpu::BindGroup,
@@ -52,6 +54,7 @@ pub struct State<'a>{
     //GUI
     pub egui: gui::EguiRenderer,
     fps: VecDeque<f32>,
+    settings_open: bool,
 }
 
 impl<'a> State<'a>{  
@@ -577,6 +580,8 @@ impl<'a> State<'a>{
             denoising_pass_buffer,
             denoising_bind_group,
             denoising_pipeline,
+            shader_config,
+            shader_config_buffer,
             shader_config_bind_group,
             ray_tracing_pipeline,
             raytracing_bind_group,
@@ -593,7 +598,8 @@ impl<'a> State<'a>{
             bvh_bind_group,
             texture_bind_group,
             egui,
-            fps
+            fps,
+            settings_open: false,
         }
     }
 
@@ -612,6 +618,12 @@ impl<'a> State<'a>{
     }
 
     pub fn input(&mut self, event: &WindowEvent) -> bool {
+        
+        // UI upadtes
+        if self.egui.handle_input(&mut self.window, &event) {
+            return true;
+        }
+        // Camera updates
         match event {
             WindowEvent::KeyboardInput {
                 event:
@@ -639,6 +651,7 @@ impl<'a> State<'a>{
     }
 
     pub fn update(&mut self, dt: std::time::Duration) {
+        // Update the camera
         self.camera_controller.update_camera(&mut self.camera, dt);
         self.camera_uniform.update_view_proj(&self.camera, &self.projection);
         self.camera_uniform.update_frame();
@@ -646,6 +659,13 @@ impl<'a> State<'a>{
             &self.camera_buffer,
             0,
             bytemuck::cast_slice(&[self.camera_uniform]),
+        );
+
+        // Update shader configuration
+        self.queue.write_buffer(
+            &self.shader_config_buffer,
+            0,
+            bytemuck::cast_slice(&[self.shader_config]),
         );
 
         // ---------FPS---------
@@ -664,11 +684,11 @@ impl<'a> State<'a>{
     pub fn render(&mut self) -> Result<(), wgpu::SurfaceError> {
         // Get the current output texture from the surface
         let output = self.surface.get_current_texture()?;
-    
+        
         // Create a view for the output texture
         let view = output
-            .texture
-            .create_view(&wgpu::TextureViewDescriptor::default());
+        .texture
+        .create_view(&wgpu::TextureViewDescriptor::default());
     
         // Create a command encoder
         let mut encoder = self
@@ -820,7 +840,7 @@ impl<'a> State<'a>{
             &self.window,
             &view,
             screen_descriptor,
-            |ui| gui(ui, &self.fps),
+            |ui| gui(ui, &self.fps, &mut self.settings_open, &mut self.shader_config),
         );
 
         self.queue.submit(std::iter::once(encoder3.finish()));

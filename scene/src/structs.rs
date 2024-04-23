@@ -25,7 +25,6 @@ impl CameraUniform {
         }
     }
 
-    // UPDATED!
     pub fn update_view_proj(&mut self, camera: &Camera, projection: &Projection) {
         self.view_position = camera.position.to_homogeneous().into();
         self.view_proj = Matrix4::from(camera.rotation).into();
@@ -246,8 +245,8 @@ pub struct ShaderConfig {
     pub ray_aperture: f32,
     pub ray_lens_radius: f32,
 
-    pub ray_focus_viewer_visible: i32, //used as bool
     pub ray_debug_rand_color: i32, //used as bool
+    pub ray_focus_viewer_visible: i32, //used as bool
     pub ray_debug_bvh_bounding_box: i32, //used as bool
     pub ray_debug_bvh_bounding_color: i32, //used as bool
 
@@ -279,8 +278,8 @@ impl Default for ShaderConfig {
             ray_focus_distance: 2.5,
             ray_aperture: 0.005,
             ray_lens_radius: 0.0,
-            ray_focus_viewer_visible: 0,
             ray_debug_rand_color: 0,
+            ray_focus_viewer_visible: 0,
             ray_debug_bvh_bounding_box: 0,
             ray_debug_bvh_bounding_color: 0,
             temporal_den_motion_threshold: 0.005,

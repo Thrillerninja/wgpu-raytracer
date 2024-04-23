@@ -53,8 +53,12 @@ impl EguiRenderer {
         }
     }
 
-    pub fn handle_input(&mut self, window: &Window, event: &WindowEvent) {
-        let _ = self.state.on_window_event(window, event);
+    pub fn handle_input(&mut self, window: &Window, event: &WindowEvent) -> bool {
+        let response: egui_winit::EventResponse = self.state.on_window_event(window, event);
+        if response.consumed{
+            return true;
+        }
+        false
     }
 
     pub fn draw(

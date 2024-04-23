@@ -9,29 +9,28 @@ fov = 90.0
 [[materials]]
 color = [1.0, 0.3, 0.2]
 attenuation = [0.2,0.2,0.2]
-roughness = 0.5
+roughness = 0.2
 emission = 0.0
 ior = 0.0
-
 
 [[materials]]   # Red
 color = [1.0, 0.3, 0.2]
 attenuation = [0.2,0.2,0.2]
-roughness = 0.5
+roughness = 0.2
 emission = 0.0
 ior = 0.0
 
 [[materials]] # Green
 color = [0.3, 1.0, 0.2]
 attenuation = [0.2,0.2,0.2]
-roughness = 0.5
+roughness = 0.0
 emission = 0.0
 ior = 0.0
 
 [[materials]] # Blue
 color = [0.3, 0.2, 1.0]
 attenuation = [0.2,0.2,0.2]
-roughness = 0.5
+roughness = 0.1
 emission = 0.0
 ior = 0.0
 
@@ -41,6 +40,14 @@ attenuation = [0.2,0.2,0.2]
 roughness = 0.0
 emission = 20.0
 ior = 0.0
+
+[[materials]] # Background
+color = [1.0, 1.0, 1.0]
+attenuation = [0.2,0.2,0.2]
+roughness = 0.0
+emission = 20.0
+ior = 0.0
+
 # textures:
 
 # Spheres:
@@ -76,9 +83,9 @@ material_id = 4
 texture_id = [-1, -1, -1]
 
 [background]
-material_id = -1
-intensity = 3.0
-#background_path = "res/assets/belfast_farmhouse_4k.exr"
+material_id = 5
+intensity = 1.0
+background_path = "res/assets/belfast_farmhouse_4k.exr"
 
 
 [3d_model_paths]

@@ -1092,6 +1092,7 @@ dependencies = [
  "instant",
  "rand",
  "rtbvh",
+ "scene",
  "serde",
  "wgpu",
  "winit",

@@ -16,3 +16,5 @@ easy-gltf = "1.1.1"
 egui_plot = "0.27.1"
 wgpu = "0.19.3"
 winit = "0.29"
+
+scene ={ path = "../scene" }
