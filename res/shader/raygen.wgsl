@@ -11,6 +11,19 @@ struct Shaderconfig  {
     focus_viewer_visible: i32,
     debug_bvh_bounding_visible: i32,
     debug_bvh_bounding_color_visible: i32,
+
+    //temporal
+    temporal_den_motion_threshold: f32,
+    temporal_den_direction_threshold: f32,
+    temporal_den_low_threshold: f32,
+    temporal_den_high_threshold: f32,
+    temporal_den_low_blend_factor: f32,
+    temporal_den_high_blend_factor: f32,
+
+    //spatial
+    spatial_den_cormpare_radius: i32,
+    spatial_den_patch_radius: i32,
+    spatial_den_significant_weight: f32,   
 }
 @group(0) @binding(0) var<uniform> config: Shaderconfig;
 

@@ -7,7 +7,7 @@ use wgpu_utils::{
     gpu::setup_gpu,
 };
 
-use gui::{EguiRenderer, gui};
+use gui::{EguiRenderer, gui, GuiConfig};
 
 use scene::{
     camera::{self, Camera},
@@ -53,8 +53,8 @@ pub struct State<'a>{
     texture_bind_group: wgpu::BindGroup,
     //GUI
     pub egui: gui::EguiRenderer,
+    gui_config: GuiConfig,
     fps: VecDeque<f32>,
-    settings_open: bool,
 }
 
 impl<'a> State<'a>{  
@@ -450,17 +450,20 @@ impl<'a> State<'a>{
         let denoising_pipeline_layout = device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
             label: Some("Denoising Pipeline Layout"),
             bind_group_layouts: &[
-                &denoising_bind_group_layout],
+                &denoising_bind_group_layout,
+                &shader_config_bind_group_layout],
             push_constant_ranges: &[],
         });
 
         // Create the denoising pipeline
-        let denoising_pipeline = device.create_compute_pipeline(&wgpu::ComputePipelineDescriptor {
-            label: Some("Denoising Pipeline"),
-            layout: Some(&denoising_pipeline_layout),
-            module: &denoising_shader,
-            entry_point: "main",
-        });
+        let denoising_pipeline = device.create_compute_pipeline(
+            &wgpu::ComputePipelineDescriptor {
+                label: Some("Denoising Pipeline"),
+                layout: Some(&denoising_pipeline_layout),
+                module: &denoising_shader,
+                entry_point: "main",
+            }
+        );
         println!("Denoising shader&pipeline ready");
 
         //----------Transfer to screen-------------
@@ -598,8 +601,8 @@ impl<'a> State<'a>{
             bvh_bind_group,
             texture_bind_group,
             egui,
+            gui_config: GuiConfig::default(),
             fps,
-            settings_open: false,
         }
     }
 
@@ -667,6 +670,13 @@ impl<'a> State<'a>{
             0,
             bytemuck::cast_slice(&[self.shader_config]),
         );
+
+        // Update render texture size
+        // self.queue.write_buffer(
+        //     &self.denoising_camera_buffer,
+        //     0,
+        //     bytemuck::cast_slice(&[self.camera_uniform]),
+        // );
 
         // ---------FPS---------
         // println!("FPS: {}", 1.0 / dt.as_secs_f32());
@@ -739,6 +749,7 @@ impl<'a> State<'a>{
             // Set denoising pipeline and bind group
             denoise_pass.set_pipeline(&self.denoising_pipeline);
             denoise_pass.set_bind_group(0, &self.denoising_bind_group, &[]);
+            denoise_pass.set_bind_group(1, &self.shader_config_bind_group, &[]);
     
             // Dispatch workgroups for denoising (adjust dimensions as needed)
             denoise_pass.dispatch_workgroups(
@@ -774,6 +785,7 @@ impl<'a> State<'a>{
             // Set denoising pipeline and bind group
             denoise_pass.set_pipeline(&self.denoising_pipeline);
             denoise_pass.set_bind_group(0, &self.denoising_bind_group, &[]);
+            denoise_pass.set_bind_group(1, &self.shader_config_bind_group, &[]);
     
             // Dispatch workgroups for denoising (adjust dimensions as needed)
             denoise_pass.dispatch_workgroups(
@@ -840,7 +852,7 @@ impl<'a> State<'a>{
             &self.window,
             &view,
             screen_descriptor,
-            |ui| gui(ui, &self.fps, &mut self.settings_open, &mut self.shader_config),
+            |ui| gui(ui, &self.fps, &mut self.gui_config, &mut self.shader_config),
         );
 
         self.queue.submit(std::iter::once(encoder3.finish()));

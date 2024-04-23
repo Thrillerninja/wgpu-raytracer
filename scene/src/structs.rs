@@ -257,6 +257,7 @@ pub struct ShaderConfig {
     pub temporal_den_motion_threshold: f32,
     pub temporal_den_direction_threshold: f32,
     pub temporal_den_low_threshold: f32,
+    pub temporal_den_high_threshold: f32,
     pub temporal_den_low_blend_factor: f32,
     pub temporal_den_high_blend_factor: f32,
 
@@ -285,12 +286,46 @@ impl Default for ShaderConfig {
             temporal_den_motion_threshold: 0.005,
             temporal_den_direction_threshold: 0.01,
             temporal_den_low_threshold: 0.05,
+            temporal_den_high_threshold: 0.2,
             temporal_den_low_blend_factor: 0.03,
             temporal_den_high_blend_factor: 0.2,
             spatial_den_cormpare_radius: 13,
             spatial_den_patch_radius: 5,
             spatial_den_significant_weight: 0.001,
             _padding: [0; 3],
+        }
+    }
+}
+
+impl ShaderConfig {
+    pub fn default_denoise(shaderconfig: ShaderConfig) -> Self {
+        Self {
+            temporal_den_motion_threshold: 0.005,
+            temporal_den_direction_threshold: 0.01,
+            temporal_den_low_threshold: 0.05,
+            temporal_den_high_threshold: 0.2,
+            temporal_den_low_blend_factor: 0.03,
+            temporal_den_high_blend_factor: 0.2,
+            spatial_den_cormpare_radius: 13,
+            spatial_den_patch_radius: 5,
+            spatial_den_significant_weight: 0.001,
+            ..shaderconfig
+        }
+    }
+
+    pub fn default_raytrace(shaderconfig: ShaderConfig) -> Self {
+        Self {
+            ray_max_bounces: 10,
+            ray_samples_per_pixel: 1,
+            ray_max_ray_distance: 10_000.0,
+            ray_focus_distance: 2.5,
+            ray_aperture: 0.005,
+            ray_lens_radius: 0.0,
+            ray_debug_rand_color: 0,
+            ray_focus_viewer_visible: 0,
+            ray_debug_bvh_bounding_box: 0,
+            ray_debug_bvh_bounding_color: 0,
+            ..shaderconfig
         }
     }
 }

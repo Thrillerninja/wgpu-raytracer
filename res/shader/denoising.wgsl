@@ -9,8 +9,36 @@ struct Camera {
 }
 @group(0) @binding(2) var<uniform> current_camera: Camera;
 @group(0) @binding(3) var<uniform> lastframe_camera: Camera;
-
 @group(0) @binding(4) var<uniform> current_denoising_pass: u32;
+
+struct Shaderconfig  {
+    max_bounces: i32,
+    samples: i32,
+    max_ray_distance: f32,
+    
+    focus_distance: f32,
+    aperture: f32,
+    lens_radius: f32,
+
+    debug_random_color_visible: i32,
+    focus_viewer_visible: i32,
+    debug_bvh_bounding_visible: i32,
+    debug_bvh_bounding_color_visible: i32,
+
+    //temporal
+    temporal_den_motion_threshold: f32,
+    temporal_den_direction_threshold: f32,
+    temporal_den_low_threshold: f32,
+    temporal_den_high_threshold: f32,
+    temporal_den_low_blend_factor: f32,
+    temporal_den_high_blend_factor: f32,
+
+    //spatial
+    spatial_den_cormpare_radius: i32,
+    spatial_den_patch_radius: i32,
+    spatial_den_significant_weight: f32,    
+}
+@group(1) @binding(0) var<uniform> config: Shaderconfig;
 
 @compute @workgroup_size(8, 8, 1)
 fn main(@builtin(global_invocation_id) GlobalInvocationID: vec3<u32>) {
@@ -165,9 +193,9 @@ fn non_local_means_denoising(centralColor: vec4<f32>, screen_pos: vec2<u32>) -> 
     var totalWeight: f32 = 0.0;
     
     // NLM denoising parameters
-    let searchWindowRadius: i32 = 13;   // Radius of the search window              Higher is slower
-    let patchRadius: i32 = 5;          // Radius of the comparison patch           Higher is slower
-    let h: f32 = 0.001;                  // Filtering parameter (adjust as needed)   Higher reduces noise but blurs
+    let searchWindowRadius: i32 = config.spatial_den_cormpare_radius;      //13;    // Radius of the search window              Higher is slower
+    let patchRadius: i32 = config.spatial_den_patch_radius;                //5;     // Radius of the comparison patch           Higher is slower
+    let h: f32 = config.spatial_den_significant_weight;                    //0.001; // Filtering parameter (adjust as needed)   Higher reduces noise but blurs
 
      for (var dx: i32 = -patchRadius; dx <= patchRadius; dx = dx + 1) {
          for (var dy: i32 = -patchRadius; dy <= patchRadius; dy = dy + 1) {
@@ -223,17 +251,17 @@ fn adaptive_temporal_denoising(centralColor: vec4<f32>, screen_pos: vec2<u32>, p
     let colorDifference: f32 = length(centralColor.rgb - previousColor.rgb);
     
     // Define thresholds for motion detection (adjust as needed)
-    let motionThreshold: f32 = 0.005; // Example threshold for motion detection
-    let directionThreshold: f32 = 0.01; // Example threshold for direction detection
-    let lowThreshold: f32 = 0.05;    // Example threshold for low color difference
+    let motionThreshold: f32 = config.temporal_den_motion_threshold;         //0.005;// Example threshold for motion detection
+    let directionThreshold: f32 = config.temporal_den_direction_threshold;   //0.01; // Example threshold for direction detection
+    let lowThreshold: f32 = config.temporal_den_low_threshold;               //0.05; // Example threshold for low color difference
     
     // Determine if there's significant camera motion
     let significantMotion: bool = length(relative_movement.xyz) > motionThreshold;
     let significantDirection: bool = relative_direction > directionThreshold;
     
     // Define blend factors for different cases
-    let lowBlendFactor: f32 = 0.03; // Adjust as needed
-    let highBlendFactor: f32 = 0.2; // Adjust as needed
+    let lowBlendFactor: f32 = config.temporal_den_low_blend_factor;          //0.03; // Adjust as needed
+    let highBlendFactor: f32 = config.temporal_den_high_blend_factor;        //0.2;  // Adjust as needed
     
     // Choose the appropriate blend factor based on motion and color difference
     let blendFactor: f32 = mix(
