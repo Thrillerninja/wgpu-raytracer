@@ -25,15 +25,31 @@ struct Shaderconfig  {
     debug_bvh_bounding_visible: i32,
     debug_bvh_bounding_color_visible: i32,
 
-    //temporal
-    temporal_den_motion_threshold: f32,
-    temporal_den_direction_threshold: f32,
-    temporal_den_low_threshold: f32,
-    temporal_den_high_threshold: f32,
-    temporal_den_low_blend_factor: f32,
-    temporal_den_high_blend_factor: f32,
+    //denoising
+    first_pass: i32,
+    second_pass: i32,
 
-    //spatial
+    //temporal basic
+    temporal_basic_low_threshold: f32,
+    temporal_basic_high_threshold: f32,
+    temporal_basic_low_blend_factor: f32,
+    temporal_basic_high_blend_factor: f32,
+
+    //temporal adaptive
+    temporal_adaptive_motion_threshold: f32,
+    temporal_adaptive_direction_threshold: f32,
+    temporal_adaptive_low_threshold: f32,
+    temporal_adaptive_high_threshold: f32,
+    temporal_adaptive_low_blend_factor: f32,
+    temporal_adaptive_high_blend_factor: f32,
+
+    //spatial basic
+    spatial_kernel_size: i32,
+    //spatial bilateral
+    spatial_bilat_space_sigma: f32,
+    spatial_bilat_color_sigma: f32,
+    spatial_bilat_radius: i32,
+    //spatial non local means
     spatial_den_cormpare_radius: i32,
     spatial_den_patch_radius: i32,
     spatial_den_significant_weight: f32,    
@@ -60,12 +76,40 @@ fn main(@builtin(global_invocation_id) GlobalInvocationID: vec3<u32>) {
     var final_color: vec4<f32> = vec4<f32>(0.0);
 
     if current_denoising_pass == 0u {
-        //----------Temporal Denoising----------//
-        final_color = adaptive_temporal_denoising(centralColor, screen_pos, previousColor, relative_movement, relative_direction);
+        //----------Intended for temporal Denoising----------//
+        //final_color = adaptive_temporal_denoising(centralColor, screen_pos, previousColor, relative_movement, relative_direction);
+
+        if config.first_pass == 0 {
+            final_color = spacial_denoising(centralColor, screen_pos);
+        } else if config.first_pass == 1 {
+            final_color = bilateral_denoising(centralColor, screen_pos);
+        } else if config.first_pass == 2 {
+            final_color = non_local_means_denoising(centralColor, screen_pos);
+        } else if config.first_pass == 3 {
+            final_color = temporal_denoising(centralColor, screen_pos, previousColor);
+        } else if config.first_pass == 4 {
+            final_color = adaptive_temporal_denoising(centralColor, screen_pos, previousColor, relative_movement, relative_direction);
+        } else {
+            final_color = centralColor;
+        }
         textureStore(temporal_buffer, vec2<i32>(screen_pos), final_color);
     } else {
-        //----------Spacial Denoising----------//
-        final_color = non_local_means_denoising(centralColor, screen_pos);
+        //----------Intended for spacial Denoising----------//
+        // final_color = non_local_means_denoising(centralColor, screen_pos);
+        
+        if config.second_pass == 0 {
+            final_color = spacial_denoising(centralColor, screen_pos);
+        } else if config.second_pass == 1 {
+            final_color = bilateral_denoising(centralColor, screen_pos);
+        } else if config.second_pass == 2 {
+            final_color = non_local_means_denoising(centralColor, screen_pos);
+        } else if config.second_pass == 3 {
+            final_color = temporal_denoising(centralColor, screen_pos, previousColor);
+        } else if config.second_pass == 4 {
+            final_color = adaptive_temporal_denoising(centralColor, screen_pos, previousColor, relative_movement, relative_direction);
+        } else {
+            final_color = centralColor;
+        }
     }
 
     // Store the calculated relative movement as color in color_buffer
@@ -129,7 +173,7 @@ fn spacial_denoising(centralColor: vec4<f32>, screen_pos: vec2<u32>) -> vec4<f32
     var sumColor: vec4<f32> = centralColor;
     
     // Define a kernel size (box filter radius)
-    let kernelSize: i32 = 2; // Adjust as needed
+    let kernelSize: i32 = config.spatial_kernel_size; // Adjust as needed
     
     // Iterate through the neighboring pixels
     for (var dx: i32 = -kernelSize; dx <= kernelSize; dx = dx + 1) {
@@ -149,15 +193,15 @@ fn spacial_denoising(centralColor: vec4<f32>, screen_pos: vec2<u32>) -> vec4<f32
 
 fn bilateral_denoising(centralColor: vec4<f32>, screen_pos: vec2<u32>) -> vec4<f32> {
      // Bilateral filter parameters
-     let spatialSigma: f32 = 100.0;  // Spatial standard deviation
-     let colorSigma: f32 = 20.0;    // Color standard deviation
+     let spatialSigma: f32 = config.spatial_bilat_space_sigma;        //100.0;  // Spatial standard deviation
+     let colorSigma: f32 = config.spatial_bilat_color_sigma;    //20.0;    // Color standard deviation
 
     // Initialize an accumulator for the weighted sum of colors
      var weightedSum: vec4<f32> = vec4<f32>(0.0);
      var totalWeight: f32 = 0.0;
     
      // Define a kernel size (box filter radius)
-     let kernelSize: i32 = 3; // Adjust as needed
+     let kernelSize: i32 = config.spatial_bilat_radius;         //3; // Adjust as needed
     
      // Iterate through the neighboring pixels
      for (var dx: i32 = -kernelSize; dx <= kernelSize; dx = dx + 1) {
@@ -230,12 +274,12 @@ fn temporal_denoising(centralColor: vec4<f32>, screen_pos: vec2<u32>, previousCo
     let colorDifference: f32 = length(centralColor.rgb - previousColor.rgb);
     
     // Define blend factor thresholds (adjust as needed)
-    let lowThreshold: f32 = 0.05; // Example threshold for low color difference
-    let highThreshold: f32 = 0.2; // Example threshold for high color difference
+    let lowThreshold: f32 = config.temporal_basic_low_threshold;    //0.05; // Example threshold for low color difference
+    let highThreshold: f32 = config.temporal_basic_high_threshold;   //0.2; // Example threshold for high color difference
     
     // Define blend factors for different cases
-    let lowBlendFactor: f32 = 0.03; // Adjust as needed
-    let highBlendFactor: f32 = 0.2; // Adjust as needed
+    let lowBlendFactor: f32 = config.temporal_basic_low_blend_factor;      //0.03; // Adjust as needed
+    let highBlendFactor: f32 = config.temporal_basic_high_blend_factor;    //0.2; // Adjust as needed
     
     // Choose the appropriate blend factor based on color difference
     let blendFactor: f32 = mix(lowBlendFactor, highBlendFactor, smoothstep(lowThreshold, highThreshold, colorDifference));
@@ -251,17 +295,17 @@ fn adaptive_temporal_denoising(centralColor: vec4<f32>, screen_pos: vec2<u32>, p
     let colorDifference: f32 = length(centralColor.rgb - previousColor.rgb);
     
     // Define thresholds for motion detection (adjust as needed)
-    let motionThreshold: f32 = config.temporal_den_motion_threshold;         //0.005;// Example threshold for motion detection
-    let directionThreshold: f32 = config.temporal_den_direction_threshold;   //0.01; // Example threshold for direction detection
-    let lowThreshold: f32 = config.temporal_den_low_threshold;               //0.05; // Example threshold for low color difference
+    let motionThreshold: f32 = config.temporal_adaptive_motion_threshold;         //0.005;// Example threshold for motion detection
+    let directionThreshold: f32 = config.temporal_adaptive_direction_threshold;   //0.01; // Example threshold for direction detection
+    let lowThreshold: f32 = config.temporal_adaptive_low_threshold;               //0.05; // Example threshold for low color difference
     
     // Determine if there's significant camera motion
     let significantMotion: bool = length(relative_movement.xyz) > motionThreshold;
     let significantDirection: bool = relative_direction > directionThreshold;
     
     // Define blend factors for different cases
-    let lowBlendFactor: f32 = config.temporal_den_low_blend_factor;          //0.03; // Adjust as needed
-    let highBlendFactor: f32 = config.temporal_den_high_blend_factor;        //0.2;  // Adjust as needed
+    let lowBlendFactor: f32 = config.temporal_adaptive_low_blend_factor;          //0.03; // Adjust as needed
+    let highBlendFactor: f32 = config.temporal_adaptive_high_blend_factor;        //0.2;  // Adjust as needed
     
     // Choose the appropriate blend factor based on motion and color difference
     let blendFactor: f32 = mix(

@@ -8,12 +8,12 @@ pub fn raytracing_settings_gui(ui: &Context, shader_config: &mut ShaderConfig) -
             .inner_margin(Margin{ left:10.0, right:10.0, top:10.0, bottom:10.0}))
         .show(ui, |ui| {
             ui.heading("Raytracing Settings");
-            ui.add(egui::Slider::new(&mut shader_config.ray_max_bounces, 0..=1000).text("Max Bounces"));
+            ui.add(egui::Slider::new(&mut shader_config.ray_max_bounces, 0..=200).text("Max Bounces").logarithmic(true));
             ui.add(egui::Slider::new(&mut shader_config.ray_samples_per_pixel, 1..=50).text("Samples per Pixel"));
-            ui.add(egui::Slider::new(&mut shader_config.ray_max_ray_distance, 0.0..=100_000.0).text("Max Ray Distance"));
+            ui.add(egui::Slider::new(&mut shader_config.ray_max_ray_distance, 1.0..=100_000.0).text("Max Ray Distance").logarithmic(true));
             ui.separator();
-            ui.add(egui::Slider::new(&mut shader_config.ray_focus_distance, 0.0..=5.0).text("Focus Distance"));
-            ui.add(egui::Slider::new(&mut shader_config.ray_aperture, 0.0..=0.6).text("Aperture"));
+            ui.add(egui::Slider::new(&mut shader_config.ray_focus_distance, 0.1..=5.0).text("Focus Distance"));
+            ui.add(egui::Slider::new(&mut shader_config.ray_aperture, 0.1..=0.6).text("Aperture"));
             ui.add(egui::Slider::new(&mut shader_config.ray_lens_radius, 0.0..=0.5).text("Lens Radius"));
             ui.separator();
             // convert to bool
@@ -35,7 +35,7 @@ pub fn raytracing_settings_gui(ui: &Context, shader_config: &mut ShaderConfig) -
 
             ui.separator();
             // Reset Button
-            if ui.button("Reset").clicked() {
+            if ui.button("Reset raytracing").clicked() {
                 *shader_config = ShaderConfig::default_raytrace(*shader_config);
             }
         })

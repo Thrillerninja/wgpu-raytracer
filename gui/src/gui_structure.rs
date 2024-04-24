@@ -52,8 +52,8 @@ pub fn gui(ui: &Context, fps: &VecDeque<f32>, gui_config: &mut GuiConfig, shader
         .interactable(false)
         .show(&ui, |ui| {
             // show fps counter
-            // average fps over the last 100 frames
-            let avg_fps: f32 = fps.iter().sum::<f32>() / fps.len() as f32;
+            // average fps over the last 20 frames
+            let avg_fps: f32 = fps.iter().rev().take(20).sum::<f32>() / 20.0;
             let color = if avg_fps > 60.0 {
                 egui::Color32::from_rgb(0, 255, 0) // green
             } else if avg_fps > 30.0 {

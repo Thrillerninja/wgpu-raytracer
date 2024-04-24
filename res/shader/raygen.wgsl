@@ -12,18 +12,34 @@ struct Shaderconfig  {
     debug_bvh_bounding_visible: i32,
     debug_bvh_bounding_color_visible: i32,
 
-    //temporal
-    temporal_den_motion_threshold: f32,
-    temporal_den_direction_threshold: f32,
-    temporal_den_low_threshold: f32,
-    temporal_den_high_threshold: f32,
-    temporal_den_low_blend_factor: f32,
-    temporal_den_high_blend_factor: f32,
+    //denoising
+    first_pass: i32,
+    second_pass: i32,
 
-    //spatial
+    //temporal basic                            //Not used in this shader |
+    temporal_basic_low_threshold: f32,          //                        v
+    temporal_basic_high_threshold: f32,
+    temporal_basic_low_blend_factor: f32,
+    temporal_basic_high_blend_factor: f32,
+
+    //temporal adaptive
+    temporal_adaptive_motion_threshold: f32,
+    temporal_adaptive_direction_threshold: f32,
+    temporal_adaptive_low_threshold: f32,
+    temporal_adaptive_high_threshold: f32,
+    temporal_adaptive_low_blend_factor: f32,
+    temporal_adaptive_high_blend_factor: f32,
+
+    //spatial basic
+    spatial_kernel_size: i32,
+    //spatial bilateral
+    spatial_bilat_space_sigma: f32,
+    spatial_bilat_color_sigma: f32,
+    spatial_bilat_radius: i32,
+    //spatial non local means
     spatial_den_cormpare_radius: i32,
-    spatial_den_patch_radius: i32,
-    spatial_den_significant_weight: f32,   
+    spatial_den_patch_radius: i32,              //                        ^
+    spatial_den_significant_weight: f32,        //Not used in this shader |
 }
 @group(0) @binding(0) var<uniform> config: Shaderconfig;
 

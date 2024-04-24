@@ -253,21 +253,33 @@ pub struct ShaderConfig {
 
 
     //denoising shader
-    //temporal
-    pub temporal_den_motion_threshold: f32,
-    pub temporal_den_direction_threshold: f32,
-    pub temporal_den_low_threshold: f32,
-    pub temporal_den_high_threshold: f32,
-    pub temporal_den_low_blend_factor: f32,
-    pub temporal_den_high_blend_factor: f32,
+    pub first_pass: i32,
+    pub second_pass: i32,
 
-    //spatial
+    //temporal basic
+    pub temporal_basic_low_threshold: f32,
+    pub temporal_basic_high_threshold: f32,
+    pub temporal_basic_low_blend_factor: f32,
+    pub temporal_basic_high_blend_factor: f32,
+
+    //temporal adaptive
+    pub temporal_adaptive_motion_threshold: f32,
+    pub temporal_adaptive_direction_threshold: f32,
+    pub temporal_adaptive_low_threshold: f32,
+    pub temporal_adaptive_high_threshold: f32,
+    pub temporal_adaptive_low_blend_factor: f32,
+    pub temporal_adaptive_high_blend_factor: f32,
+
+    //spatial basic
+    pub spatial_kernel_size: i32,
+    //spatial bilateral
+    pub spatial_bilat_space_sigma: f32,
+    pub spatial_bilat_color_sigma: f32,
+    pub spatial_bilat_radius: i32,
+    //spatial non local means
     pub spatial_den_cormpare_radius: i32,
     pub spatial_den_patch_radius: i32,
-    pub spatial_den_significant_weight: f32,
-
-    //padding
-    _padding: [i32; 3],
+    pub spatial_den_significant_weight: f32,  
 }
 
 impl Default for ShaderConfig {
@@ -283,16 +295,32 @@ impl Default for ShaderConfig {
             ray_focus_viewer_visible: 0,
             ray_debug_bvh_bounding_box: 0,
             ray_debug_bvh_bounding_color: 0,
-            temporal_den_motion_threshold: 0.005,
-            temporal_den_direction_threshold: 0.01,
-            temporal_den_low_threshold: 0.05,
-            temporal_den_high_threshold: 0.2,
-            temporal_den_low_blend_factor: 0.03,
-            temporal_den_high_blend_factor: 0.2,
+
+            first_pass: 4,
+            second_pass: 2,
+
+            temporal_basic_low_threshold: 0.05,
+            temporal_basic_high_threshold: 0.2,
+            temporal_basic_low_blend_factor: 0.03,
+            temporal_basic_high_blend_factor: 0.2,
+
+            temporal_adaptive_motion_threshold: 0.005,
+            temporal_adaptive_direction_threshold: 0.01,
+            temporal_adaptive_low_threshold: 0.05,
+            temporal_adaptive_high_threshold: 0.2,
+            temporal_adaptive_low_blend_factor: 0.03,
+            temporal_adaptive_high_blend_factor: 0.2,
+
+            spatial_kernel_size: 3,
+
+            spatial_bilat_space_sigma: 100.0,
+            spatial_bilat_color_sigma: 20.0,
+            spatial_bilat_radius: 3,
+
+
             spatial_den_cormpare_radius: 13,
             spatial_den_patch_radius: 5,
-            spatial_den_significant_weight: 0.001,
-            _padding: [0; 3],
+            spatial_den_significant_weight: 0.001
         }
     }
 }
@@ -300,12 +328,27 @@ impl Default for ShaderConfig {
 impl ShaderConfig {
     pub fn default_denoise(shaderconfig: ShaderConfig) -> Self {
         Self {
-            temporal_den_motion_threshold: 0.005,
-            temporal_den_direction_threshold: 0.01,
-            temporal_den_low_threshold: 0.05,
-            temporal_den_high_threshold: 0.2,
-            temporal_den_low_blend_factor: 0.03,
-            temporal_den_high_blend_factor: 0.2,
+            first_pass: 4,
+            second_pass: 2,
+
+            temporal_basic_low_threshold: 0.05,
+            temporal_basic_high_threshold: 0.2,
+            temporal_basic_low_blend_factor: 0.03,
+            temporal_basic_high_blend_factor: 0.2,
+
+            temporal_adaptive_motion_threshold: 0.005,
+            temporal_adaptive_direction_threshold: 0.01,
+            temporal_adaptive_low_threshold: 0.05,
+            temporal_adaptive_high_threshold: 0.2,
+            temporal_adaptive_low_blend_factor: 0.03,
+            temporal_adaptive_high_blend_factor: 0.2,
+
+            spatial_kernel_size: 3,
+
+            spatial_bilat_space_sigma: 100.0,
+            spatial_bilat_color_sigma: 20.0,
+            spatial_bilat_radius: 3,
+
             spatial_den_cormpare_radius: 13,
             spatial_den_patch_radius: 5,
             spatial_den_significant_weight: 0.001,
