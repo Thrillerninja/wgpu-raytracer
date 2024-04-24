@@ -7,9 +7,12 @@ use scene::structs::ShaderConfig;
 use crate::gui_raytracing_settings::raytracing_settings_gui;
 use crate::gui_denoising_settings::denoising_settings_gui;
 
+
 pub struct GuiConfig {
     pub ray_settings_open: bool,
     pub denoise_settings_open: bool,
+    pub frame_limit: u32,
+    pub frame_limit_unlimited: bool
 }
 
 impl Default for GuiConfig {
@@ -17,6 +20,8 @@ impl Default for GuiConfig {
         Self {
             ray_settings_open: false,
             denoise_settings_open: false,
+            frame_limit: 60,
+            frame_limit_unlimited: false
         }
     }
 }
@@ -112,7 +117,7 @@ pub fn gui(ui: &Context, fps: &VecDeque<f32>, gui_config: &mut GuiConfig, shader
 
     // Setting windows
     if gui_config.ray_settings_open {
-        raytracing_settings_gui(ui, shader_config);
+        raytracing_settings_gui(ui, gui_config, shader_config);
     }
     if gui_config.denoise_settings_open {
         denoising_settings_gui(ui, shader_config);

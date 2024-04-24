@@ -53,7 +53,7 @@ pub struct State<'a>{
     texture_bind_group: wgpu::BindGroup,
     //GUI
     pub egui: gui::EguiRenderer,
-    gui_config: GuiConfig,
+    pub gui_config: GuiConfig,
     fps: VecDeque<f32>,
 }
 

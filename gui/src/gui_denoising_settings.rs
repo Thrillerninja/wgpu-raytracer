@@ -42,9 +42,9 @@ pub fn denoising_settings_gui(ui: &Context, shader_config: &mut ShaderConfig) ->
 
             if shader_config.first_pass == 2 || shader_config.second_pass == 2 {
                 ui.label("Non Local Means Denoising Settings");
-                ui.add(egui::Slider::new(&mut shader_config.spatial_den_cormpare_radius, 0..=100).text("Compare Radius"));
-                ui.add(egui::Slider::new(&mut shader_config.spatial_den_patch_radius, 0..=100).text("Patch Radius"));
-                ui.add(egui::Slider::new(&mut shader_config.spatial_den_significant_weight, 0.0..=0.1).text("Significant Weight"));
+                ui.add(egui::Slider::new(&mut shader_config.spatial_den_cormpare_radius, 1..=100).text("Compare Radius"));
+                ui.add(egui::Slider::new(&mut shader_config.spatial_den_patch_radius, 1..=100).text("Patch Radius"));
+                ui.add(egui::Slider::new(&mut shader_config.spatial_den_significant_weight, 0.001..=0.1).text("Significant Weight"));
             }
 
             if shader_config.first_pass == 3 || shader_config.second_pass == 3 {

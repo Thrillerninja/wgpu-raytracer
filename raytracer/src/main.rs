@@ -101,6 +101,13 @@ pub async fn run() {
             // Request a redraw bevore the system goes to idle
             Event::AboutToWait => {
                 // Application update call
+                // Limit frame rate
+                if state.gui_config.frame_limit != 0 {
+                    let frame_time = instant::Instant::now() - last_render_time;
+                    if frame_time < std::time::Duration::from_secs_f32(1.0 / state.gui_config.frame_limit as f32){
+                        std::thread::sleep(std::time::Duration::from_secs_f32(1.0 / state.gui_config.frame_limit as f32) - frame_time);
+                    }
+                }
                 state.window().request_redraw();
             },
             _ => ()

@@ -1,13 +1,25 @@
-use egui::{Context, InnerResponse, Margin};
+use egui::{Context, InnerResponse, Margin, RichText};
 use scene::structs::ShaderConfig;
+use crate::GuiConfig;
 
-pub fn raytracing_settings_gui(ui: &Context, shader_config: &mut ShaderConfig) -> InnerResponse<()> {
+
+pub fn raytracing_settings_gui(ui: &Context, gui_config: &mut GuiConfig, shader_config: &mut ShaderConfig) -> InnerResponse<()> {
+    let startframelimit = gui_config.frame_limit;
+
     egui::SidePanel::left("Raytracing Settings")
         .frame(egui::Frame::default()
             .fill(egui::Color32::from_black_alpha(200))
             .inner_margin(Margin{ left:10.0, right:10.0, top:10.0, bottom:10.0}))
-        .show(ui, |ui| {
+            .show(ui, |ui| {
             ui.heading("Raytracing Settings");
+            
+            // Framerate limit selection
+            ui.horizontal(|ui| {
+                ui.label("Framerate Limit:");
+                ui.checkbox(&mut gui_config.frame_limit_unlimited, "Unlimited");
+                ui.add(egui::Slider::new(&mut gui_config.frame_limit, 1..=240).text("FPS"));
+            });
+
             ui.add(egui::Slider::new(&mut shader_config.ray_max_bounces, 0..=200).text("Max Bounces").logarithmic(true));
             ui.add(egui::Slider::new(&mut shader_config.ray_samples_per_pixel, 1..=50).text("Samples per Pixel"));
             ui.add(egui::Slider::new(&mut shader_config.ray_max_ray_distance, 1.0..=100_000.0).text("Max Ray Distance").logarithmic(true));
@@ -38,5 +50,38 @@ pub fn raytracing_settings_gui(ui: &Context, shader_config: &mut ShaderConfig) -
             if ui.button("Reset raytracing").clicked() {
                 *shader_config = ShaderConfig::default_raytrace(*shader_config);
             }
+
+            if gui_config.frame_limit != startframelimit {
+                // Set the frame limit
+                gui_config.frame_limit_unlimited = false;
+            }
+
+            if gui_config.frame_limit_unlimited && gui_config.frame_limit != 0{
+                egui::Window::new("Warning")
+                .title_bar(false)
+                .show(ui.ctx(), |ui| {
+                    ui.colored_label(egui::Color32::from_rgb(255, 165, 0), 
+                        RichText::new("Warning").heading());
+
+                    ui.colored_label( egui::Color32::from_rgb(255, 165, 0), 
+                        "Setting the framerate limit to unlimited can consume all GPU resources and force the user into a PC restart."
+                    );
+                    ui.colored_label( egui::Color32::from_rgb(255, 165, 0), 
+                        "With standard settings this should not cause problems, but be aware of the risks."
+                    );
+                    ui.separator();
+                    ui.horizontal(|ui| {
+                        if ui.button("Confirm").clicked() {
+                            // Perform the action to set the frame limit to unlimited
+                            gui_config.frame_limit = 0;
+                        }
+                        if ui.button("Cancel").clicked() {
+                            // Handle cancellation
+                            gui_config.frame_limit_unlimited = false;
+                        }
+                    });
+                });
+            }
+            
         })
 }
