@@ -4,12 +4,15 @@ use toml;
 
 use crate::structs::{Material, Sphere};
 use crate::structs::Background;
-#[derive(Debug, Deserialize)]
-pub struct Texture {
-    pub paths: Vec<String>,
-}
 
 #[derive(Debug, Deserialize)]
+pub struct Textureset {
+    pub diffuse_path: Option<String>,
+    pub normal_path: Option<String>,
+    pub roughness_path: Option<String>,
+}
+
+#[derive(Debug, Default, Deserialize)]
 pub struct ModelPaths {
     pub gltf_path: Option<String>,
     pub obj_path: Option<String>,
@@ -22,16 +25,9 @@ impl ModelPaths {
             obj_path,
         }
     }
-
-    pub fn default() -> Self {
-        Self {
-            gltf_path: None,
-            obj_path: None,
-        }
-    }
 }
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Default, Deserialize)]
 pub struct Config {
     pub camera_position: [f32; 3],
     pub camera_rotation: [f32; 2],
@@ -39,7 +35,7 @@ pub struct Config {
     pub camera_fov: f32,
 
     pub materials: Option<Vec<Material>>,
-    pub textures: Option<Vec<Texture>>,
+    pub textures: Option<Vec<Textureset>>,
     pub background: Option<Background>,
     pub background_path: Option<String>,
 
@@ -96,6 +92,7 @@ impl Config {
     }
 }
 
+
 fn parse_array(value: &toml::Value) -> Vec<f32> {
     let array = value.as_array().expect("Expected array");
     let mut result: Vec<f32> = vec![0.0; array.len()];
@@ -138,11 +135,21 @@ fn load_materials_config(value: Option<&toml::Value>) -> Option<Vec<Material>> {
 }
 
 // makes textues optional in config
-fn load_textures_config(value: Option<&toml::Value>) -> Option<Vec<Texture>> {
+fn load_textures_config(value: Option<&toml::Value>) -> Option<Vec<Textureset>> {
     match value {
         Some(value) => {
+            println!("Textures defined in config");
             let value = value.as_array().expect("Expected array").iter()
-                .map(|v| v.clone().try_into().expect("Could not convert to Texture")).collect();
+            .map(|v| {
+                let diffuse = v.get("diffuse").and_then(|v| v.as_str()).map(|v| v.to_string());
+                let normal = v.get("normal").and_then(|v| v.as_str()).map(|v| v.to_string());
+                let roughness = v.get("roughness").and_then(|v| v.as_str()).map(|v| v.to_string());
+                Textureset {
+                    diffuse_path: diffuse,
+                    normal_path: normal,
+                    roughness_path: roughness,
+                }
+            }).collect::<Vec<Textureset>>();
             Some(value)
         },
         None => {

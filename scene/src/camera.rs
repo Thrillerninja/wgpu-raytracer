@@ -1,9 +1,13 @@
 use cgmath::*;
 use winit::keyboard::{Key, NamedKey};
+use std::f32::consts::PI;
 use std::time::Duration;
 use winit::dpi::PhysicalPosition;
 use winit::event::*;
-
+use crate::structs::ShaderConfig;
+/// Represents a camera in 3D space.
+///
+/// The camera has a position and a rotation. The position is a point in 3D space, and the rotation is a quaternion that represents the orientation of the camera.
 #[derive(Debug, Clone, Copy)]
 pub struct Camera {
     pub position: Point3<f32>,
@@ -17,7 +21,7 @@ impl Camera {
         pitch: P,
     ) -> Self {
         let quaternion = Quaternion::from_angle_y(yaw) * Quaternion::from_angle_x(pitch);
-        println!("Camera::new: Quaternion::from_angle_y(yaw) * Quaternion::from_angle_x(pitch) = {:?}", quaternion);
+        println!("Camera initial roation quaternion = {:?}", quaternion);
         Self {
             position: position.into(),
             rotation: quaternion,
@@ -29,6 +33,9 @@ impl Camera {
     }
 }
 
+/// Represents a projection of a 3D scene onto the 2D plane of the camera.
+///
+/// The projection is defined by an aspect ratio, a field of view, and near and far clipping planes.
 pub struct Projection {
     aspect: f32,
     pub fovy: Rad<f32>,
@@ -51,11 +58,14 @@ impl Projection {
     }
 
     pub fn calc_matrix(&self) -> Matrix4<f32> {
-        // OPENGL_TO_WGPU_MATRIX * 
         perspective(self.fovy, self.aspect, self.znear, self.zfar)
     }
 }
 
+/// Controls the movement and rotation of a camera.
+///
+/// The controller keeps track of the amount of movement in each direction (left, right, forward, backward, up, down), the amount of rotation (horizontal and vertical), and the amount of scrolling.
+/// It also has a speed and a sensitivity, which control how fast the camera moves and how sensitive it is to rotation.
 #[derive(Debug)]
 pub struct CameraController {
     amount_left: f32,
@@ -166,18 +176,21 @@ impl CameraController {
         
 
         // Rotate using quaternion
+        let camera_pitch = Euler::from(camera.rotation).x;
         let pitch_quaternion = Quaternion::from_axis_angle(Vector3::unit_x(), Rad(-self.rotate_vertical) * self.sensitivity * dt);
         let yaw_quaternion = Quaternion::from_axis_angle(Vector3::unit_y(), Rad(self.rotate_horizontal) * self.sensitivity * dt);
 
         // Combine pitch and yaw rotations using quaternion multiplication
+        // if camera_pitch > Rad(PI * 0.5) && self.rotate_vertical > 0.0 {
+        //     camera.rotation = yaw_quaternion * camera.rotation;
+        // } else if camera_pitch < Rad(-PI * 0.5) && self.rotate_vertical < 0.0 {
+        //     camera.rotation = yaw_quaternion * camera.rotation;
+        // } else {
         camera.rotation = yaw_quaternion * camera.rotation * pitch_quaternion;
+        // }
 
         // Keep the camera's angle from going too high/low.
-        // if camera.quaternion.v.x < -SAFE_FRAC_PI_2 {
-        //     camera.quaternion.v.x = -SAFE_FRAC_PI_2;
-        // } else if camera.quaternion.v.x > SAFE_FRAC_PI_2 {
-        //     camera.quaternion.v.x = SAFE_FRAC_PI_2;
-        // }
+        println!("Camera x = {:?}", Euler::from(camera.rotation));
 
         // Reset rotation values
         self.rotate_horizontal = 0.0;

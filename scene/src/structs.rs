@@ -62,8 +62,11 @@ impl Material {
             __padding: 0.0,
         }
     }
-}
 
+    pub fn default() -> Self {
+        Self { albedo: [1.0, 1.0, 1.0, 1.0], attenuation: [1.0, 1.0, 1.0, 1.0], roughness: 0.5, emission: 0.0, ior: 0.0, __padding: 0.0 }
+    }
+}
 
 #[repr(C)]
 #[derive(Clone, Copy, bytemuck::Pod, bytemuck::Zeroable, Debug, Deserialize)]

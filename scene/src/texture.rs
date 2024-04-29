@@ -20,7 +20,7 @@ pub fn create_texture(device: &Device, config: &SurfaceConfiguration, texture_wi
     });   
 }
 
-fn write_texture(queue: &Queue, texture: &Texture, image: DynamicImage, offset: wgpu::Origin3d) {
+fn write_texture(queue: &Queue, texture: &Texture, image: &DynamicImage, offset: wgpu::Origin3d) {
     let (width, height) = image.dimensions();
     let bytes_per_pixel = 4; // Assuming RGBA8Unorm format
     let bytes_per_row = width * bytes_per_pixel;
@@ -47,29 +47,46 @@ fn write_texture(queue: &Queue, texture: &Texture, image: DynamicImage, offset: 
     );
 }
 
-pub fn load_textures_from_image(queue: &Queue, textureset: Texture, texture: &DynamicImage, index: i32) -> Result<Texture, Box<dyn std::error::Error>> {
+pub fn load_textures_from_image(queue: &Queue, textureset: Texture, image: &DynamicImage, index: i32) -> Result<Texture, Box<dyn std::error::Error>> {
     let offset = wgpu::Origin3d {
         x: 0,
         y: 0,
         z: index as u32,
     };
 
-    write_texture(queue, &textureset, texture.clone(), offset);
+    write_texture(queue, &textureset, image, offset);
 
     Ok(textureset)
 }
 
-pub fn scale_texture(texture: &DynamicImage, width: u32, height: u32) -> DynamicImage {
+//index only added for easier debugging
+pub fn scale_texture(texture: &DynamicImage, width: u32, height: u32, _index: i32) -> DynamicImage {
     // Inspect images: if uncommented
     // Save the original texture
-    // let original_path = "texture_{}_original.png";
-    // texture.save(original_path);
+    // let original_path = format!("textures_{}_original.png", index);
+    // let res = texture.save(original_path);
+    // match res {
+    //     Ok(_) => {
+    //         println!("IMG successfully saved")
+    //     }
+    //     Err(res) => {
+    //         println!("Failed to save IMG {:?}", res)
+    //     }
+    // }
 
     // Resize the texture
     let resized_texture = texture.resize(width, height, image::imageops::FilterType::Nearest);
 
     // Save the resized texture
-    // let resized_path = "texture_{}_resized.png";
-    // resized_texture.save(resized_path);
+    // let resized_path = format!("textures_{}_resized.png", index);
+    // let res = resized_texture.save(resized_path);
+    // match res {
+    //     Ok(_) => {
+    //         println!("IMG successfully saved (resized)")
+    //     }
+    //     Err(res) => {
+    //         println!("Failed to save IMG (resized) {:?}", res)
+    //     }
+    // }
     return resized_texture;
 }

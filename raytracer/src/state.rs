@@ -1,4 +1,5 @@
 use std::collections::VecDeque;
+use image::DynamicImage;
 use winit::{event::*, window::Window};
 use egui_wgpu::ScreenDescriptor;
 
@@ -11,12 +12,12 @@ use gui::{EguiRenderer, gui, GuiConfig};
 
 use scene::{
     camera::{self, Camera},
-    structs::{Background, Sphere, CameraUniform, ShaderConfig}
+    structs::{Background, CameraUniform, Material, ShaderConfig, Sphere}
 };
 
-use crate::renderer::{setup_bvh, setup_hdri, setup_textures, setup_tris_objects};
+use crate::helper::{add_materials_from_config, add_textures_from_config, setup_bvh, setup_hdri, setup_textures, setup_tris_objects};
 
-use crate::renderer::setup_camera;
+use crate::helper::setup_camera;
 
 pub struct State<'a>{
     pub window: Window,
@@ -126,12 +127,18 @@ impl<'a> State<'a>{
         println!("Camera ready");
 
         //============== Load Render Objects ==============
+        //---------- Load Materials and Textures fromc config ----
+        let mut materials: Vec<Material> = Vec::new();
+        let mut textures: Vec<DynamicImage> = Vec::new();
+
+        add_materials_from_config(&mut materials, &userconfig.materials);
+        add_textures_from_config(&mut textures, &userconfig.textures);
+
+
         //---------- Load Triangles(Vertecies) ----------
         let (triangles, 
             triangles_uniform, 
-            materials, 
-            textures,
-            userconfig) = setup_tris_objects(userconfig);
+            userconfig) = setup_tris_objects(userconfig, &mut materials, &mut textures);
 
         // Create a buffer to hold the vertex data of the triangles
         let vertex_buffer_descriptor = BufferInitDescriptor::new(Some("Vertex Buffer"), wgpu::BufferUsages::STORAGE | wgpu::BufferUsages::COPY_DST);
@@ -217,6 +224,7 @@ impl<'a> State<'a>{
 
         //------Textures & Materials------
         // Create 3D textures with textures from config and glft or background hdri 
+        
         let textures_buffer = setup_textures(textures, &device, &queue, &config);
         let background_texture = setup_hdri(&userconfig, &device, &queue, &config);
 
@@ -235,7 +243,7 @@ impl<'a> State<'a>{
         let background_descriptor = BufferInitDescriptor::new(Some("Background Buffer"), wgpu::BufferUsages::STORAGE | wgpu::BufferUsages::COPY_DST);
         let background_buffer = create_new_buffer(&device, &[background], background_descriptor);
 
-        println!("BAckground: {:?}", background);
+        println!("Background: {:?}", background);
 
         // Create a sampler for all textures
         let texture_sampler = device.create_sampler(&wgpu::SamplerDescriptor {
@@ -254,7 +262,7 @@ impl<'a> State<'a>{
         let textures_view = textures_buffer.create_view(&wgpu::TextureViewDescriptor::default());
         let background_texture_view = background_texture.create_view(&wgpu::TextureViewDescriptor::default());
         let mut texture_bind_group_descriptor = BindGroupDescriptor::new(
-            Some("textures&materials"),
+            Some("textures_and_materials"),
             wgpu::ShaderStages::COMPUTE,
             vec![
                 BufferType::new(
@@ -606,10 +614,14 @@ impl<'a> State<'a>{
         }
     }
 
-    pub fn window(&self) -> &Window {
-        &self.window
-    }
-
+    /// Resizes the application window and updates the configuration.
+    ///
+    /// This function takes a new size as input and checks if the width and height are greater than 0.
+    /// If they are, it resizes the projection, updates the size and configuration, and reconfigures the surface.
+    ///
+    /// # Arguments
+    ///
+    /// * `new_size` - A `PhysicalSize<u32>` object representing the new size of the window.
     pub fn resize(&mut self, new_size: winit::dpi::PhysicalSize<u32>) {
         if new_size.width > 0 && new_size.height > 0 {
             self.projection.resize(new_size.width, new_size.height);
@@ -620,6 +632,19 @@ impl<'a> State<'a>{
         }
     }
 
+    /// Handles input events for the application.
+    ///
+    /// This function takes a window event as input and processes it.
+    /// It first checks if the event is a UI update event and handles it.
+    /// If it's not a UI update event, it checks if it's a camera update event and handles it.
+    ///
+    /// # Arguments
+    ///
+    /// * `event` - A `WindowEvent` object representing the window event.
+    ///
+    /// # Returns
+    ///
+    /// A boolean indicating whether the event was handled.
     pub fn input(&mut self, event: &WindowEvent) -> bool {
         
         // UI upadtes
@@ -653,11 +678,20 @@ impl<'a> State<'a>{
         }
     }
 
+    /// Updates the state of the application.
+    ///
+    /// This function takes a duration as input and updates the camera, shader configuration, and render texture size.
+    /// It also calculates and stores the frames per second.
+    ///
+    /// # Arguments
+    ///
+    /// * `dt` - A `Duration` object representing the time since the last update.
     pub fn update(&mut self, dt: std::time::Duration) {
         // Update the camera
         self.camera_controller.update_camera(&mut self.camera, dt);
         self.camera_uniform.update_view_proj(&self.camera, &self.projection);
         self.camera_uniform.update_frame();
+
         self.queue.write_buffer(
             &self.camera_buffer,
             0,
@@ -691,6 +725,20 @@ impl<'a> State<'a>{
         self.fps.truncate(100);
     }
 
+    
+    /// Renders the current state of the application.
+    ///
+    /// This function performs several passes to render the scene:
+    /// 1. Raytracing pass: This pass traces rays through the scene to generate an image.
+    /// 2. First denoising pass: This pass applies a denoising algorithm to the image to reduce noise.
+    /// 3. Second denoising pass: This pass applies a second round of the denoising algorithm to further reduce noise.
+    /// 4. Render pass: This pass renders the final image to the screen.
+    ///
+    /// Each pass is performed by dispatching workgroups to the GPU. The number of workgroups is determined by the size of the output image.
+    ///
+    /// # Returns
+    ///
+    /// A `Result` that is `Ok` if the rendering was successful, or `Err` if there was an error with the surface.
     pub fn render(&mut self) -> Result<(), wgpu::SurfaceError> {
         // Get the current output texture from the surface
         let output = self.surface.get_current_texture()?;
@@ -842,7 +890,7 @@ impl<'a> State<'a>{
         // Draw the GUI ontop of the render pass
         let screen_descriptor = ScreenDescriptor {
             size_in_pixels: [self.config.width, self.config.height],
-            pixels_per_point: self.window().scale_factor() as f32,
+            pixels_per_point: self.window.scale_factor() as f32,
         };
 
         self.egui.draw(

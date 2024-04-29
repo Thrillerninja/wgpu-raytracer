@@ -1,18 +1,39 @@
 use winit::{event::*, event_loop::{ControlFlow, EventLoop}, keyboard::{Key, NamedKey}};
 
 pub mod state;
-pub mod renderer;
+pub mod helper;
 use state::State;
 
 /// Entry point for the application.
+///
+/// It then calls the `run` function and blocks until it completes.
 fn main() {
     std::env::set_var("RUST_BACKTRACE", "1");
+    std::env::set_var("Cargocache", "1");
     pollster::block_on(run());
 }
 
 /// Starts the application.
 ///
-/// It initializes the logger, creates the window, and starts the event loop.
+/// This function initializes the logger, creates the window, and starts the event loop.
+/// It sets a panic hook for wasm32 targets and initializes the logger accordingly.
+/// For non-wasm32 targets, it uses the `env_logger` crate to initialize the logger.
+///
+/// It creates a new event loop and a window with a specified title and size.
+/// The event loop is set to continuously run, even if the OS hasn't dispatched any events.
+///
+/// A new `State` object is created for the window.
+/// The event loop is then started, and it handles various window and device events, such as:
+/// - Closing the window when requested by the user or when the escape key is pressed
+/// - Updating and rendering the state when a redraw is requested
+/// - Resizing the state when the window size changes
+/// - Logging when the window scale factor changes
+/// - Processing mouse motion events
+/// - Requesting a redraw before the system goes to idle and limiting the frame rate
+///
+/// # Errors
+///
+/// This function will terminate the process if there is an error loading the HDRI file or the texture file.
 pub async fn run() {
     cfg_if::cfg_if! {
         if #[cfg(target_arch = "wasm32")] {
@@ -45,7 +66,7 @@ pub async fn run() {
             Event::WindowEvent {
                 ref event,
                 window_id,
-            } if window_id == state.window().id() && !state.input(event) => {
+            } if window_id == state.window.id() && !state.input(event) => {
                 // Handle window events that aren't related to the ui or camera
                 match event {
                     // Close the window if requested by the user
@@ -108,7 +129,7 @@ pub async fn run() {
                         std::thread::sleep(std::time::Duration::from_secs_f32(1.0 / state.gui_config.frame_limit as f32) - frame_time);
                     }
                 }
-                state.window().request_redraw();
+                state.window.request_redraw();
             },
             _ => ()
         }
