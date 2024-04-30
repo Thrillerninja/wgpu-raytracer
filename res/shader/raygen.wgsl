@@ -503,8 +503,7 @@ fn color(primary_ray: Ray) -> vec4<f32> {
 
         // Calculate new ray
         if (texture_id_roughness > -1 && texture_id_normal > -1){
-            ray = Ray(hit_point + normal*0.001, reflect(ray.direction,  get_texture_color(texture_id_normal, uv) + rngNextVec3InUnitSphere() * get_texture_color(texture_id_roughness, uv)));
-            return vec4<f32>(ray.direction, 1.0);
+            ray = Ray(hit_point + normal*0.001, reflect(ray.direction,  get_texture_color(texture_id_normal, uv) + rngNextVec3InUnitSphere() * get_texture_color(texture_id_roughness, uv)));            
         } else if (texture_id_roughness > -1) {
             ray = Ray(hit_point + normal*0.001, reflect(ray.direction, normal + rngNextVec3InUnitSphere() * material.roughness * get_texture_color(texture_id_roughness, uv))); //normal*0.01 is a offset to fix z-fighting
         } else if (texture_id_normal > -1) {
@@ -601,7 +600,7 @@ fn length_squared(v: vec3<f32>) -> f32 {
 
 // Textures
 fn get_texture_color(texture_id: i32, uv: vec2<f32>) -> vec3<f32> {
-    return textureSampleLevel(textures, texture_sampler, uv, texture_id, 0.0).xyz;   
+    return textureSampleLevel(textures, texture_sampler, uv, texture_id, 0.0).xyz;
 }
 
 fn sphereUVMapping(hit_point: vec3<f32>, sphere: Sphere) -> vec2<f32> {

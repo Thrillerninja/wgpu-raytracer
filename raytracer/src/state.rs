@@ -89,7 +89,7 @@ impl<'a> State<'a>{
     /// The denoising setup involves creating a denoising buffer and a bind group for it. It also passes camera info to the denoising shader and creates a buffer to hold the camera data for denoising. It also creates a buffer to hold the denoising pass number, a view for the denoising texture, a bind group descriptor for the denoising step, and a pipeline layout for denoising. Finally, it loads the denoising shader and creates a denoising pipeline.
     /// # Screen rendering Setup
     /// The screen rendering setup involves creating a sampler for transferring color data from render to screen texture. It also creates a bind group layout for the shader and a bind group for the screen rendering pipeline. It loads the screen shader and creates a screen pipeline layout.
-    pub async fn new(window: Window) -> Self {
+    pub async fn new(window: Window, config_path: Option<String>) -> Self {
         //---------Setup Hardware---------
         let (window,
             device, 

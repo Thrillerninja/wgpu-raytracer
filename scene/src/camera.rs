@@ -176,7 +176,7 @@ impl CameraController {
         
 
         // Rotate using quaternion
-        let camera_pitch = Euler::from(camera.rotation).x;
+        // let camera_pitch = Euler::from(camera.rotation).x;
         let pitch_quaternion = Quaternion::from_axis_angle(Vector3::unit_x(), Rad(-self.rotate_vertical) * self.sensitivity * dt);
         let yaw_quaternion = Quaternion::from_axis_angle(Vector3::unit_y(), Rad(self.rotate_horizontal) * self.sensitivity * dt);
 
@@ -188,9 +188,7 @@ impl CameraController {
         // } else {
         camera.rotation = yaw_quaternion * camera.rotation * pitch_quaternion;
         // }
-
-        // Keep the camera's angle from going too high/low.
-        println!("Camera x = {:?}", Euler::from(camera.rotation));
+        // println!("Camera x = {:?}", Euler::from(camera.rotation));
 
         // Reset rotation values
         self.rotate_horizontal = 0.0;

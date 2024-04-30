@@ -1,17 +1,6 @@
 use winit::{event::*, event_loop::{ControlFlow, EventLoop}, keyboard::{Key, NamedKey}};
 
-pub mod state;
-pub mod helper;
-use state::State;
-
-/// Entry point for the application.
-///
-/// It then calls the `run` function and blocks until it completes.
-fn main() {
-    std::env::set_var("RUST_BACKTRACE", "1");
-    std::env::set_var("Cargocache", "1");
-    pollster::block_on(run());
-}
+use crate::state::State;
 
 /// Starts the application.
 ///
@@ -34,7 +23,7 @@ fn main() {
 /// # Errors
 ///
 /// This function will terminate the process if there is an error loading the HDRI file or the texture file.
-pub async fn run() {
+pub async fn run(resource_path: Option<String>) {
     cfg_if::cfg_if! {
         if #[cfg(target_arch = "wasm32")] {
             std::panic::set_hook(Box::new(console_error_panic_hook::hook));
@@ -57,7 +46,7 @@ pub async fn run() {
     // even if the OS hasn't dispatched any events.
     event_loop.set_control_flow(ControlFlow::Poll);
 
-    let mut state = State::new(window).await;
+    let mut state = State::new(window, resource_path).await;
     let mut last_render_time = instant::Instant::now();
 
     // Start the event loop
