@@ -234,3 +234,101 @@ impl<'a> BindGroupDescriptor<'a> {
         }));
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use pollster::block_on;
+    use super::*;
+
+    #[test]
+    fn test_buffer_init_descriptor_new() {
+        let descriptor = BufferInitDescriptor::new(Some("Test Buffer"), wgpu::BufferUsages::COPY_DST);
+        assert_eq!(descriptor.label, Some("Test Buffer"));
+        assert_eq!(descriptor.usage, wgpu::BufferUsages::COPY_DST);
+    }
+
+    #[test]
+    fn test_buffer_init_descriptor_default() {
+        let descriptor = BufferInitDescriptor::default();
+        assert_eq!(descriptor.label, Some("Default BufferInitDescriptor"));
+        assert_eq!(descriptor.usage, wgpu::BufferUsages::COPY_DST);
+    }
+
+    // #[test]
+    // Untestable functions
+    // fn test_create_new_buffer() {}
+
+    #[test]
+    fn create_binding_resource_template() {
+        let instance_descriptor: wgpu::InstanceDescriptor = Default::default();
+
+        let instance = wgpu::Instance::new(instance_descriptor);
+        let adapter = block_on(instance.request_adapter(&wgpu::RequestAdapterOptions::default())).unwrap();
+        let (device, _) = block_on(adapter.request_device(&wgpu::DeviceDescriptor::default(), None)).unwrap();
+
+        let buffer = device.create_buffer(&wgpu::BufferDescriptor {
+            label: Some("Test Buffer"),
+            size: 1024,
+            usage: wgpu::BufferUsages::COPY_DST,
+            mapped_at_creation: false,
+        });
+
+        let binding_resource = wgpu::BindingResource::Buffer(wgpu::BufferBinding {
+            buffer: &buffer,
+            offset: 0,
+            size: None,
+        });
+        let binding_resource_template = BindingResourceTemplate::BufferStorage(binding_resource.clone());
+        assert_eq!(binding_resource_template, BindingResourceTemplate::BufferStorage(binding_resource));
+    }
+
+    #[test]
+    fn test_get_binding_resource() {
+        let instance_descriptor: wgpu::InstanceDescriptor = Default::default();
+
+        let instance = wgpu::Instance::new(instance_descriptor);
+        let adapter = block_on(instance.request_adapter(&wgpu::RequestAdapterOptions::default())).unwrap();
+        let (device, _) = block_on(adapter.request_device(&wgpu::DeviceDescriptor::default(), None)).unwrap();
+
+        let buffer = device.create_buffer(&wgpu::BufferDescriptor {
+            label: Some("Test Buffer"),
+            size: 1024,
+            usage: wgpu::BufferUsages::COPY_DST,
+            mapped_at_creation: false,
+        });
+
+        let binding_resource = wgpu::BindingResource::Buffer(wgpu::BufferBinding {
+            buffer: &buffer,
+            offset: 0,
+            size: None,
+        });
+        let binding_resource_template = BindingResourceTemplate::BufferStorage(binding_resource.clone());
+        assert_eq!(get_binding_resource(binding_resource_template), binding_resource);
+    }
+
+    #[test]
+    fn test_buffer_type_new() {
+        let instance_descriptor: wgpu::InstanceDescriptor = Default::default();
+
+        let instance = wgpu::Instance::new(instance_descriptor);
+        let adapter = block_on(instance.request_adapter(&wgpu::RequestAdapterOptions::default())).unwrap();
+        let (device, _) = block_on(adapter.request_device(&wgpu::DeviceDescriptor::default(), None)).unwrap();
+
+        let buffer = device.create_buffer(&wgpu::BufferDescriptor {
+            label: Some("Test Buffer"),
+            size: 1024,
+            usage: wgpu::BufferUsages::COPY_DST,
+            mapped_at_creation: false,
+        });
+
+        let binding_resource = wgpu::BindingResource::Buffer(wgpu::BufferBinding {
+            buffer: &buffer,
+            offset: 0,
+            size: None,
+        });
+        let binding_resource_template = BindingResourceTemplate::BufferStorage(binding_resource.clone());
+        let buffer_type = BufferType::new(binding_resource_template.clone());
+        assert_eq!(buffer_type.ty, binding_resource_template);
+        assert_eq!(buffer_type.view_dimension, None);
+    }
+}

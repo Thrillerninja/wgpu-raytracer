@@ -6,5 +6,5 @@ use raytracing_lib::run;
 fn main() {
     std::env::set_var("RUST_BACKTRACE", "1");
     std::env::set_var("CARGO_CACHE", "1");
-    pollster::block_on(run(Some("examples/1-three_spheres/config.toml")));
+    pollster::block_on(run(Some("examples/3-gltf_model/config.toml")));
 }

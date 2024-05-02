@@ -95,16 +95,29 @@ pub fn setup_camera(config: &SurfaceConfiguration, userconfig: &Config) -> (Came
 /// let (triangles, triangle_uniforms, materials, textures, config) = setup_tris_objects(userconfig);
 /// ```
 pub fn setup_tris_objects(userconfig: Config, materials: &mut Vec<Material>, textures: &mut Vec<DynamicImage>) -> (Vec<Triangle>, Vec<TriangleUniform>, Config) {
-    let obj_path = userconfig.model_paths.obj_path.clone();
     let gltf_path = userconfig.model_paths.gltf_path.clone();
+    let obj_path = userconfig.model_paths.obj_path.clone();
+    let obj_material_id = match userconfig.model_paths.obj_material_id {
+        Some(obj_material_id) => obj_material_id,
+        None => 0,
+    };
 
     let mut triangles: Vec<Triangle> = Vec::new();
+    let mut triangles_uniform: Vec<TriangleUniform> = Vec::new();
 
-    load_obj_file(&mut triangles, materials, obj_path);
-    load_gltf_file(&mut triangles, materials, textures, gltf_path);
+    let are_paths_empty: bool = obj_path.is_none() && gltf_path.is_none();
 
-    // Convert Triangles in a GPU friendly format (no complex data types because of the C interface limits)
-    let triangles_uniform = triangles.iter().map(|triangle| TriangleUniform::new(*triangle)).collect();
+    if are_paths_empty {
+        // Push Triangle with empty flag to avoid driver crash since the buffer can't be empty
+        triangles_uniform.push(TriangleUniform::empty());
+        triangles.push(Triangle::empty());
+    } else {
+        load_obj_file(&mut triangles, materials, obj_path, obj_material_id);
+        load_gltf_file(&mut triangles, materials, textures, gltf_path);
+        // Convert Triangles in a GPU friendly format (no complex data types because of the C interface limits)
+        triangles_uniform = triangles.iter().map(|triangle| TriangleUniform::new(*triangle)).collect();
+    }
+
 
     (triangles, triangles_uniform, userconfig)
 }
@@ -229,13 +242,13 @@ pub fn add_textures_from_config(textures: &mut Vec<DynamicImage>, user_texturese
 /// Prints the number of triangles loaded from the OBJ file, or a message indicating that no OBJ path was provided.
 /// If there is an error loading the OBJ file, it prints an error message and exits the program.
 /// If the OBJ path is empty or `None`, it returns early without loading the OBJ file.
-fn load_obj_file(triangles: &mut Vec<Triangle>, materials: &mut Vec<Material>, obj_path: Option<String>) {
+fn load_obj_file(triangles: &mut Vec<Triangle>, materials: &mut Vec<Material>, obj_path: Option<String>, obj_material_id: i32) {
     let obj_path: String = match obj_path {
         Some(obj_path) => obj_path,
         None => return,
     };
     if obj_path != "" {
-        let (mut obj_triangles, mut obj_materials) = match load_obj(obj_path) {
+        let (mut obj_triangles, mut obj_materials) = match load_obj(obj_path, obj_material_id) {
             Err(error) => {
                 eprintln!("Error loading OBJ file: {:?}", error);
                 std::process::exit(1);
@@ -327,12 +340,21 @@ fn load_gltf_file(triangles: &mut Vec<Triangle>, materials: &mut Vec<Material>, 
 /// # Output
 ///
 /// Prints the number of textures loaded.
-pub fn setup_textures(textures: Vec<DynamicImage>, device: &wgpu::Device, queue: &wgpu::Queue, config: &SurfaceConfiguration) -> wgpu::Texture {
-    // Load textures from files into a textureset
-    let num_textureslots = textures.len() as u32;
+pub fn setup_textures(mut textures: Vec<DynamicImage>, device: &wgpu::Device, queue: &wgpu::Queue, config: &SurfaceConfiguration) -> wgpu::Texture {
+    let mut num_textureslots = textures.len() as u32;
+
+    // If there are no Textures added via the config or the 3d model imports,
+    // a new empty Texture is created to avoid driver crash caused by empty buffer
+    if num_textureslots == 0 {
+        textures.push(DynamicImage::new_rgb8(1024, 1024));
+        textures.push(DynamicImage::new_rgb8(1024, 1024));
+        num_textureslots = 2;
+    }
+
 
     let mut textures_buffer = create_texture(&device, &config, 1024, 1024, num_textureslots);
     let mut texture_count = 0;
+    println!("Textures ready ({})", texture_count);
 
     // Add textures from config to textureset
     for i in 0..textures.len(){        
@@ -349,7 +371,7 @@ pub fn setup_textures(textures: Vec<DynamicImage>, device: &wgpu::Device, queue:
             }	
         }
     }
-    println!("Textures ready ({})", texture_count);
+    println!("Textures ready ({})", num_textureslots);
 
     return textures_buffer;
 }
@@ -404,7 +426,15 @@ pub fn setup_bvh(triangles: &Vec<Triangle>) ->(Vec<BvhUniform>, Vec<f32>){
     // Choose one of these algorithms:
     //let bvh = builder.construct_locally_ordered_clustered().unwrap();
     //let bvh = builder.construct_binned_sah().unwrap();
-    let bvh = builder.construct_binned_sah().unwrap();
+    let bvh = match builder.construct_binned_sah() {
+        Err(error) => {
+            // Handle the error
+            eprintln!("Error constructing BVH: {:?}", error);
+            std::process::exit(1);
+        }
+        Ok(data) => data
+    };
+
     println!("BVH generated");
 
     // Validate the BVH tree

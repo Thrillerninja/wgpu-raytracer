@@ -1,0 +1,70 @@
+# Camera:
+[camera]
+position = [0.0, 2.0, 5.0]
+rotation = [0.0, 0.0]
+near_far = [0.1, 100.0]
+fov = 90.0
+
+# Materials:
+[[materials]] # Ground
+color = [0.8, 0.8, 0.8]
+attenuation = [0.2,0.2,0.2]
+roughness = 0.1
+emission = 0.0
+ior = 0.0
+
+[[materials]]
+color = [1.0, 0.3, 0.2]
+attenuation = [0.2,0.2,0.2]
+roughness = 0.0
+emission = 0.0
+ior = 0.0
+
+[[materials]]
+color = [0.3, 1.0, 0.2]
+attenuation = [0.2,0.2,0.2]
+roughness = 0.2
+emission = 0.0
+ior = 0.0
+
+[[materials]]
+color = [0.3, 0.2, 1.0]
+attenuation = [0.2,0.2,0.2]
+roughness = 0.04
+emission = 0.0
+ior = 0.0
+
+[[materials]] # Model
+color = [0.3, 1.0, 1.0]
+attenuation = [0.2,0.2,0.2]
+roughness = 0.2
+emission = 0.0
+ior = 0.0
+
+# Spheres:
+[[spheres]] # Bottom sphere
+position = [1.5, -52.5, 0.0]
+radius = 50.0
+material_id = 0
+texture_id = [-1, -1, -1]
+
+[[spheres]]
+position = [0.0, 2.0, 0.0]
+radius = 1.0
+material_id = 1
+texture_id = [-1, -1, -1]
+
+[[spheres]]
+position = [2.0, 2.0, 0.0]
+radius = 1.0
+material_id = 2
+texture_id = [-1, -1, -1]
+
+[[spheres]]
+position = [-2.0, 2.0, 0.0]
+radius = 1.0
+material_id = 3
+texture_id = [-1, -1, -1]
+
+[3d_model_paths]
+gltf_path = "examples/3-gltf_model/res/d20.gltf"

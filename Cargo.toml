@@ -35,6 +35,7 @@ toml = "0.8.12"
 gui = { path = "gui" }
 scene = { path = "scene" }
 wgpu_utils = { path = "wgpu_utils" }
+raytracer = { path = "raytracer" }
 
 
 [dependencies.image]
@@ -54,4 +55,4 @@ rpath = false
 
 [[bin]]
 name = "wgpu_raytracer"
-path = "raytracer/src/main.rs"
+path = "raytracer/src/bin.rs"

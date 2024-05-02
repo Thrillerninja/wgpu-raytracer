@@ -7,7 +7,7 @@ use core::ops::Deref;
 use image::Pixel;
 use exr;
 
-pub fn load_obj(file_path: String) -> Result<(Vec<Triangle>, Vec<Material>), Box<dyn std::error::Error>> {
+pub fn load_obj(file_path: String, obj_material_id: i32) -> Result<(Vec<Triangle>, Vec<Material>), Box<dyn std::error::Error>> {
     let file = File::open(file_path)?;
     let reader = BufReader::new(file);
 
@@ -85,7 +85,7 @@ pub fn load_obj(file_path: String) -> Result<(Vec<Triangle>, Vec<Material>), Box
                         vertices[v3_index],
                     ],
                     normals[normal_index],
-                    0,
+                    obj_material_id,
                     [-1.0, -1.0, -1.0],
                     [
                         texture_coords[indices[0].1 - 1],

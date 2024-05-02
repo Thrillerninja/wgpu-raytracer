@@ -4,7 +4,7 @@ use wgpu::Features;
 use winit::window::Window;
 
 
-pub async fn setup_gpu<'a> (window: Window) -> (Window, wgpu::Device, wgpu::Queue, wgpu::Surface<'a> , wgpu::SurfaceConfiguration, wgpu::TextureView, Config, winit::dpi::PhysicalSize<u32>) {
+pub async fn setup_gpu<'a> (window: Window, config_path: &str) -> (Window, wgpu::Device, wgpu::Queue, wgpu::Surface<'a> , wgpu::SurfaceConfiguration, wgpu::TextureView, Config, winit::dpi::PhysicalSize<u32>) {
     
     let instance = wgpu::Instance::new(wgpu::InstanceDescriptor {
         backends: wgpu::Backends::DX12,
@@ -71,7 +71,7 @@ pub async fn setup_gpu<'a> (window: Window) -> (Window, wgpu::Device, wgpu::Queu
     };
     surface.configure(&device, &config);     
     
-    let userconfig = Config::new();
+    let userconfig = Config::new(config_path);
 
     //----------Color Buffer-------------
     // Create a color texture with a suitable sRGB format

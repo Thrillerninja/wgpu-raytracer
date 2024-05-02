@@ -155,6 +155,9 @@ impl Triangle{
     pub fn new(points: [[f32; 3]; 3], normal: [f32; 3], material_id: i32, texture_ids: [f32; 3], tex_coords: [[f32;2];3]) -> Triangle{
         Self{points, normal, material_id, texture_ids, tex_coords}
     }
+    pub fn empty() -> Triangle{
+        Self{points: [[0.0; 3]; 3], normal: [0.0; 3], material_id: 0, texture_ids: [0.0; 3], tex_coords: [[0.0; 2]; 3]}
+    }
 }
 
 #[repr(C)]
@@ -165,7 +168,7 @@ pub struct TriangleUniform {
     vertex3: [f32; 4],
     normal: [f32; 4],
     texcords1: [f32; 4],
-    texcords2: [f32; 4],
+    texcords2: [f32; 4],    // tex3x, tex3y, 0.0, 0.0
     material_texture_id: [f32; 4], //[material_id, texture_id_diffuse, texture_id_roughness, texture_id_normal]
 }
 
@@ -179,6 +182,17 @@ impl TriangleUniform {
             material_texture_id: [triangle.material_id as f32, triangle.texture_ids[0] as f32, triangle.texture_ids[1] as f32, triangle.texture_ids[2] as f32],
             texcords1: [triangle.tex_coords[0][0], triangle.tex_coords[0][1], triangle.tex_coords[1][0], triangle.tex_coords[1][1]],
             texcords2: [triangle.tex_coords[2][0], triangle.tex_coords[2][1], 0.0, 0.0],
+        }
+    }
+    pub fn empty() -> Self {
+        Self {
+            vertex1: [1.0; 4],
+            vertex2: [2.0; 4],
+            vertex3: [3.0; 4],
+            normal: [0.0; 4],
+            material_texture_id: [0.0; 4],
+            texcords1: [0.0; 4],
+            texcords2: [0.0; 4],
         }
     }
 }

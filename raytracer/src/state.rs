@@ -16,7 +16,6 @@ use scene::{
 };
 
 use crate::helper::{add_materials_from_config, add_textures_from_config, setup_bvh, setup_hdri, setup_textures, setup_tris_objects};
-
 use crate::helper::setup_camera;
 
 pub struct State<'a>{
@@ -89,8 +88,19 @@ impl<'a> State<'a>{
     /// The denoising setup involves creating a denoising buffer and a bind group for it. It also passes camera info to the denoising shader and creates a buffer to hold the camera data for denoising. It also creates a buffer to hold the denoising pass number, a view for the denoising texture, a bind group descriptor for the denoising step, and a pipeline layout for denoising. Finally, it loads the denoising shader and creates a denoising pipeline.
     /// # Screen rendering Setup
     /// The screen rendering setup involves creating a sampler for transferring color data from render to screen texture. It also creates a bind group layout for the shader and a bind group for the screen rendering pipeline. It loads the screen shader and creates a screen pipeline layout.
-    pub async fn new(window: Window, config_path: Option<String>) -> Self {
+    pub async fn new(window: Window, config_path: Option<&str>) -> Self {
         //---------Setup Hardware---------
+        let config_path: &str = match config_path {
+            Some(path) => {
+                println!("Using config file: {}", path);
+                path
+            }
+            None => {
+                println!("Using default config");
+                "res/config.toml"
+            }
+        };
+
         let (window,
             device, 
             queue, 
@@ -98,7 +108,7 @@ impl<'a> State<'a>{
             config, 
             color_buffer_view, 
             userconfig, 
-            size) = setup_gpu(window).await;
+            size) = setup_gpu(window, config_path).await;
         println!("Hardware initialized");
 
         //-------------Camera-------------

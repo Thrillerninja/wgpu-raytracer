@@ -16,13 +16,15 @@ pub struct Textureset {
 pub struct ModelPaths {
     pub gltf_path: Option<String>,
     pub obj_path: Option<String>,
+    pub obj_material_id: Option<i32>,
 }
 
 impl ModelPaths {
-    pub fn new(gltf_path: Option<String>, obj_path: Option<String>) -> Self {
+    pub fn new(gltf_path: Option<String>, obj_path: Option<String>, obj_material_id: Option<i32>) -> Self {
         Self {
             gltf_path,
             obj_path,
+            obj_material_id,
         }
     }
 }
@@ -45,8 +47,8 @@ pub struct Config {
 }
 
 impl Config {
-    pub fn new() -> Self {
-        let toml_str = fs::read_to_string("res/Config.toml")
+    pub fn new(config_path: &str) -> Self {
+        let toml_str = fs::read_to_string(config_path)
             .expect("Could not find/read config file");
 
         let toml: toml::Value = toml::from_str(&toml_str)
@@ -222,10 +224,13 @@ fn load_3d_models_config(value: Option<&toml::Value>) -> ModelPaths {
                     None
                 });
 
+            let obj_material_id = value.get("obj_material_id").and_then(|v| v.as_integer()).map(|v| v as i32);
+
             // gen struct
             ModelPaths::new(
                 gltf_path,
-                obj_path
+                obj_path,
+                obj_material_id
             )
         },
         None => {

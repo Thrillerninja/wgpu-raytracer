@@ -1,10 +1,10 @@
-use raytracing_lib::run;
+use winit::{event::*, event_loop::{ControlFlow, EventLoop}, keyboard::{Key, NamedKey}};
+
+use raytracer::run; // Add the correct path to the lib module.
 
 /// Entry point for the application.
 ///
 /// It then calls the `run` function and blocks until it completes.
 fn main() {
-    std::env::set_var("RUST_BACKTRACE", "1");
-    std::env::set_var("CARGO_CACHE", "1");
     pollster::block_on(run(None));
 }

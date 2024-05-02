@@ -1,10 +1,8 @@
 use cgmath::*;
 use winit::keyboard::{Key, NamedKey};
-use std::f32::consts::PI;
 use std::time::Duration;
 use winit::dpi::PhysicalPosition;
 use winit::event::*;
-use crate::structs::ShaderConfig;
 /// Represents a camera in 3D space.
 ///
 /// The camera has a position and a rotation. The position is a point in 3D space, and the rotation is a quaternion that represents the orientation of the camera.

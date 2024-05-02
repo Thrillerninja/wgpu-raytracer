@@ -44,5 +44,5 @@ name = "raytracing_lib"
 path = "src/lib.rs"
 
 [[bin]]
-name = "mybin"
+name = "raytracing_bin"
 path = "src/bin.rs"

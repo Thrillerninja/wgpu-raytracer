@@ -1,6 +1,8 @@
 use winit::{event::*, event_loop::{ControlFlow, EventLoop}, keyboard::{Key, NamedKey}};
 
-use crate::state::State;
+mod state;
+mod helper;
+use state::State;
 
 /// Starts the application.
 ///
@@ -23,7 +25,7 @@ use crate::state::State;
 /// # Errors
 ///
 /// This function will terminate the process if there is an error loading the HDRI file or the texture file.
-pub async fn run(resource_path: Option<String>) {
+pub async fn run(resource_path: Option<&str>) {
     cfg_if::cfg_if! {
         if #[cfg(target_arch = "wasm32")] {
             std::panic::set_hook(Box::new(console_error_panic_hook::hook));

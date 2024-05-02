@@ -1,6 +1,6 @@
 # Camera:
 [camera]
-position = [0.0, 2.0, 0.0]
+position = [0.0, 0.0, 0.0]
 rotation = [0.0, 0.0]
 near_far = [0.1, 100.0]
 fov = 90.0
@@ -9,118 +9,13 @@ fov = 90.0
 [[materials]]
 color = [1.0, 0.3, 0.2]
 attenuation = [0.2,0.2,0.2]
-roughness = 0.2
-emission = 0.0
-ior = 0.0
-
-[[materials]]   # Red
-color = [1.0, 0.3, 0.2]
-attenuation = [0.2,0.2,0.2]
-roughness = 0.2
-emission = 0.0
-ior = 0.0
-
-# [[materials]] # Green
-# color = [0.3, 1.0, 0.2]
-# attenuation = [0.2,0.2,0.2]
-# roughness = 0.0
-# emission = 0.0
-# ior = 0.0
-[[materials]] # Green
-color = [1.0,1.0,1.0]
-attenuation = [1.0,1.0,1.0]
-roughness = 0.0
-emission = 0.0
-ior = 1.5
-
-[[materials]] # Blue
-color = [0.3, 0.2, 1.0]
-attenuation = [0.2,0.2,0.2]
 roughness = 0.0
 emission = 0.0
 ior = 0.0
-
-[[materials]] # Light
-color = [1.0, 1.0, 1.0]
-attenuation = [0.2,0.2,0.2]
-roughness = 0.0
-emission = 20.0
-ior = 0.0
-
-[[materials]] # Background
-color = [1.0, 1.0, 1.0]
-attenuation = [0.2,0.2,0.2]
-roughness = 0.0
-emission = 20.0
-ior = 0.0
-
-[[materials]] # Green
-color = [1.0,1.0,1.0]
-attenuation = [1.0,1.0,1.0]
-roughness = 0.0
-emission = 0.0
-ior = 0.5
-
-# textures:
-
-[[textures]]
-diffuse = "res/assets/pavement_26_basecolor-1K.png"
-normal = "res/assets/pavement_26_normal-1K.png"
-roughness = "res/assets/pavement_26_roughness-1K.png"
-
-
-[[textures]]
-diffuse = "res/assets/pavement_26_basecolor-1K.png"
-normal = "res/assets/pavement_26_normal-1K.png"
-roughness = "res/assets/pavement_26_roughness-1K.png"
-
-
 
 # Spheres:
-
 [[spheres]]
-position = [1.5, -50.5, -1.0]
-radius = 50.0
+position = [0.0, 0.0, -2.0]
+radius = 1.0
 material_id = 0
 texture_id = [-1, -1, -1]
-
-[[spheres]]
-position = [-1.5, 3.0, -1.0]
-radius = 1.0
-material_id = 1
-texture_id = [-1, -1, -1]
-
-[[spheres]]
-position = [1.5, 3.0, -1.0]
-radius = 0.7
-material_id = 2
-texture_id = [-1, -1, -1]
-
-[[spheres]]
-position = [1.5, 3.0, -1.0]
-radius = 0.3
-material_id = 7
-texture_id = [3,4,-1]
-
-[[spheres]]
-position = [1.5, 3.0, 0.3]
-radius = 0.7
-material_id = 3
-texture_id = [0, 1, 2]
-
-[[spheres]]
-position = [0.5, 5.0, 0.0]
-radius = 0.3
-material_id = 4
-texture_id = [-1, -1, -1]
-
-[background]
-material_id = 5
-intensity = 1.0
-background_path = "res/assets/belfast_farmhouse_4k.exr"
-
-
-[3d_model_paths]
-gltf_path = "res/assets/untitled.gltf"
-# obj_path = "res/assets/untitled.obj"
-
