@@ -34,12 +34,36 @@ roughness = 0.04
 emission = 0.0
 ior = 0.0
 
-[[materials]] # Model
-color = [0.3, 1.0, 1.0]
+[[materials]] # Glass Sphere
+color = [1.0, 1.0, 1.0]
+attenuation = [1.0,1.0,1.0]
+roughness = 0.0
+emission = 0.0
+ior = 1.5
+
+[[materials]] # "Air bubble in Sphere"
+color = [1.0, 1.0, 1.0]
+attenuation = [1.0,1.0,1.0]
+roughness = 0.0
+emission = 0.0
+ior = 0.5 # Lower IOR than the sphere
+
+[[materials]] # "White Bachground Material for Textures"
+color = [1.0, 1.0, 1.0]
 attenuation = [0.2,0.2,0.2]
-roughness = 0.2
+roughness = 0.5
 emission = 0.0
 ior = 0.0
+
+[[textures]]
+diffuse = "examples/4-complex_material/res/pavement_26_basecolor-1K.png"
+normal = "examples/4-complex_material/res/pavement_26_normal-1K.png"
+roughness = "examples/4-complex_material/res/pavement_26_roughness-1K.png"
+
+[[textures]]
+diffuse = "examples/4-complex_material/res/others_0035_color_1k.jpg"
+normal = "examples/4-complex_material/res/others_0035_normal_directx_1k.png"
+roughness = "examples/4-complex_material/res/others_0035_roughness_1k.jpg"
 
 # Spheres:
 [[spheres]] # Bottom sphere
@@ -60,11 +84,32 @@ radius = 1.0
 material_id = 2
 texture_id = [-1, -1, -1]
 
-[[spheres]]
-position = [-2.0, 2.0, 0.0]
+[[spheres]] # Glass Sphere 1
+position = [2.0, 2.0, 2.0]
 radius = 1.0
 material_id = 3
 texture_id = [-1, -1, -1]
 
-[3d_model_paths]
-gltf_path = "examples/4-complex_material/res/d20.gltf"
+[[spheres]] # Glass Sphere
+position = [-2.0, 2.0, 0.0]
+radius = 1.0
+material_id = 4
+texture_id = [-1, -1, -1]
+
+[[spheres]] # "Air bubble in Sphere"
+position = [-2.0, 2.0, 0.0]
+radius = 0.9
+material_id = 5
+texture_id = [-1, -1, -1]
+
+[[spheres]]
+position = [-2.0, 2.0, 2.0]
+radius = 1.0
+material_id = 6
+texture_id = [0, 1, 2]
+
+[[spheres]] # "Air bubble in Sphere"
+position = [-2.0, 0.0, 2.0]
+radius = 1.0
+material_id = 6
+texture_id = [3, 4, 5]
