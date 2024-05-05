@@ -1,21 +1,13 @@
 
-pub mod config;
-pub mod structs;
-pub mod models;
-pub mod texture;
-pub mod camera;
+mod config;
+mod structs;
+mod models;
+mod texture;
+mod camera;
 
-pub fn add(left: usize, right: usize) -> usize {
-    left + right
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn it_works() {
-        let result = add(2, 2);
-        assert_eq!(result, 4);
-    }
-}
+pub use config::{Config, Textureset};
+pub use structs::{ShaderConfig, CameraUniform, Background, Material, Sphere, Triangle,
+            BvhUniform, TriangleUniform};
+pub use camera::{Camera, CameraController, Projection};
+pub use texture::{create_texture, load_textures_from_image, scale_texture};
+pub use models::{load_hdr, load_gltf, load_obj};

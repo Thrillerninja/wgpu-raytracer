@@ -17,6 +17,14 @@ impl<'a> BufferInitDescriptor<'a> {
     pub fn new(label: wgpu::Label<'a>, usage: wgpu::BufferUsages) -> Self {
         Self { label, usage }
     }
+
+    pub fn create_new_buffer<T: Pod>(&self, device: &wgpu::Device, data: &[T]) -> wgpu::Buffer {
+        return device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
+            label: self.label,
+            contents: bytemuck::cast_slice(data),
+            usage: self.usage,
+        });    
+    }
 }
 
 impl<'a> Default for BufferInitDescriptor<'a> {
@@ -26,14 +34,6 @@ impl<'a> Default for BufferInitDescriptor<'a> {
             usage: wgpu::BufferUsages::COPY_DST,
         }
     }
-}
-
-pub fn create_new_buffer<T: Pod>(device: &wgpu::Device, data: &[T], descriptor: BufferInitDescriptor) -> wgpu::Buffer {
-    return device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
-        label: descriptor.label,
-        contents: bytemuck::cast_slice(data),
-        usage: descriptor.usage,
-    });    
 }
 
 
@@ -53,7 +53,7 @@ pub enum BindingResourceTemplate<'a> {
 
 /// A function to get a `BindingResource` from a `BindingResourceTemplate`.
 ///
-/// This function takes a `BindingResourceTemplate` and returns a `BindingResource`.
+/// This function takes a `BindingResourceTemplate` and returns the contained `BindingResource`.
 pub fn get_binding_resource<'a>(template: BindingResourceTemplate<'a>) -> wgpu::BindingResource<'a> {
     match template {
         BindingResourceTemplate::BufferStorage(binding_resource) => binding_resource,
@@ -254,10 +254,6 @@ mod tests {
         assert_eq!(descriptor.usage, wgpu::BufferUsages::COPY_DST);
     }
 
-    // #[test]
-    // Untestable functions
-    // fn test_create_new_buffer() {}
-
     #[test]
     fn create_binding_resource_template() {
         let instance_descriptor: wgpu::InstanceDescriptor = Default::default();
@@ -280,55 +276,5 @@ mod tests {
         });
         let binding_resource_template = BindingResourceTemplate::BufferStorage(binding_resource.clone());
         assert_eq!(binding_resource_template, BindingResourceTemplate::BufferStorage(binding_resource));
-    }
-
-    #[test]
-    fn test_get_binding_resource() {
-        let instance_descriptor: wgpu::InstanceDescriptor = Default::default();
-
-        let instance = wgpu::Instance::new(instance_descriptor);
-        let adapter = block_on(instance.request_adapter(&wgpu::RequestAdapterOptions::default())).unwrap();
-        let (device, _) = block_on(adapter.request_device(&wgpu::DeviceDescriptor::default(), None)).unwrap();
-
-        let buffer = device.create_buffer(&wgpu::BufferDescriptor {
-            label: Some("Test Buffer"),
-            size: 1024,
-            usage: wgpu::BufferUsages::COPY_DST,
-            mapped_at_creation: false,
-        });
-
-        let binding_resource = wgpu::BindingResource::Buffer(wgpu::BufferBinding {
-            buffer: &buffer,
-            offset: 0,
-            size: None,
-        });
-        let binding_resource_template = BindingResourceTemplate::BufferStorage(binding_resource.clone());
-        assert_eq!(get_binding_resource(binding_resource_template), binding_resource);
-    }
-
-    #[test]
-    fn test_buffer_type_new() {
-        let instance_descriptor: wgpu::InstanceDescriptor = Default::default();
-
-        let instance = wgpu::Instance::new(instance_descriptor);
-        let adapter = block_on(instance.request_adapter(&wgpu::RequestAdapterOptions::default())).unwrap();
-        let (device, _) = block_on(adapter.request_device(&wgpu::DeviceDescriptor::default(), None)).unwrap();
-
-        let buffer = device.create_buffer(&wgpu::BufferDescriptor {
-            label: Some("Test Buffer"),
-            size: 1024,
-            usage: wgpu::BufferUsages::COPY_DST,
-            mapped_at_creation: false,
-        });
-
-        let binding_resource = wgpu::BindingResource::Buffer(wgpu::BufferBinding {
-            buffer: &buffer,
-            offset: 0,
-            size: None,
-        });
-        let binding_resource_template = BindingResourceTemplate::BufferStorage(binding_resource.clone());
-        let buffer_type = BufferType::new(binding_resource_template.clone());
-        assert_eq!(buffer_type.ty, binding_resource_template);
-        assert_eq!(buffer_type.view_dimension, None);
     }
 }

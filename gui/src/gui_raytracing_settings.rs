@@ -1,5 +1,5 @@
 use egui::{Context, InnerResponse, Margin, RichText};
-use scene::structs::ShaderConfig;
+use scene::ShaderConfig;
 use crate::GuiConfig;
 
 

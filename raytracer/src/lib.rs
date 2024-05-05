@@ -1,8 +1,24 @@
+/*!
+# Raytracer Crate
+
+This crate provides the main functionality for the raytracer. It uses the `wgpu` library for rendering the scene.
+
+## Modules
+
+- `state`: Contains the [`State`](raytracer/src/state.rs) struct which is responsible for managing the state of the application.
+
+## Usage
+
+To use this crate, you need to create an instance of `State` and call its `update` and `render` methods in your main loop.
+
+*/
+
 use winit::{event::*, event_loop::{ControlFlow, EventLoop}, keyboard::{Key, NamedKey}};
 
 mod state;
-mod helper;
-use state::State;
+pub mod helper;
+pub use state::State;
+
 
 /// Starts the application.
 ///

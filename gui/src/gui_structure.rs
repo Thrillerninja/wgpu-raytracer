@@ -2,7 +2,7 @@ use std::collections::VecDeque;
 use egui::{Align2, Context};
 use egui_plot::{AxisHints, GridMark, PlotPoints};
 use std::ops::RangeInclusive;
-use scene::structs::ShaderConfig;
+use scene::ShaderConfig;
 
 use crate::gui_raytracing_settings::raytracing_settings_gui;
 use crate::gui_denoising_settings::denoising_settings_gui;

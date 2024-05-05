@@ -1,11 +1,9 @@
 use image::{DynamicImage, GenericImageView};
 use rtbvh::{Aabb, Builder, Primitive};
 use wgpu::SurfaceConfiguration;
-use scene::{
-    camera::{Camera, CameraController, Projection}, config::{Config, Textureset}, models::{load_gltf, load_obj}, structs::{self, BvhUniform, Material, Triangle, TriangleUniform, CameraUniform}};
-
-use scene::texture::{create_texture, load_textures_from_image, scale_texture};
-use scene::models::load_hdr;
+use scene::{Camera, CameraController, CameraUniform, Projection, Config, Textureset, 
+    load_gltf, load_obj, BvhUniform, Material, Triangle, TriangleUniform, 
+    create_texture, load_textures_from_image, scale_texture, load_hdr};
 
 /// Sets up the camera for the rendering scene.
 ///
@@ -24,35 +22,6 @@ use scene::models::load_hdr;
 /// * `CameraController` - The initialized camera controller with a speed of 4.0 and a sensitivity of 1.6.
 /// * `CameraUniform` - The initialized camera uniform which is updated with the view projection of the camera and projection.
 ///
-/// # Example
-///
-/// ```
-/// let surface_result = unsafe {
-///     instance.create_surface_unsafe(wgpu::SurfaceTargetUnsafe::from_window(&window).unwrap())
-/// };
-///
-/// let surface = match surface_result {
-///     Ok(surface) => surface,
-///     Err(error) => {
-///         // Handle the error here
-///         panic!("Failed to create surface: {:?}", error);
-///     }
-/// };
-/// let surface_caps = surface.get_capabilities(&adapter);
-/// let userconfig: Config = Config::defualt();
-/// let config: SurfaceConfiguration = wgpu::SurfaceConfiguration {
-///         usage: wgpu::TextureUsages::RENDER_ATTACHMENT,
-///         format: wgpu::TextureFormat::Rgba8Unorm,
-///         width: 800,
-///         height: 600,
-///         present_mode: surface_caps.present_modes[0],
-///         alpha_mode: surface_caps.alpha_modes[0],
-///         view_formats: vec![],
-///         desired_maximum_frame_latency: 10,
-///     };
-/// 
-/// let (camera, projection, camera_controller, camera_uniform) = setup_camera(&config, &userconfig);
-/// ```
 pub fn setup_camera(config: &SurfaceConfiguration, userconfig: &Config) -> (Camera, Projection, CameraController, CameraUniform) {
     let camera = Camera::new(userconfig.camera_position, 
                                         cgmath::Deg(userconfig.camera_rotation[0]), 
@@ -64,7 +33,7 @@ pub fn setup_camera(config: &SurfaceConfiguration, userconfig: &Config) -> (Came
                                                          userconfig.camera_near_far[1]);
     let camera_controller = CameraController::new(4.0, 1.6);
 
-    let mut camera_uniform = structs::CameraUniform::new();
+    let mut camera_uniform = CameraUniform::new();
     camera_uniform.update_view_proj(&camera, &projection);
 
     return (camera, projection, camera_controller, camera_uniform)
@@ -88,12 +57,6 @@ pub fn setup_camera(config: &SurfaceConfiguration, userconfig: &Config) -> (Came
 /// * `Vec<TriangleUniform>` - The list of triangle uniforms created from the triangles in a GPU friendly format.
 /// * `Config` - The original user configuration.
 ///
-/// # Example
-///
-/// ```
-/// let userconfig: Config = Config::default()
-/// let (triangles, triangle_uniforms, materials, textures, config) = setup_tris_objects(userconfig);
-/// ```
 pub fn setup_tris_objects(userconfig: Config, materials: &mut Vec<Material>, textures: &mut Vec<DynamicImage>) -> (Vec<Triangle>, Vec<TriangleUniform>, Config) {
     let gltf_path = userconfig.model_paths.gltf_path.clone();
     let obj_path = userconfig.model_paths.obj_path.clone();
@@ -132,13 +95,6 @@ pub fn setup_tris_objects(userconfig: Config, materials: &mut Vec<Material>, tex
 /// * `materials` - A mutable reference to the vector of materials to which the user-defined materials will be added.
 /// * `user_materials` - An optional reference to the vector of user-defined materials from the configuration.
 ///
-/// # Example
-///
-/// ```
-/// let materials = Vec::new();
-/// let new_materials = Some(vec![Material::default(), Material::default()]);
-/// add_materials_from_config(&mut materials, &new_materials);
-/// ```
 ///
 /// # Output
 ///
@@ -163,13 +119,6 @@ pub fn add_materials_from_config(materials: &mut Vec<Material>, user_materials: 
 /// * `textures` - A mutable reference to the vector of textures to which the user-defined textures will be added.
 /// * `user_texturesets` - An optional reference to the vector of user-defined textures from the configuration.
 ///
-/// # Example
-///
-/// ```
-/// let textures = Vec::new();
-/// let new_textures = Some(vec![Textureset::default()])
-/// add_textures_from_config(&mut textures, &new_textures);
-/// ```
 ///
 /// # Output
 ///
@@ -229,13 +178,6 @@ pub fn add_textures_from_config(textures: &mut Vec<DynamicImage>, user_texturese
 /// * `materials` - A mutable reference to the vector of materials to which the materials from the OBJ file will be added.
 /// * `obj_path` - An optional string representing the path to the OBJ file.
 ///
-/// # Example
-///
-/// ```
-/// let mut materials = Vec<Material>::new();
-/// let mut triangeles = Vec<Triangles>::new();
-/// load_obj_file(&mut triangles, &mut materials, Some("path/to/obj/file.obj"));
-/// ```
 ///
 /// # Output
 ///
@@ -276,14 +218,6 @@ fn load_obj_file(triangles: &mut Vec<Triangle>, materials: &mut Vec<Material>, o
 /// * `textures` - A mutable reference to the vector of textures to which the textures from the GLTF file will be added.
 /// * `gltf_path` - An optional string representing the path to the GLTF file.
 /// 
-/// # Example
-/// 
-/// ```
-/// let mut materials = Vec<Material>::new();
-/// let mut textures = Vec<DynamicImage>::new();
-/// let mut triangeles = Vec<Triangles>::new();
-/// load_gltf_file(&mut triangles, &mut materials, &mut textures, Some("path/to/gltf/file.gltf"));
-/// ```
 /// 
 /// # Output
 /// 
@@ -327,15 +261,6 @@ fn load_gltf_file(triangles: &mut Vec<Triangle>, materials: &mut Vec<Material>, 
 /// * `queue` - A reference to a `wgpu::Queue`.
 /// * `config` - A reference to a `SurfaceConfiguration`.
 ///
-/// # Example
-///
-/// ```
-/// let textures = vec![DynamicImage::new_rgb8(1024, 1024)];
-/// let device = wgpu::Device::new();
-/// let queue = wgpu::Queue::new();
-/// let config = SurfaceConfiguration::new();
-/// setup_textures(textures, &device, &queue, &config);
-/// ```
 ///
 /// # Output
 ///
@@ -392,12 +317,6 @@ pub fn setup_textures(mut textures: Vec<DynamicImage>, device: &wgpu::Device, qu
 ///
 /// A tuple containing a vector of `BvhUniform` objects representing the BVH in a format compatible with a uniform buffer, and a vector of `f32` representing the indices of the primitives.
 ///
-/// # Example
-///
-/// ```
-/// let triangles = vec![Triangle::new(...)];
-/// let (bvh_uniform, bvh_prim_indices) = setup_bvh(&triangles);
-/// ```
 ///
 /// # Output
 ///
@@ -478,15 +397,6 @@ pub fn setup_bvh(triangles: &Vec<Triangle>) ->(Vec<BvhUniform>, Vec<f32>){
 ///
 /// A `wgpu::Texture` object representing the HDRI texture.
 ///
-/// # Example
-///
-/// ```
-/// let userconfig = Config::new(...);
-/// let device = wgpu::Device::new(...);
-/// let queue = wgpu::Queue::new(...);
-/// let config = SurfaceConfiguration::new(...);
-/// let hdri_texture = setup_hdri(&userconfig, &device, &queue, &config);
-/// ```
 ///
 /// # Errors
 ///

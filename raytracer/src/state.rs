@@ -3,17 +3,11 @@ use image::DynamicImage;
 use winit::{event::*, window::Window};
 use egui_wgpu::ScreenDescriptor;
 
-use wgpu_utils::{
-    buffer::{BufferInitDescriptor, BindGroupDescriptor, BufferType, BindingResourceTemplate, create_new_buffer},
-    gpu::setup_gpu,
-};
+use wgpu_utils::{BufferInitDescriptor, BindGroupDescriptor, BufferType, BindingResourceTemplate, setup_gpu};
 
 use gui::{EguiRenderer, gui, GuiConfig};
 
-use scene::{
-    camera::{self, Camera},
-    structs::{Background, CameraUniform, Material, ShaderConfig, Sphere}
-};
+use scene::{Camera, CameraUniform, CameraController, Projection, Background, Material, ShaderConfig, Sphere};
 
 use crate::helper::{add_materials_from_config, add_textures_from_config, setup_bvh, setup_hdri, setup_textures, setup_tris_objects};
 use crate::helper::setup_camera;
@@ -39,9 +33,9 @@ pub struct State<'a>{
     screen_render_pipeline: wgpu::RenderPipeline,
     screen_bind_group: wgpu::BindGroup,
     //Camera
-    camera: camera::Camera,
-    projection: camera::Projection,
-    pub camera_controller: camera::CameraController,
+    camera: Camera,
+    projection: Projection,
+    pub camera_controller: CameraController,
     pub camera_uniform: CameraUniform,
     camera_buffer: wgpu::Buffer,
     camera_bind_group: wgpu::BindGroup,
@@ -120,7 +114,7 @@ impl<'a> State<'a>{
 
         // Create a buffer to hold the camera data
         let camera_descriptor = BufferInitDescriptor::new(Some("Camera Buffer"), wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST | wgpu::BufferUsages::COPY_SRC);
-        let camera_buffer = create_new_buffer(&device, &[camera_uniform], camera_descriptor);
+        let camera_buffer = camera_descriptor.create_new_buffer(&device, &[camera_uniform]);
 
         // Create a bind group for pasing the camera data to the shader
         let mut camera_bind_group_descriptor = BindGroupDescriptor::new(
@@ -152,7 +146,7 @@ impl<'a> State<'a>{
 
         // Create a buffer to hold the vertex data of the triangles
         let vertex_buffer_descriptor = BufferInitDescriptor::new(Some("Vertex Buffer"), wgpu::BufferUsages::STORAGE | wgpu::BufferUsages::COPY_DST);
-        let vertex_buffer = create_new_buffer(&device, &triangles_uniform, vertex_buffer_descriptor);
+        let vertex_buffer = vertex_buffer_descriptor.create_new_buffer(&device, &triangles_uniform);
 
         // --------- Load Spheres ---------
         // Load spheres amd store them as gpu compatible vector
@@ -169,7 +163,7 @@ impl<'a> State<'a>{
         
         // Create a buffer to hold the sphere data
         let sphere_buffer_descriptor = BufferInitDescriptor::new(Some("Sphere Buffer"), wgpu::BufferUsages::STORAGE | wgpu::BufferUsages::COPY_DST);
-        let sphere_buffer = create_new_buffer(&device, &spheres, sphere_buffer_descriptor);
+        let sphere_buffer = sphere_buffer_descriptor.create_new_buffer(&device, &spheres);
 
         // ------ Combined Bind Group ---------
         // Create a bind group for the objects
@@ -203,11 +197,11 @@ impl<'a> State<'a>{
         
         // Store bvh nodes in a buffer as a array
         let bvh_descriptor = BufferInitDescriptor::new(Some("BVH Buffer"), wgpu::BufferUsages::STORAGE | wgpu::BufferUsages::COPY_DST);
-        let bvh_buffer = create_new_buffer(&device, &bvh_uniform, bvh_descriptor);
+        let bvh_buffer = bvh_descriptor.create_new_buffer(&device, &bvh_uniform);
 
         // Store prim indices of the bvh nodes in a buffer as a array (these are needed for a tree traversal on the gpu)
         let bvh_indices_descriptor = BufferInitDescriptor::new(Some("BVH Prim Indices Buffer"), wgpu::BufferUsages::STORAGE | wgpu::BufferUsages::COPY_DST);
-        let bvh_prim_indices_buffer = create_new_buffer(&device, &bvh_prim_indices, bvh_indices_descriptor);
+        let bvh_prim_indices_buffer = bvh_indices_descriptor.create_new_buffer(&device, &bvh_prim_indices);
 
         // Send nodes and prim indices to the shader
         let mut bvh_bind_group_descriptor = BindGroupDescriptor::new(
@@ -240,7 +234,7 @@ impl<'a> State<'a>{
 
         // Create a buffer to hold the material data from config and glft
         let material_descriptor = BufferInitDescriptor::new(Some("Material Buffer"), wgpu::BufferUsages::STORAGE | wgpu::BufferUsages::COPY_DST);
-        let material_buffer = create_new_buffer(&device, &materials, material_descriptor);
+        let material_buffer = material_descriptor.create_new_buffer(&device, &materials);
         
         // Background
         let background = match userconfig.background {
@@ -251,7 +245,7 @@ impl<'a> State<'a>{
         };
         // Create a buffer to hold the extra data for the background
         let background_descriptor = BufferInitDescriptor::new(Some("Background Buffer"), wgpu::BufferUsages::STORAGE | wgpu::BufferUsages::COPY_DST);
-        let background_buffer = create_new_buffer(&device, &[background], background_descriptor);
+        let background_buffer = background_descriptor.create_new_buffer(&device, &[background]);
 
         println!("Background: {:?}", background);
 
@@ -317,7 +311,7 @@ impl<'a> State<'a>{
         let shader_config = ShaderConfig::default();
         // Create a buffer to hold the shader config data
         let shader_config_descriptor = BufferInitDescriptor::new(Some("Shader Config Buffer"), wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST);
-        let shader_config_buffer =  create_new_buffer(&device, &[shader_config], shader_config_descriptor);
+        let shader_config_buffer =  shader_config_descriptor.create_new_buffer(&device, &[shader_config]);
 
         // Create a bind group for pasing the shader config to the shader
         let mut shader_config_bind_group_descriptor = BindGroupDescriptor::new(
@@ -420,11 +414,11 @@ impl<'a> State<'a>{
         
         // Create a buffer to hold the camera data for the denoising shader so it can be used to detect significant scene change
         let denoising_camera_buffer_descriptor = BufferInitDescriptor::new(Some("Denoising Camera Data Buffer"), wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST);
-        let denoising_camera_buffer = create_new_buffer(&device, &[denoising_camera_uniform], denoising_camera_buffer_descriptor);
+        let denoising_camera_buffer = denoising_camera_buffer_descriptor.create_new_buffer(&device, &[denoising_camera_uniform]);
 
         // Create a buffer to hold the denoising pass number so the correct denoising step (temporal or spatial) can be executed
         let denoising_pass_buffer_descriptor = BufferInitDescriptor::new(Some("Denoising Pass Buffer"), wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST);
-        let denoising_pass_buffer = create_new_buffer(&device, &[0u32], denoising_pass_buffer_descriptor);
+        let denoising_pass_buffer = denoising_pass_buffer_descriptor.create_new_buffer(&device, &[0u32]);
 
         // Create a bind group descriptor for denoising step
         let mut denoising_bind_group_descriptor = BindGroupDescriptor::new(

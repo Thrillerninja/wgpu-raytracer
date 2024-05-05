@@ -1,5 +1,4 @@
-use scene::config::Config;
-
+use scene::Config;
 use wgpu::Features;
 use winit::window::Window;
 
@@ -97,4 +96,33 @@ pub async fn setup_gpu<'a> (window: Window, config_path: &str) -> (Window, wgpu:
     let color_buffer_view = color_texture.create_view(&wgpu::TextureViewDescriptor::default());
 
     return (window, device, queue, surface, config, color_buffer_view, userconfig, size)
+}
+
+
+#[cfg(test)]
+mod tests {
+    use winit_test::winit::event_loop::EventLoopWindowTarget;
+    use pollster::block_on;
+    use super::*;
+
+    // #[warn(dead_code)]  //Suppresses warning for unused function since it is used by the winit testing framework below
+    fn _test_setup_gpu(elwt: &EventLoopWindowTarget<()>) {
+        let window = winit::window::WindowBuilder::new()
+            .with_inner_size(winit::dpi::PhysicalSize::new(800, 600))
+            .build(&elwt)
+            .unwrap();
+
+        let (window, device, _queue, _surface, config, _color_buffer_view, _userconfig, size) = block_on(setup_gpu(window, "config.toml"));
+
+        assert_eq!(config.width, 800);  //Checks if config is set correctly
+        assert_eq!(config.height, 600);
+        assert_eq!(size.width, 800);    //Checks if size is set correctly
+        assert_eq!(size.height, 600);
+        assert_eq!(window.inner_size().width, 800); //Checks if window size is set correctly
+        assert_eq!(window.inner_size().height, 600);
+        assert_eq!(device.limits().max_bind_groups, 6); //Checks if custom limits are set
+    }
+
+    winit_test::main!(_test_setup_gpu);
+
 }

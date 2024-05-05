@@ -1,5 +1,5 @@
 use egui::{Context, InnerResponse, Margin};
-use scene::structs::ShaderConfig;
+use scene::ShaderConfig;
 
 pub fn denoising_settings_gui(ui: &Context, shader_config: &mut ShaderConfig) -> InnerResponse<()> {
     egui::SidePanel::left("Denoising Settings")
