@@ -1,2 +1,4 @@
 target
 res/assets
+.debug
+.vscode

@@ -294,7 +294,7 @@ fn intersectBVH(ray: Ray, ) -> vec3<f32> {
                     var hit: f32 = hit_tri(ray, triangles[primID]);
 
                     if (hit > 0.0) {
-                        if (hit < t){
+                        if (hit < t+0.001){
                             t = hit;
                             hit_bvh = primID;
                         }
@@ -309,7 +309,7 @@ fn intersectBVH(ray: Ray, ) -> vec3<f32> {
                 let left_hit = intersectBox(ray, bvh[i32(node.extra2.x)].min.xyz, bvh[i32(node.extra2.x)].max.xyz, 0.0);
                 let right_hit = intersectBox(ray, bvh[i32(node.extra2.x)+1].min.xyz, bvh[i32(node.extra2.x)+1].max.xyz, 0.0);
 
-                if (left_hit != -1.0 && right_hit != -1.0) {
+                if (left_hit != -1.0 && right_hit != -1.0) { // >= disables bvh improvementes but no missing tris
                     if (left_hit < right_hit) {
                         stacknr = stacknr + 1;
                         todo[stacknr].nodeIdx = leftChildIdx;
@@ -321,11 +321,11 @@ fn intersectBVH(ray: Ray, ) -> vec3<f32> {
                         stacknr = stacknr + 1;
                         todo[stacknr].nodeIdx = leftChildIdx;
                     }
-                } else if (left_hit > -1.0) {
+                } else if (left_hit != -1.0) {
                     stacknr = stacknr + 1;
                     todo[stacknr].nodeIdx = i32(node.extra2.x);
 
-                } else if (right_hit > -1.0) {
+                } else if (right_hit != -1.0) {
                     stacknr = stacknr + 1;
                     todo[stacknr].nodeIdx = i32(node.extra2.x) + 1;
                 }
@@ -337,6 +337,8 @@ fn intersectBVH(ray: Ray, ) -> vec3<f32> {
 }
 
 fn hit_tri(ray: Ray, triangle: Triangle) -> f32 {   // https://en.wikipedia.org/wiki/M%C3%B6ller%E2%80%93Trumbore_intersection_algorithm
+    let epsilon = 0.0001;
+    
     let v0 = triangle.vertex1.xyz;
     let v1 = triangle.vertex2.xyz;
     let v2 = triangle.vertex3.xyz;
@@ -347,26 +349,28 @@ fn hit_tri(ray: Ray, triangle: Triangle) -> f32 {   // https://en.wikipedia.org/
     let ray_cross_e2 = cross(ray.direction, edge2);
     let det = dot(edge1, ray_cross_e2);
 
-    if (det < 0.0001) && (det > -0.0001){
+    if (det > -epsilon) && (det < epsilon){
         return -1.0; // Ray is parallel to the triangle
     }
 
     let inv_det  = 1.0 / det;
-    let s = ray.origin - v0;
-    let u = inv_det  * dot(s, ray_cross_e2);
+    // Computes Barycentric coordinates.
+    let centered = ray.origin - v0;
+    
+    let u = inv_det  * dot(centered, ray_cross_e2);
 
-    if u < 0.0 || u > 1.0 {
+    if u < -epsilon || u > 1.0+epsilon {
         return -1.0; // Intersection is outside the triangle's edges
     }
 
-    let s_cross_e1 = cross(s, edge1);
-    let v = inv_det * dot(ray.direction, s_cross_e1);
+    let centered_cross_e1 = cross(centered, edge1);
+    let v = inv_det * dot(ray.direction, centered_cross_e1);
 
-    if v < 0.0 || (u + v) > 1.0 {
+    if v < -epsilon || (u + v) > 1.0+epsilon {
         return -1.0; // Intersection is outside the triangle's edges
     }
 
-    let t = inv_det * dot(edge2, s_cross_e1);
+    let t = inv_det * dot(edge2, centered_cross_e1);
 
     if t > 0.0001 { // Adjust this epsilon value based on your scene scale. If Noise in Tris rendering is visible, increase this value.
         return t; // Intersection found
@@ -617,6 +621,8 @@ fn sphereUVMapping(hit_point: vec3<f32>, sphere: Sphere) -> vec2<f32> {
 
 // Ray-box intersection function
 fn intersectBox(ray: Ray, min: vec3<f32>, max: vec3<f32>, t_min: f32) -> f32 {
+    let epsilon = 0.1; // Small value to offset potential floating-point inaccuracies
+
     var t0 = (min - ray.origin) / ray.direction;
     var t1 = (max - ray.origin) / ray.direction;
     var tMinVec = min(t0, t1);
@@ -625,10 +631,13 @@ fn intersectBox(ray: Ray, min: vec3<f32>, max: vec3<f32>, t_min: f32) -> f32 {
     var tEnter = max(max(tMinVec.x, tMinVec.y), tMinVec.z);
     var tExit = min(min(tMaxVec.x, tMaxVec.y), tMaxVec.z);
 
-    tEnter = max(tEnter, t_min);
-    tExit = min(tExit, config.max_ray_distance);
+    tEnter = max(tEnter, t_min) - epsilon;
+    tExit = min(tExit, config.max_ray_distance) + epsilon;
 
     if (tEnter <= tExit) && (tExit > 0.0) && (tEnter < config.max_ray_distance) {
+        if (tEnter < 0.0) {
+            tEnter = 0.0;
+        }
         return tEnter;
     } else {
         return -1.0;

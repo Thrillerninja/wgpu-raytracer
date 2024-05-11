@@ -7,7 +7,7 @@ fov = 90.0
 
 # Materials:
 [[materials]] # Ground
-color = [0.8, 0.8, 0.8]
+color = [0.8, 0.3, 0.2]
 attenuation = [0.2,0.2,0.2]
 roughness = 0.1
 emission = 0.0
@@ -16,14 +16,14 @@ ior = 0.0
 [[materials]]
 color = [1.0, 0.3, 0.2]
 attenuation = [0.2,0.2,0.2]
-roughness = 0.0
+roughness = 1.0
 emission = 0.0
 ior = 0.0
 
 [[materials]]
 color = [0.3, 1.0, 0.2]
 attenuation = [0.2,0.2,0.2]
-roughness = 0.2
+roughness = 1.0
 emission = 0.0
 ior = 0.0
 
@@ -76,18 +76,18 @@ texture_id = [-1, -1, -1]
 position = [0.0, 2.0, 0.0]
 radius = 1.0
 material_id = 1
-texture_id = [-1, -1, -1]
+texture_id = [3,4,5]
 
 [[spheres]]
 position = [2.0, 2.0, 0.0]
 radius = 1.0
 material_id = 2
-texture_id = [-1, -1, -1]
+texture_id = [0,1,2]
 
 [[spheres]] # Glass Sphere 1
 position = [2.0, 2.0, 2.0]
 radius = 1.0
-material_id = 3
+material_id = 4
 texture_id = [-1, -1, -1]
 
 [[spheres]] # Glass Sphere
@@ -98,18 +98,6 @@ texture_id = [-1, -1, -1]
 
 [[spheres]] # "Air bubble in Sphere"
 position = [-2.0, 2.0, 0.0]
-radius = 0.9
+radius = 0.7
 material_id = 5
 texture_id = [-1, -1, -1]
-
-[[spheres]]
-position = [-2.0, 2.0, 2.0]
-radius = 1.0
-material_id = 6
-texture_id = [0, 1, 2]
-
-[[spheres]] # "Air bubble in Sphere"
-position = [-2.0, 0.0, 2.0]
-radius = 1.0
-material_id = 6
-texture_id = [3, 4, 5]
