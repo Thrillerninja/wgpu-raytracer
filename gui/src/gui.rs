@@ -5,8 +5,9 @@ use egui_wgpu::Renderer;
 
 use egui_winit::State;
 use wgpu::{CommandEncoder, Device, Queue, TextureFormat, TextureView};
-use winit::event::WindowEvent;
 use winit::window::Window;
+use winit::event::{ElementState, KeyEvent, WindowEvent};
+use winit::keyboard::Key;
 
 pub struct EguiRenderer {
     pub context: Context,

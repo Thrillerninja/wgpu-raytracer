@@ -277,10 +277,10 @@ fn intersectBVH(ray: Ray, ) -> vec3<f32> {
 
     // Traverse the BVH
     var todo: array<BVHTraversal, 32>;
-    var stacknr: i32 = 0;
+    var stacknr: i32 = 1;
     todo[stacknr].nodeIdx = 0;
 
-    while (stacknr >= 0) {
+    while (stacknr != 0) {
         let nodeIdx = todo[stacknr].nodeIdx;
         stacknr = stacknr - 1;
 

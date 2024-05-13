@@ -56,13 +56,6 @@ emission = 20.0
 ior = 0.0
 
 # textures:
-
-[[textures]]
-diffuse = "res/assets/pavement_26_basecolor-1K.png"
-normal = "res/assets/pavement_26_normal-1K.png"
-roughness = "res/assets/pavement_26_roughness-1K.png"
-
-
 [[textures]]
 diffuse = "res/assets/pavement_26_basecolor-1K.png"
 normal = "res/assets/pavement_26_normal-1K.png"
@@ -71,7 +64,6 @@ roughness = "res/assets/pavement_26_roughness-1K.png"
 
 
 # Spheres:
-
 [[spheres]]
 position = [1.5, -50.5, -1.0]
 radius = 50.0
@@ -114,7 +106,7 @@ intensity = 1.0
 background_path = "res/assets/belfast_farmhouse_4k.exr"
 
 
-[3d_model_paths]
-gltf_path = "res/assets/untitled.gltf"
+# [3d_model_paths]
+# gltf_path = "res/assets/untitled.gltf"
 # obj_path = "res/assets/untitled.obj"
 

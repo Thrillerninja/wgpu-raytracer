@@ -3,6 +3,8 @@ use winit::keyboard::{Key, NamedKey};
 use std::time::Duration;
 use winit::dpi::PhysicalPosition;
 use winit::event::*;
+
+use crate::ShaderConfig;
 /// Represents a camera in 3D space.
 ///
 /// The camera has a position and a rotation. The position is a point in 3D space, and the rotation is a quaternion that represents the orientation of the camera.
@@ -96,7 +98,7 @@ impl CameraController {
         }
     }
 
-    pub fn process_keyboard(&mut self, key: &Key, state: &ElementState) -> bool {
+    pub fn process_keyboard(&mut self, key: &Key, state: &ElementState, shader_config: &mut ShaderConfig) -> bool {
         let amount = if state == &ElementState::Pressed {
             1.0
         } else {
@@ -141,6 +143,12 @@ impl CameraController {
             }
             Key::Named(NamedKey::Shift) => {
                 self.amount_down = amount;
+                true
+            }
+            Key::Character(c) if c.to_lowercase() == "x" => {
+                println!("Set Shader Config to high performance, low quality safe mode");
+                shader_config.ray_max_bounces = 1;
+                shader_config.ray_samples_per_pixel = 1;
                 true
             }
             _ => false,

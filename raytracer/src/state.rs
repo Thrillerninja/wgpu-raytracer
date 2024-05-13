@@ -665,7 +665,7 @@ impl<'a> State<'a>{
                         ..
                     },
                 ..
-            } => self.camera_controller.process_keyboard(key, state),
+            } => self.camera_controller.process_keyboard(key, state, &mut self.shader_config),
             WindowEvent::MouseWheel { delta, .. } => {
                 self.camera_controller.process_scroll(delta);
                 true

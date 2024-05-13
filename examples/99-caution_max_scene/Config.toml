@@ -1,0 +1,25 @@
+# Camera:
+[camera]
+position = [0.0, 2.0, 5.0]
+rotation = [0.0, 0.0]
+near_far = [0.1, 100.0]
+fov = 90.0
+
+# Materials:
+[[materials]] # Ground
+color = [0.8, 0.8, 0.8]
+attenuation = [0.0,0.0,0.0]
+roughness = 0.0
+emission = 10.0
+ior = 0.0
+
+# Spheres:
+[[spheres]]
+position = [0.0, -50, 0.0]
+radius = 47.0
+material_id = 0
+texture_id = [-1, -1, -1]
+
+[3d_model_paths]
+gltf_path = "examples/99-caution_max_scene/res/big_gltf_city_block.gltf"
+
