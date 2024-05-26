@@ -187,6 +187,7 @@ impl CameraController {
         let yaw_quaternion = Quaternion::from_axis_angle(Vector3::unit_y(), Rad(self.rotate_horizontal) * self.sensitivity * dt);
 
         // Combine pitch and yaw rotations using quaternion multiplication
+        // Limit pitch rotation
         // if camera_pitch > Rad(PI * 0.5) && self.rotate_vertical > 0.0 {
         //     camera.rotation = yaw_quaternion * camera.rotation;
         // } else if camera_pitch < Rad(-PI * 0.5) && self.rotate_vertical < 0.0 {

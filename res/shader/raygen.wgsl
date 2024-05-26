@@ -276,7 +276,7 @@ fn intersectBVH(ray: Ray, ) -> vec3<f32> {
     var hit_count: f32 = 0.0; //how many hits happened? (Only for debug shader)
 
     // Traverse the BVH
-    var todo: array<BVHTraversal, 32>;
+    var todo: array<BVHTraversal, 32>;  // Stores the nodes to visit to find the closest tris intersection
     var stacknr: i32 = 1;
     todo[stacknr].nodeIdx = 0;
 
@@ -306,8 +306,8 @@ fn intersectBVH(ray: Ray, ) -> vec3<f32> {
                 let leftChildIdx = i32(node.extra2.x);
                 let rightChildIdx = leftChildIdx + 1;
 
-                let left_hit = intersectBox(ray, bvh[i32(node.extra2.x)].min.xyz, bvh[i32(node.extra2.x)].max.xyz, 0.0);
-                let right_hit = intersectBox(ray, bvh[i32(node.extra2.x)+1].min.xyz, bvh[i32(node.extra2.x)+1].max.xyz, 0.0);
+                let left_hit = intersectBox(ray, bvh[leftChildIdx].min.xyz, bvh[leftChildIdx].max.xyz, 0.0);
+                let right_hit = intersectBox(ray, bvh[rightChildIdx].min.xyz, bvh[rightChildIdx].max.xyz, 0.0);
 
                 if (left_hit != -1.0 && right_hit != -1.0) { // >= disables bvh improvementes but no missing tris
                     if (left_hit < right_hit) {
@@ -621,7 +621,7 @@ fn sphereUVMapping(hit_point: vec3<f32>, sphere: Sphere) -> vec2<f32> {
 
 // Ray-box intersection function
 fn intersectBox(ray: Ray, min: vec3<f32>, max: vec3<f32>, t_min: f32) -> f32 {
-    let epsilon = 0.1; // Small value to offset potential floating-point inaccuracies
+    let epsilon = 0.001; // * length(ray.origin - min); // Adaptive epsilon
 
     var t0 = (min - ray.origin) / ray.direction;
     var t1 = (max - ray.origin) / ray.direction;
@@ -636,7 +636,7 @@ fn intersectBox(ray: Ray, min: vec3<f32>, max: vec3<f32>, t_min: f32) -> f32 {
 
     if (tEnter <= tExit) && (tExit > 0.0) && (tEnter < config.max_ray_distance) {
         if (tEnter < 0.0) {
-            tEnter = 0.0;
+            return 0.0;
         }
         return tEnter;
     } else {

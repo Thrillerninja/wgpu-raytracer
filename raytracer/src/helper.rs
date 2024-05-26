@@ -345,7 +345,8 @@ pub fn setup_bvh(triangles: &Vec<Triangle>) ->(Vec<BvhUniform>, Vec<f32>){
     // Choose one of these algorithms:
     //let bvh = builder.construct_locally_ordered_clustered().unwrap();
     //let bvh = builder.construct_binned_sah().unwrap();
-    let bvh = match builder.construct_binned_sah() {
+    //let bvh = builder.construct_spatial_sah().unwrap();
+    let bvh = match builder.construct_locally_ordered_clustered() {
         Err(error) => {
             // Handle the error
             eprintln!("Error constructing BVH: {:?}", error);

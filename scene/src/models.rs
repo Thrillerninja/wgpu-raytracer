@@ -123,7 +123,7 @@ pub fn load_gltf(path: String, material_count: i32, texture_count: i32) -> Resul
 
             match &material.pbr.base_color_texture {
                 Some(texture) => {
-                    println!("Texture dimensions: {:?}", texture.dimensions());
+                    println!("Loaded Texture with dimensions: {:?}", texture.dimensions());
                 }
                 None => {
                     println!("No texture found");
