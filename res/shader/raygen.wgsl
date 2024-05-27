@@ -420,6 +420,12 @@ fn color(primary_ray: Ray) -> vec4<f32> {
 
         // Check if a Sphere is hit
         for (var i = 0; i < i32(arrayLength(&spheres)); i = i + 1) {
+            // if no sphere is denfined, a "empty" sphere wth radius is 
+            //   added so that the buffer exists and the shader can be compiled
+            if spheres[i].radius.x == 0.0 { 
+                continue;
+            }
+            // Check if a Sphere is hit
             var hit: f32 = hit_sphere(ray, spheres[i]);
             if (hit > 0.0 && hit < t) {
                 t = hit;

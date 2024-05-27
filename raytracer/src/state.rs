@@ -150,17 +150,17 @@ impl<'a> State<'a>{
 
         // --------- Load Spheres ---------
         // Load spheres amd store them as gpu compatible vector
-        let emptyvec = Vec::new(); 
+        let default_sphere = Vec::from([Sphere::empty()]);
         let spheres: &Vec<Sphere> = 
-        match &userconfig.spheres {
-            Some(userspheres) => {
-                userspheres
-            }
-            None => {
-                &emptyvec
-            }
-        };
-        
+            match &userconfig.spheres {
+                Some(userspheres) => {
+                    userspheres
+                }
+                None => {
+                    &default_sphere
+                }
+            };
+
         // Create a buffer to hold the sphere data
         let sphere_buffer_descriptor = BufferInitDescriptor::new(Some("Sphere Buffer"), wgpu::BufferUsages::STORAGE | wgpu::BufferUsages::COPY_DST);
         let sphere_buffer = sphere_buffer_descriptor.create_new_buffer(&device, &spheres);

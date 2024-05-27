@@ -42,10 +42,10 @@ impl CameraUniform {
 #[derive(Clone, Copy, bytemuck::Pod, bytemuck::Zeroable, Debug, Deserialize)]
 pub struct Material {
     #[serde(rename = "color")]
-    albedo: [f32; 4],
-    attenuation: [f32; 4],
-    roughness: f32,     //0.0 - 1.0 0.0 = mirror, 1.0 = diffuse
-    emission: f32,      //0.0 - 1.0 0.0 = no emission, >0.0 = emission
+    pub albedo: [f32; 4],
+    pub attenuation: [f32; 4],
+    pub roughness: f32,     //0.0 - 1.0 0.0 = mirror, 1.0 = diffuse
+    pub emission: f32,      //0.0 - 1.0 0.0 = no emission, >0.0 = emission
     ior: f32,           //index of refraction
     __padding: f32,
 
@@ -99,9 +99,9 @@ impl Background {
 #[repr(C)]
 #[derive(Clone, Copy, bytemuck::Pod, bytemuck::Zeroable, Deserialize, Debug)]
 pub struct Sphere {
-    center: [f32; 4],
-    radius: [f32; 4],
-    material_texture_id: [f32; 4], //[material_id, texture_id_diffuse, texture_id_roughness, texture_id_normal]
+    pub center: [f32; 4],
+    pub radius: [f32; 4],
+    pub material_texture_id: [f32; 4], //[material_id, texture_id_diffuse, texture_id_roughness, texture_id_normal]
 }
 
 impl Sphere {
@@ -111,6 +111,14 @@ impl Sphere {
             center: [center[0], center[1], center[2], rng.gen_range(0.0..1.0)],//rand number in last slot
             radius: [radius, 0.0, 0.0, 0.0],
             material_texture_id: [material_id as f32, texture_ids[0] as f32, texture_ids[1] as f32, texture_ids[2] as f32], //material_id, texture_id_diffuse, texture_id_roughness, texture_id_normal
+        }
+    }
+
+    pub fn empty() -> Self {
+        Self {
+            center: [0.0; 4],
+            radius: [0.0; 4],
+            material_texture_id: [0.0; 4],
         }
     }
 }

@@ -70,7 +70,14 @@ pub async fn setup_gpu<'a> (window: Window, config_path: &str) -> (Window, wgpu:
     };
     surface.configure(&device, &config);     
     
-    let userconfig = Config::new(config_path);
+    let userconfig_result = Config::new(config_path);
+    let userconfig = match userconfig_result {
+        Ok(config) => config,
+        Err(e) => {
+            println!("Fatal: Error loading config: {}", e);
+            std::process::exit(1);
+        }
+    };
 
     //----------Color Buffer-------------
     // Create a color texture with a suitable sRGB format
