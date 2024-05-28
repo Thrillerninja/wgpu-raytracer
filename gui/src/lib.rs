@@ -13,21 +13,10 @@
 //!
 //! To use this crate, you need to create an instance of `EguiRenderer` and call its `render` method in your main loop. You also need to create an instance of `GuiConfig` and pass it to the `gui` function along with an `egui::Context` and your `ShaderConfig`.
 //!
-//! ```rust
-//! let mut egui_renderer = EguiRenderer::new(/*...*/);
-//! let mut gui_config = GuiConfig::default();
-//! let mut shader_config = ShaderConfig::default();
-//!
-//! loop {
-//!     let ui = egui_renderer.begin_frame(/*...*/);
-//!     gui(&ui, /*...*/, &mut gui_config, &mut shader_config);
-//!     egui_renderer.end_frame(/*...*/);
-//! }
-//! ```
 //!
 //! You can also open the raytracing settings and denoising settings GUIs by setting `ray_settings_open` and `denoise_settings_open` in `GuiConfig` to `true`, respectively.
 //!
-//! ```rust
+//! ```rust ignore
 //! gui_config.ray_settings_open = true;
 //! gui_config.denoise_settings_open = true;
 //! ```

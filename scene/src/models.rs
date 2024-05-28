@@ -2,7 +2,6 @@ use std::fs::File;
 use std::io::{BufRead, BufReader};
 use image::{DynamicImage, ImageBuffer, Rgba};
 use crate::structs::{Triangle, Material};
-
 use core::ops::Deref;
 use image::Pixel;
 use exr;
@@ -18,83 +17,101 @@ pub fn load_obj(file_path: String, obj_material_id: i32) -> Result<(Vec<Triangle
 
     for line in reader.lines() {
         let line = line?;
-        let line = line.trim();
-
-        if line.starts_with("v ") {
-            // Parse vertex coordinates
-            let values: Vec<f32> = line[2..]
-                .split_whitespace()
-                .map(|x| x.parse::<f32>())
-                .collect::<Result<_, _>>()?;
-
-            if values.len() >= 3 {
-                let vertex = [values[0], values[1], values[2]];
-                vertices.push(vertex);
+        let mut words = line.split_whitespace();
+        match words.next() {
+            Some("v") => {
+                // Parse vertex coordinates
+                let values: Vec<f32> = words
+                    .map(|x| x.parse::<f32>())
+                    .collect::<Result<_, _>>()?;
+                if values.len() == 3 {
+                    let vertex = [values[0], values[1], values[2]];
+                    vertices.push(vertex);
+                } else {
+                    return Err("Invalid vertex coordinates count".into());
+                }
             }
-        } else if line.starts_with("vt ") {
-            // Parse texture coordinates
-            let values: Vec<f32> = line[3..]
-                .split_whitespace()
-                .map(|x| x.parse::<f32>())
-                .collect::<Result<_, _>>()?;
+            Some("vt") => {
+                // Parse texture coordinates
+                let values: Vec<f32> = line[3..]
+                    .split_whitespace()
+                    .map(|x| x.parse::<f32>())
+                    .collect::<Result<_, _>>()?;
 
-            if values.len() >= 2 {
-                let tex_coord = [values[0], values[1]];
-                texture_coords.push(tex_coord);
-            }
-        } else if line.starts_with("vn ") {
-            // Parse normals
-            let val: Vec<f32> = line[3..]
-                .split_whitespace()
-                .map(|x| x.parse::<f32>())
-                .collect::<Result<_, _>>()?;
+                if values.len() >= 2 {
+                    let tex_coord = [values[0], values[1]];
+                    texture_coords.push(tex_coord);
+                }
+                // Parse texture coordinates
+                let values: Vec<f32> = line[3..]
+                    .split_whitespace()
+                    .map(|x| x.parse::<f32>())
+                    .collect::<Result<_, _>>()?;
 
-            if val.len() >= 3 {
-                let normal = [val[0], val[1], val[2]];
-                normals.push(normal);
+                if values.len() >= 2 {
+                    let tex_coord = [values[0], values[1]];
+                    texture_coords.push(tex_coord);
+                }
             }
-        } else if line.starts_with("f ") {
-            // Parse face indices
-            let indices: Vec<(usize, usize, usize)> = line[2..]
-                .split_whitespace()
-                .map(|x| {
-                    let indices: Vec<usize> = x
-                        .split('/')
-                        .map(|y| y.parse::<usize>())
-                        .collect::<Result<_, _>>()
-                        .unwrap();
-                    (indices[0], indices[1], indices[2])
-                })
-                .collect();
-        
-            if indices.len() >= 3 {
-                let v1_index = indices[0].0 - 1;
-                let v2_index = indices[1].0 - 1;
-                let v3_index = indices[2].0 - 1;
-                let normal_index = indices[0].2 - 1;
+            Some("vn") => {
+                // Parse normals
+                let val: Vec<f32> = line[3..]
+                    .split_whitespace()
+                    .map(|x| x.parse::<f32>())
+                    .collect::<Result<_, _>>()?;
 
-                // let mut rng = rand::thread_rng();
-                // let r: f32 = rng.gen_range(0.0..1.0);
-                // let g: f32 = rng.gen_range(0.0..1.0);
-                // let b: f32 = rng.gen_range(0.0..1.0);
-        
-                let triangle = Triangle::new(
-                    [
-                        vertices[v1_index],
-                        vertices[v2_index],
-                        vertices[v3_index],
-                    ],
-                    normals[normal_index],
-                    obj_material_id,
-                    [-1.0, -1.0, -1.0],
-                    [
-                        texture_coords[indices[0].1 - 1],
-                        texture_coords[indices[1].1 - 1],
-                        texture_coords[indices[2].1 - 1],
-                    ],
-                );
-                faces.push(triangle);
+                if val.len() >= 3 {
+                    let normal = [val[0], val[1], val[2]];
+                    normals.push(normal);
+                }
             }
+            Some("f") => {
+                // Parse face indices
+                let indices: Vec<(usize, usize, usize)> = line[2..]
+                    .split_whitespace()
+                    .map(|x| {
+                        let indices: Vec<usize> = x
+                            .split('/')
+                            .map(|y| y.parse::<usize>())
+                            .collect::<Result<_, _>>()
+                            .unwrap();
+                        (indices[0], indices[1], indices[2])
+                    })
+                    .collect();
+            
+                if indices.len() == 3 {
+                    let v1_index = indices[0].0 - 1;
+                    let v2_index = indices[1].0 - 1;
+                    let v3_index = indices[2].0 - 1;
+                    let normal_index = indices[0].2 - 1;
+
+                    // let mut rng = rand::thread_rng();
+                    // let r: f32 = rng.gen_range(0.0..1.0);
+                    // let g: f32 = rng.gen_range(0.0..1.0);
+                    // let b: f32 = rng.gen_range(0.0..1.0);
+            
+                    let triangle = Triangle::new(
+                        [
+                            vertices[v1_index],
+                            vertices[v2_index],
+                            vertices[v3_index],
+                        ],
+                        normals[normal_index],
+                        obj_material_id,
+                        [-1.0, -1.0, -1.0],
+                        [
+                            texture_coords[indices[0].1 - 1],
+                            texture_coords[indices[1].1 - 1],
+                            texture_coords[indices[2].1 - 1],
+                        ],
+                    );
+                    faces.push(triangle);
+                } else {
+                    return Err("Invalid face indices count (Tip: Try triangulating the mesh)".into());
+                
+                }
+            }
+            _ => {}
         }
     }
 
@@ -269,11 +286,11 @@ pub fn load_gltf(path: String, material_count: i32, texture_count: i32) -> Resul
 pub fn load_hdr(path: String) -> Result<DynamicImage, Box<dyn std::error::Error>> {
     // check fiel extension if hdr or exr
     let binding = path.split('.').collect::<Vec<&str>>();
-    let extension = binding.last().unwrap();
+    let extension = binding.last().ok_or("No file extension found")?;
     match extension {
         &"hdr" => load_hdri(path),
         &"exr" => load_exr(path),
-        _ => panic!("Unsupported file format for background image. Supported formats are: .hdr, .exr"),
+        _ => Err("Unsupported file format for background image. Supported formats are: .hdr, .exr".into()),
     }
 }
 
@@ -350,9 +367,105 @@ where
 {
     image::DynamicImage::ImageRgba8(
         ImageBuffer::<Rgba<u8>, Vec<u8>>::from_fn(texture.width(), texture.height(), |x, y| {
-            let pixel = texture.get_pixel(x, y);
-            let (r, g, b, a) = pixel.channels4();
-            Rgba([r, g, b, a])
+            let pixel = texture.get_pixel(x, y).to_rgba();
+            Rgba([pixel[0], pixel[1], pixel[2], pixel[3]])
         }),
     )
+}
+
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_load_obj_correct() {
+        let obj_content = load_obj("../scene/src/test_files/cube_triangulated.obj".to_string(), 0);
+        println!("{:?}", obj_content);
+        assert!(obj_content.is_ok());
+        let (triangles, materials) = match obj_content {
+            Ok((triangles, materials)) => (triangles, materials),
+            Err(_) => panic!("Failed to load obj file"),
+        };
+        assert_eq!(triangles.len(), 12);
+        assert_eq!(materials.len(), 0);
+    }
+
+    #[test]
+    fn test_load_obj_empty() {
+        let obj_content = load_obj("../scene/src/test_files/empty_scene.obj".to_string(), 0);
+        println!("{:?}", obj_content);
+        assert!(obj_content.is_ok());
+        let (triangles, materials) = match obj_content {
+            Ok((triangles, materials)) => (triangles, materials),
+            Err(_) => panic!("Failed to load obj file"),
+        };
+        assert_eq!(triangles.len(), 0);
+        assert_eq!(materials.len(), 0);
+    }
+
+    #[test]
+    fn test_load_obj_wrong_type() {
+        let obj_content = load_obj("../scene/src/test_files/cube_quads.obj".to_string(), 0);
+        // assert!(obj_content.is_err());
+        // Check error type
+        let error = obj_content.unwrap_err();
+        assert_eq!(error.to_string(), "Invalid face indices count (Tip: Try triangulating the mesh)");
+    }
+
+    #[test]
+    fn test_load_gltf_correct() {
+        let gltf_content = load_gltf("../scene/src/test_files/cube.gltf".to_string(), 0, 0);
+        assert!(gltf_content.is_ok());
+        let (triangles, materials, textures) = match gltf_content {
+            Ok((triangles, materials, textures)) => (triangles, materials, textures),
+            Err(_) => panic!("Failed to load gltf file"),
+        };
+        assert_eq!(triangles.len(), 12);
+        assert_eq!(materials.len(), 1);
+        assert_eq!(textures.len(), 0);
+    }
+
+    #[test]
+    fn test_load_gltf_binary() {
+        let gltf_content = load_gltf("../scene/src/test_files/cube.glb".to_string(), 0, 0);
+        assert!(gltf_content.is_ok());
+        let (triangles, materials, textures) = match gltf_content {
+            Ok((triangles, materials, textures)) => (triangles, materials, textures),
+            Err(_) => panic!("Failed to load gltf file"),
+        };
+        assert_eq!(triangles.len(), 12);
+        assert_eq!(materials.len(), 1);
+        assert_eq!(textures.len(), 0);
+    }
+
+    #[test]
+    fn test_load_hdr_correct_hdr() {
+        let hdr_content = load_hdr("../scene/src/test_files/image.hdr".to_string());
+        assert!(hdr_content.is_ok());
+        let texture = match hdr_content {
+            Ok(texture) => texture,
+            Err(_) => panic!("Failed to load hdr file"),
+        };
+        assert_eq!(image::GenericImageView::dimensions(&texture), (1024, 512));
+    }
+
+    #[test]
+    fn test_load_hdr_correct_exr() {
+        let hdr_content = load_hdr("../scene/src/test_files/image.exr".to_string());
+        assert!(hdr_content.is_ok());
+        let texture = match hdr_content {
+            Ok(texture) => texture,
+            Err(_) => panic!("Failed to load exr file"),
+        };
+        assert_eq!(image::GenericImageView::dimensions(&texture), (1024, 512));
+    }
+
+    #[test]
+    fn test_load_hdr_wrong_extension() {
+        let hdr_content = load_hdr("../scene/src/test_files/image.png".to_string());
+        assert!(hdr_content.is_err());
+        let error = hdr_content.unwrap_err();
+        assert_eq!(error.to_string(), "Unsupported file format for background image. Supported formats are: .hdr, .exr");
+    }
 }

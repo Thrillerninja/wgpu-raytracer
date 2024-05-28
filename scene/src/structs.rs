@@ -136,19 +136,6 @@ impl Primitive for Sphere {
     }
 }
 
-impl SpatialTriangle for Sphere {
-    fn vertex0(&self) -> Vec3 {
-        (self.center[0] - self.radius[0], self.center[1], self.center[2]).into()
-    }
-
-    fn vertex1(&self) -> Vec3 {
-        (self.center[0], self.center[1] + self.radius[0], self.center[2]).into()
-    }
-
-    fn vertex2(&self) -> Vec3 {
-        (self.center[0], self.center[1], self.center[2] + self.radius[0]).into()
-    }
-}
 //-----------Triangle-----------------
 #[derive(Clone, Copy, Debug)]
 pub struct Triangle{
@@ -395,5 +382,120 @@ impl ShaderConfig {
             ray_debug_bvh_bounding_color: 0,
             ..shaderconfig
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_camera_uniform() {
+        let camera = CameraUniform::new();
+        assert_eq!(camera.frame, [0.0; 4]);
+        assert_eq!(camera.view_position, [0.0; 4]);        
+    }
+
+    // #[test]
+    // fn update_view_proj() {
+    //     let mut camera = CameraUniform::new();
+    //     let camera = Camera::new(Point3::new(0.0, 0.0, 0.0), Rad(0.0), Rad(0.0));
+    //     let projection = Projection::new(100, 100, Rad(1.0), 0.1, 100.0);
+    //     camera.update_view_proj(&camera, &projection);
+    //     assert_eq!(camera.position, [0.0, 0.0, 0.0, 1.0]);
+    //     assert_eq!(camera.view_proj, Matrix4::from(camera.rotation) * Matrix4::from(camera.position));
+    // }
+
+    #[test]
+    fn update_frame() {
+        let mut camera = CameraUniform::new();
+        camera.update_frame();
+        assert_eq!(camera.frame, [1.0, 0.0, 0.0, 0.0]);
+    }
+
+    #[test]
+    fn test_material() {
+        let material = Material::new([1.0, 1.0, 1.0], [1.0, 1.0, 1.0], 0.5, 0.0, 0.0);
+        assert_eq!(material.albedo, [1.0, 1.0, 1.0, 0.0]);
+        assert_eq!(material.attenuation, [1.0, 1.0, 1.0, 0.0]);
+        assert_eq!(material.roughness, 0.5);
+        assert_eq!(material.emission, 0.0);
+        assert_eq!(material.ior, 0.0);
+    }
+
+    #[test]
+    fn test_background() {
+        let background = Background::new(1, 1, 1.0);
+        assert_eq!(background.material_texture_id, [1.0, 1.0, 0.0, 0.0]);
+        assert_eq!(background.intensity, 1.0);
+    }
+
+    #[test]
+    fn test_sphere() {
+        let sphere = Sphere::new(Point3::new(0.0, 0.0, 0.0), 1.0, 1, [1, 1, 1]);
+        assert_eq!(sphere.center[0..3], [0.0, 0.0, 0.0]);
+        assert_eq!(sphere.radius, [1.0, 0.0, 0.0, 0.0]);
+        assert_eq!(sphere.material_texture_id, [1.0, 1.0, 1.0, 1.0]);
+    }
+
+    #[test]
+    fn test_sphere_center() {
+        let sphere = Sphere::new(Point3::new(0.0, 0.0, 0.0), 1.0, 1, [1, 1, 1]);
+        assert_eq!(sphere.center(), glam::Vec3::new(0.0, 0.0, 0.0));
+    }
+
+    #[test]
+    fn test_sphere_aabb() {
+        let sphere = Sphere::new(Point3::new(0.0, 0.0, 0.0), 1.0, 1, [1, 1, 1]);
+        let aabb = sphere.aabb();
+        assert_eq!(aabb.min, Vec3::new(-1.0, -1.0, -1.0));
+        assert_eq!(aabb.max, Vec3::new(1.0, 1.0, 1.0));
+    }
+
+    #[test]
+    fn test_triangle() {
+        let triangle = Triangle::new([[0.0, 0.0, 0.0], [1.0, 0.0, 0.0], [0.0, 1.0, 0.0]], [0.0, 0.0, 1.0], 1, [1.0, 1.0, 1.0], [[0.0, 0.0], [1.0, 0.0], [0.0, 1.0]]);
+        assert_eq!(triangle.points, [[0.0, 0.0, 0.0], [1.0, 0.0, 0.0], [0.0, 1.0, 0.0]]);
+        assert_eq!(triangle.normal, [0.0, 0.0, 1.0]);
+        assert_eq!(triangle.material_id, 1);
+        assert_eq!(triangle.texture_ids, [1.0, 1.0, 1.0]);
+        assert_eq!(triangle.tex_coords, [[0.0, 0.0], [1.0, 0.0], [0.0, 1.0]]);
+    }
+
+    #[test]
+    fn test_triangle_center() {
+        let triangle = Triangle::new([[0.0, 0.0, 0.0], [1.0, 0.0, 0.0], [0.0, 1.0, 0.0]], [0.0, 0.0, 1.0], 1, [1.0, 1.0, 1.0], [[0.0, 0.0], [1.0, 0.0], [0.0, 1.0]]);
+        assert_eq!(triangle.center(), glam::Vec3::new(0.33333334, 0.33333334, 0.0));
+    }
+
+    #[test]
+    fn test_triangle_aabb() {
+        let triangle = Triangle::new([[0.0, 0.0, 0.0], [1.0, 0.0, 0.0], [0.0, 1.0, 0.0]], [0.0, 0.0, 1.0], 1, [1.0, 1.0, 1.0], [[0.0, 0.0], [1.0, 0.0], [0.0, 1.0]]);
+        let aabb = triangle.aabb();
+        assert_eq!(aabb.min, Vec3::new(0.0, 0.0, 0.0));
+        assert_eq!(aabb.max, Vec3::new(1.0, 1.0, 0.0));
+    }
+
+    #[test]
+    fn test_triangle_uniform() {
+        let triangle = Triangle::new([[0.0, 0.0, 0.0], [1.0, 0.0, 0.0], [0.0, 1.0, 0.0]], [0.0, 0.0, 1.0], 1, [1.0, 1.0, 1.0], [[0.0, 0.0], [1.0, 0.0], [0.0, 1.0]]);
+        let triangle_uniform = TriangleUniform::new(triangle);
+        assert_eq!(triangle_uniform.vertex1, [0.0, 0.0, 0.0, 0.0]);
+        assert_eq!(triangle_uniform.vertex2, [1.0, 0.0, 0.0, 0.0]);
+        assert_eq!(triangle_uniform.vertex3, [0.0, 1.0, 0.0, 0.0]);
+        assert_eq!(triangle_uniform.normal, [0.0, 0.0, 1.0, 0.0]);
+        assert_eq!(triangle_uniform.material_texture_id, [1.0, 1.0, 1.0, 1.0]);
+        assert_eq!(triangle_uniform.texcords1, [0.0, 0.0, 1.0, 0.0]);
+        assert_eq!(triangle_uniform.texcords2, [0.0, 1.0, 0.0, 0.0]);
+    }
+
+    #[test]
+    fn test_bvh_uniform() {
+        let bvh = BvhNode::new();
+        let bvh_uniform = BvhUniform::new(&bvh);
+        assert_eq!(bvh_uniform.bounds_min, [1e34, 1e34, 1e34, 0.0]);
+        assert_eq!(bvh_uniform.bounds_max, [-1e34, -1e34, -1e34, 0.0]);
+        assert_eq!(bvh_uniform.bounds_extra1, [0.0, 0.0, 0.0, 0.0]);
+        assert_eq!(bvh_uniform.bounds_extra2, [0.0, 0.0, 0.0, 0.0]);
     }
 }

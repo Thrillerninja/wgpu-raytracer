@@ -32,7 +32,7 @@ This allows it to generate high-quality images much faster than a CPU-only ray t
 To use the ray tracer, you can create a `State` object and call its `run` method to start the ray tracing process.
 The `State` object will handle setting up the window, initializing the GPU, and rendering the scene.
 
-```rust
+```rust no_run
 // Import the `block_on` function from the `pollster` crate.
 // This is used to block the current thread until the `run` function completes.
 use pollster;

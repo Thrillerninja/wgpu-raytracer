@@ -205,3 +205,31 @@ impl CameraController {
         self.scroll = 0.0;
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_camera_new() {
+        let camera = Camera::new(Point3::new(0.0, 0.0, 0.0), Rad(0.0), Rad(0.0));
+        assert_eq!(camera.position, Point3::new(0.0, 0.0, 0.0));
+        assert_eq!(camera.rotation, Quaternion::new(1.0, 0.0, 0.0, 0.0));
+    }
+
+    #[test]
+    fn test_projection_new() {
+        let projection = Projection::new(800, 600, Rad(1.0), 0.1, 100.0);
+        assert_eq!(projection.aspect, 800.0 / 600.0);
+        assert_eq!(projection.fovy, Rad(1.0));
+        assert_eq!(projection.znear, 0.1);
+        assert_eq!(projection.zfar, 100.0);
+    }
+
+    #[test]
+    fn test_projection_resize() {
+        let mut projection = Projection::new(800, 600, Rad(1.0), 0.1, 100.0);
+        projection.resize(1600, 900);
+        assert_eq!(projection.aspect, 1600.0 / 900.0);
+    }
+}

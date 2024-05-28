@@ -90,3 +90,19 @@ pub fn scale_texture(texture: &DynamicImage, width: u32, height: u32, _index: i3
     // }
     return resized_texture;
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use image::io::Reader as ImageReader;
+
+    #[test]
+    fn test_scale_texture() {
+        let texture = ImageReader::open("../scene/src/test_files/image.png").unwrap().decode().unwrap();
+        let scaled_texture = scale_texture(&texture, 100, 100, 0);
+        assert_eq!(scaled_texture.dimensions(), (100, 42));
+    }
+
+    // No other tests realistic since they require a wgpu context
+    // and a device to be created which is not possible in a normal test environment
+}
