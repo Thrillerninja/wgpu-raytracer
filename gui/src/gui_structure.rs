@@ -6,11 +6,13 @@ use scene::ShaderConfig;
 
 use crate::gui_raytracing_settings::raytracing_settings_gui;
 use crate::gui_denoising_settings::denoising_settings_gui;
+use crate::gui_info::info_gui;
 
 
 pub struct GuiConfig {
     pub ray_settings_open: bool,
     pub denoise_settings_open: bool,
+    pub info_open: bool,
     pub frame_limit: u32,
     pub frame_limit_unlimited: bool
 }
@@ -20,6 +22,7 @@ impl Default for GuiConfig {
         Self {
             ray_settings_open: false,
             denoise_settings_open: false,
+            info_open: false,
             frame_limit: 60,
             frame_limit_unlimited: false
         }
@@ -41,6 +44,10 @@ pub fn gui(ui: &Context, fps: &VecDeque<f32>, gui_config: &mut GuiConfig, shader
                 gui_config.denoise_settings_open = !gui_config.denoise_settings_open;
             }
             ui.separator();
+            
+            if ui.button("Info").clicked() {
+                gui_config.info_open = !gui_config.info_open;
+            }
             ui.separator();
         });
     });
@@ -121,6 +128,9 @@ pub fn gui(ui: &Context, fps: &VecDeque<f32>, gui_config: &mut GuiConfig, shader
     }
     if gui_config.denoise_settings_open {
         denoising_settings_gui(ui, shader_config);
+    }
+    if gui_config.info_open {
+        info_gui(ui, shader_config);
     }
 
 }

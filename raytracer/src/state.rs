@@ -166,7 +166,7 @@ impl<'a> State<'a>{
         let sphere_buffer = sphere_buffer_descriptor.create_new_buffer(&device, &spheres);
 
         // ------ Combined Bind Group ---------
-        // Create a bind group for the objects
+        // Create a bind group for all primitive objects
         let mut object_bind_group_descriptor = BindGroupDescriptor::new(
             Some("object_bind_group"),
             wgpu::ShaderStages::COMPUTE,
@@ -334,7 +334,7 @@ impl<'a> State<'a>{
         // Load the ray tracing shader
         let ray_generation_shader = device.create_shader_module(wgpu::ShaderModuleDescriptor {
             label: Some("Ray Generation Shader"),
-            source: wgpu::ShaderSource::Wgsl(include_str!("../../res/shader/raygen.wgsl").into()), // Replace with your actual shader source
+            source: wgpu::ShaderSource::Wgsl(include_str!("../../res/shader/raygen.wgsl").into()), 
         });
 
         // Create the bind group layout for the shader
@@ -383,7 +383,7 @@ impl<'a> State<'a>{
         // Load the denoising shader
         let denoising_shader = device.create_shader_module(wgpu::ShaderModuleDescriptor {
             label: Some("Denoising Shader"),
-            source: wgpu::ShaderSource::Wgsl(include_str!("../../res/shader/denoising.wgsl").into()), // Replace with your actual shader source
+            source: wgpu::ShaderSource::Wgsl(include_str!("../../res/shader/denoising.wgsl").into()),
         });
 
         // Define Texture to store the temporal denoising result to use it in the next frame again for temporal denoising

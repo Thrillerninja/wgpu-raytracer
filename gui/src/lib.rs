@@ -34,8 +34,10 @@ mod gui;
 mod gui_structure;
 mod gui_raytracing_settings;
 mod gui_denoising_settings;
+mod gui_info;
 
 pub use gui::EguiRenderer;
 pub use gui_structure::{GuiConfig, gui};
 pub use gui_raytracing_settings::raytracing_settings_gui;
 pub use gui_denoising_settings::denoising_settings_gui;
+pub use gui_info::info_gui;

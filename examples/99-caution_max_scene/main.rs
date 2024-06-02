@@ -15,8 +15,6 @@ use raytracing_lib::run;
 /// The 25587 triangles dont help either. (Higher tris numbers are possible, but not with as many assigned textures)
 /// 
 fn main() {
-    std::env::set_var("RUST_BACKTRACE", "1");
-    std::env::set_var("CARGO_CACHE", "1");
-
+    std::env::set_var("RUST_BACKTRACE", "1"); //Keep this on to hav any Idead what happened if the GPU causes a crash.
     pollster::block_on(run(Some("examples/99-caution_max_scene/config.toml")));
 }

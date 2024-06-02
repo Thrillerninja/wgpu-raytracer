@@ -7,106 +7,72 @@ fov = 90.0
 
 # Materials:
 [[materials]]
-color = [1.0, 0.3, 0.2]
-attenuation = [0.2,0.2,0.2]
-roughness = 0.2
-emission = 0.0
-ior = 0.0
-
-[[materials]]   # Red
-color = [1.0, 0.3, 0.2]
-attenuation = [0.2,0.2,0.2]
-roughness = 0.2
-emission = 0.0
-ior = 0.0
-
-[[materials]] # Glas1
-color = [1.0,1.0,1.0]
-attenuation = [1.0,1.0,1.0]
-roughness = 0.0
-emission = 0.0
-ior = 1.5
-
-[[materials]] # Glas2
-color = [1.0,1.0,1.0]
-attenuation = [1.0,1.0,1.0]
-roughness = 0.0
-emission = 0.0
-ior = 0.5
-
-[[materials]] # Mirror
-color = [0.3, 1.0, 0.5]
-attenuation = [0.2,0.2,0.2]
-roughness = 0.0
-emission = 0.0
-ior = 0.0
-
-[[materials]] # Background
 color = [1.0, 1.0, 1.0]
 attenuation = [0.2,0.2,0.2]
 roughness = 0.0
 emission = 0.0
 ior = 0.0
 
-[[materials]] # Light
-color = [1.0,1.0,1.0]
-attenuation = [1.0,1.0,1.0]
+[[materials]]
+color = [1.0, 0.3, 0.2]
+attenuation = [0.2,0.2,0.2]
 roughness = 0.0
-emission = 20.0
+emission = 0.0
 ior = 0.0
 
-# textures:
-[[textures]]
-diffuse = "res/assets/pavement_26_basecolor-1K.png"
-normal = "res/assets/pavement_26_normal-1K.png"
-roughness = "res/assets/pavement_26_roughness-1K.png"
+[[materials]]
+color = [0.3, 1.0, 0.2]
+attenuation = [0.2,0.2,0.2]
+roughness = 1.0
+emission = 0.0
+ior = 0.0
+
+[[materials]]
+color = [0.3, 0.2, 1.0]
+attenuation = [0.2,0.2,0.2]
+roughness = 0.16
+emission = 0.0
+ior = 0.0
 
 
+# # Textures:
+# [[textures]]
+# diffuse = "res/assets/pavement_26_basecolor-1K.png"
+# normal = "res/assets/pavement_26_normal-1K.png"
+# roughness = "res/assets/pavement_26_roughness-1K.png"
 
 # Spheres:
 [[spheres]]
-position = [1.5, -50.5, -1.0]
+position = [0.0, -52.0, 0.0]
 radius = 50.0
-material_id = 0
+material_id = 1
 texture_id = [-1, -1, -1]
 
 [[spheres]]
-position = [-1.5, 1.9, -1.0]
+position = [0.0, 2.0, -2.0]
 radius = 1.0
 material_id = 1
 texture_id = [-1, -1, -1]
 
-[[spheres]] # Glass bubble
-position = [2.0, 1.5, -1.0]
-radius = 0.7
+[[spheres]]
+position = [2.0, 1.0, -2.0]
+radius = 1.0
 material_id = 2
 texture_id = [-1, -1, -1]
 
-[[spheres]] # Glass bubble
-position = [2.0, 1.5, -1.0]
-radius = 0.3
+[[spheres]]
+position = [0.0, 0.0, -2.0]
+radius = 1.0
 material_id = 3
 texture_id = [-1, -1, -1]
 
-[[spheres]]
-position = [0.0, 1.5, 2.3]
-radius = 0.8
-material_id = 4
-texture_id = [-1, -1, -1]
-
-[[spheres]]
-position = [0.0, 10.0, 0.0]
-radius = 4.3
-material_id = 6
-texture_id = [-1, -1, -1]
 
 [background]
-material_id = 5
+material_id = 0
 intensity = 1.0
 background_path = "res/assets/belfast_farmhouse_4k.exr"
 
 
 # [3d_model_paths]
-# gltf_path = "res/assets/untitled.gltf"
+# gltf_path = "res/assets/untitled.glb"
 # obj_path = "res/assets/untitled.obj"
-
