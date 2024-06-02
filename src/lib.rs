@@ -62,7 +62,7 @@ cargo run --example 1-three_spheres
 cargo run --example 2-obj_model
 cargo run --example 3-gltf_model
 cargo run --example 4-complex_material
-
+cargo run --example 5-cornell_box
 ```
 
 */

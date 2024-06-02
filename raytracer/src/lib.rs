@@ -1,17 +1,34 @@
-/*!
-# Raytracer Crate
-
-This crate provides the main functionality for the raytracer. It uses the `wgpu` library for rendering the scene.
-
-## Modules
-
-- `state`: Contains the [`State`](raytracer/src/state.rs) struct which is responsible for managing the state of the application.
-
-## Usage
-
-To use this crate, you need to create an instance of `State` and call its `update` and `render` methods in your main loop.
-
-*/
+//! # Raytracer Crate
+//!
+//! `raytracer` is a crate that provides core functionality for a ray tracing application. It leverages the `wgpu` library to render 3D scenes using the ray tracing technique.
+//!
+//! ## Modules
+//!
+//! - `state`: This module contains the [`State`](raytracer/src/state.rs) struct. `State` is a central struct in this crate, as it manages the state of the ray tracing application. It encapsulates the rendering pipeline, GPU resources, and other essential components necessary for the ray tracing process.
+//!
+//! ## Usage
+//!
+//! Using this crate primarily involves working with the `State` struct. Here's a basic outline:
+//!
+//! ```rust ignore
+//! use raytracing_lib::state::State;
+//!
+//! // Create a new State instance
+//! let mut state = State::new();
+//!
+//! // In your main loop:
+//! while running {
+//!     // Update the state
+//!     state.update();
+//!
+//!     // Render the current frame
+//!     state.render();
+//! }
+//! ```
+//!
+//! Please note that the `update` method is responsible for updating the application state, such as handling input or updating the camera position. The `render` method, on the other hand, carries out the actual ray tracing and presents the rendered image to the screen.
+//!
+//! For more detailed examples and usage, see the examples directory in this crate's repository.
 
 use winit::{event::*, event_loop::{ControlFlow, EventLoop}, keyboard::{Key, NamedKey}};
 
