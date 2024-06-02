@@ -2,7 +2,7 @@ use egui::{Context, InnerResponse, Margin, RichText};
 use scene::ShaderConfig;
 
 
-pub fn info_gui(ui: &Context, shader_config: &mut ShaderConfig) -> InnerResponse<()> {
+pub fn info_gui(ui: &Context) -> InnerResponse<()> {
 
     egui::SidePanel::left("Info")
         .frame(egui::Frame::default()

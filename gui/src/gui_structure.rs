@@ -130,7 +130,7 @@ pub fn gui(ui: &Context, fps: &VecDeque<f32>, gui_config: &mut GuiConfig, shader
         denoising_settings_gui(ui, shader_config);
     }
     if gui_config.info_open {
-        info_gui(ui, shader_config);
+        info_gui(ui);
     }
 
 }
