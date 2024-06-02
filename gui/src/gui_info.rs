@@ -1,6 +1,4 @@
 use egui::{Context, InnerResponse, Margin, RichText};
-use scene::ShaderConfig;
-
 
 pub fn info_gui(ui: &Context) -> InnerResponse<()> {
 
