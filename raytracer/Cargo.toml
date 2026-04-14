@@ -18,7 +18,7 @@ egui-wgpu = "0.27.1"
 egui-winit = "0.27.1"
 egui = "0.27.1" 
 instant = "0.1"
-rand = "0.8.5"
+rand = "0.9.3"
 glam = "0.27.0"
 rtbvh = {version = "0.6.2", features = ["serde"]}
 serde = "1.0.197"

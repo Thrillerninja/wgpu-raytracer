@@ -16,7 +16,7 @@ hdrldr = "0.1"
 zune-hdr = "0.4.0"
 exr = "1.72.0"
 toml = "0.8.12"
-rand = "0.8.5"
+rand = "0.9.3"
 
 [dependencies.image]
 version = "0.25"

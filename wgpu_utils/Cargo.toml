@@ -12,7 +12,7 @@ bytemuck = {version = "1.12", features = ["derive"]}
 wgpu = {version = "0.19.3", features = ["dx12", "wgsl"]}
 winit = {version = "0.29", features = ["rwh_05"] }
 instant = "0.1"
-rand = "0.8.5"
+rand = "0.9.3"
 glam = "0.27.0"
 rtbvh = {version = "0.6.2", features = ["serde"]}
 serde = "1.0.197"
